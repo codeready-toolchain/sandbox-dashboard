@@ -353,7 +353,7 @@ Each phase is one PR. Tests for ported code ship with that phase.
 - Create Makefile (dev server, lint, test, container build/run — single entry point for all project operations)
 - Set up GitHub Actions: `ci.yml` (lint, type check, test) and `build-and-push.yml` (image build+push to quay.io)
 
-### Phase 2: Auth and API Clients
+### Phase 2: Auth and API Clients - DONE
 
 - Implement `<AuthProvider>` with `keycloak-js` (including dev bypass mode)
 - Implement `authFetch` helper (Bearer token attachment)
