@@ -362,7 +362,7 @@ Each phase is one PR. Tests for ported code ship with that phase.
 - Add MSW handlers for all endpoints + fixture sets
 - Port API client unit tests
 
-### Phase 3: App Shell and Catalog Page
+### Phase 3: App Shell and Catalog Page - DONE
 
 - Port `SandboxProvider` / `useSandboxContext` (includes `useRecaptcha` script loading)
 - Set up React Router (`/`, `/activities`)

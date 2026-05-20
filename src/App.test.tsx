@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { server } from "./mocks/server";
+import { setTokenGetter } from "./api/authFetch";
 import { App } from "./App";
 
 beforeAll(() => {
@@ -7,9 +9,22 @@ beforeAll(() => {
     recaptchaSiteKey: "test-site-key",
     environment: "dev",
   };
+  setTokenGetter(async () => "test-token");
+  server.listen({ onUnhandledRequest: "bypass" });
 });
 
-test("renders without crashing in dev bypass mode", () => {
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+test("renders without crashing in dev bypass mode", async () => {
   render(<App />);
-  expect(screen.getByText("Developer Sandbox")).toBeInTheDocument();
+
+  // "Developer Sandbox" appears in both the masthead brand and user menu toggle
+  const matches = screen.getAllByText("Developer Sandbox");
+  expect(matches.length).toBeGreaterThanOrEqual(1);
+
+  // Wait for user data to load and verify the catalog renders
+  await waitFor(() => {
+    expect(screen.getByText("Have an activation code?")).toBeInTheDocument();
+  });
 });
