@@ -1,3 +1,9 @@
+import { AuthProvider } from "./auth";
+
 export function App() {
-  return <div>Developer Sandbox</div>;
+  return (
+    <AuthProvider>
+      <div>Developer Sandbox</div>
+    </AuthProvider>
+  );
 }
