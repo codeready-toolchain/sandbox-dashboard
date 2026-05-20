@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AlertVariant } from "@patternfly/react-core";
 import { NotificationProvider } from "../NotificationContext";
 import { useNotifications } from "../useNotifications";
 
@@ -7,7 +8,9 @@ function TestConsumer() {
   const { addAlert } = useNotifications();
   return (
     <button
-      onClick={() => addAlert("success" as never, "Test alert", "Description")}
+      onClick={() =>
+        addAlert(AlertVariant.success, "Test alert", "Description")
+      }
     >
       Add Alert
     </button>

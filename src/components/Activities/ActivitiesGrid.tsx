@@ -10,7 +10,7 @@ function FeaturedArticles() {
       </Content>
       <Gallery hasGutter minWidths={{ default: "326px" }}>
         {articleData.featured.map((article) => (
-          <GalleryItem key={article.title}>
+          <GalleryItem key={article.link}>
             <ActivitiesCard article={article} />
           </GalleryItem>
         ))}
@@ -24,7 +24,7 @@ function OtherArticles() {
     <div style={{ padding: "36px 60px 48px 60px" }}>
       <Gallery hasGutter minWidths={{ default: "326px" }}>
         {articleData.other.map((article) => (
-          <GalleryItem key={article.title}>
+          <GalleryItem key={article.link}>
             <ActivitiesCard article={article} />
           </GalleryItem>
         ))}

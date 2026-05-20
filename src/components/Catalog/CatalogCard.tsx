@@ -13,11 +13,9 @@ import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle
 import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import CheckIcon from "@patternfly/react-icons/dist/esm/icons/check-icon";
-import type { Product } from "../../hooks/useProductURLs";
 import type { DescriptionIconType, ProductDescription } from "./productData";
 
 type CatalogCardProps = {
-  id: Product;
   title: string;
   image: string;
   description: ProductDescription[];

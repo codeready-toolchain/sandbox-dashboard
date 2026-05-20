@@ -61,7 +61,7 @@ export const productsURLMapping = (
     {
       id: Product.DEVSPACES,
       url: isProvisioned
-        ? `${userData?.cheDashboardURL}` ||
+        ? userData?.cheDashboardURL ||
           getAppsURL(AppURL.DEVSPACES, userData?.consoleURL)
         : "",
     },

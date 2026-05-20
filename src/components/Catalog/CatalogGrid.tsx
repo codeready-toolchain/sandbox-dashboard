@@ -25,7 +25,6 @@ export function CatalogGrid() {
       {enabledProducts.map((product) => (
         <GalleryItem key={product.id}>
           <CatalogCard
-            id={product.id}
             title={product.title}
             image={product.image}
             description={product.description}
