@@ -18,9 +18,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@lit/react": "^1.0.8",
     "@patternfly/react-core": "^6.4.3",
     "@patternfly/react-icons": "^6.4.0",
     "@patternfly/react-styles": "^6.4.0",
+    "@rhds/elements": "^4.1.2",
     "keycloak-js": "^26.2.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
