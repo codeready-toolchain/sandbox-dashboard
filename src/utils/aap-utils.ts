@@ -125,7 +125,7 @@ export const AAPObject: string = `
                         "memory":"500Mi"
                      },
                      "requests":{
-                        "cpu":"220m",
+                        "cpu":"200m",
                         "memory":"100Mi"
                      }
                   }

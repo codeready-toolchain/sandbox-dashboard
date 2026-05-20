@@ -54,7 +54,7 @@ describe("createAAP", () => {
       }),
     );
 
-    await expect(createAAP(PROXY_URL, NS)).resolves.not.toThrow();
+    await expect(createAAP(PROXY_URL, NS)).resolves.toBeUndefined();
     expect(capturedBody).toContain('"kind":"AnsibleAutomationPlatform"');
     expect(capturedContentType).toBe("application/yaml");
   });
@@ -66,7 +66,7 @@ describe("createAAP", () => {
       }),
     );
 
-    await expect(createAAP(PROXY_URL, NS)).resolves.not.toThrow();
+    await expect(createAAP(PROXY_URL, NS)).resolves.toBeUndefined();
   });
 
   it("should throw error on other unsuccessful responses", async () => {
@@ -95,7 +95,7 @@ describe("unIdleAAP", () => {
       }),
     );
 
-    await expect(unIdleAAP(PROXY_URL, NS)).resolves.not.toThrow();
+    await expect(unIdleAAP(PROXY_URL, NS)).resolves.toBeUndefined();
     expect(JSON.parse(capturedBody!)).toEqual({
       spec: { idle_aap: false },
     });
@@ -124,7 +124,7 @@ describe("deleteAAPCR", () => {
       }),
     );
 
-    await expect(deleteAAPCR(PROXY_URL, NS)).resolves.not.toThrow();
+    await expect(deleteAAPCR(PROXY_URL, NS)).resolves.toBeUndefined();
   });
 
   it("should not throw error on 404 Not Found response", async () => {
@@ -134,7 +134,7 @@ describe("deleteAAPCR", () => {
       }),
     );
 
-    await expect(deleteAAPCR(PROXY_URL, NS)).resolves.not.toThrow();
+    await expect(deleteAAPCR(PROXY_URL, NS)).resolves.toBeUndefined();
   });
 
   it("should throw error on other unsuccessful responses", async () => {
