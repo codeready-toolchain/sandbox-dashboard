@@ -9,7 +9,8 @@ import { CatalogCard } from "./CatalogCard";
 export function CatalogGrid() {
   const { disabledIntegrations } = useSandboxContext();
   const enabledProducts = useMemo(
-    () => productData.filter((p) => !(disabledIntegrations ?? []).includes(p.id)),
+    () =>
+      productData.filter((p) => !(disabledIntegrations ?? []).includes(p.id)),
     [disabledIntegrations],
   );
   const { greenCorners } = useGreenCorners(enabledProducts);

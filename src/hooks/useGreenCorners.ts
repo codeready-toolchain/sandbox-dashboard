@@ -37,9 +37,7 @@ const useGreenCorners = (productData: ProductLike[]) => {
 
   // If products changed, derive new state during render (no effect needed)
   const corners =
-    state.version === productIds
-      ? state.corners
-      : readFromCookie(productData);
+    state.version === productIds ? state.corners : readFromCookie(productData);
 
   // Sync state if stale (will trigger a single re-render)
   if (state.version !== productIds) {

@@ -39,11 +39,7 @@ export function CatalogFooter() {
       <div style={{ padding: "16px", textAlign: "center" }}>
         <Content component="p">
           Have an activation code?{" "}
-          <Button
-            variant="link"
-            isInline
-            onClick={handleActivationCodeClick}
-          >
+          <Button variant="link" isInline onClick={handleActivationCodeClick}>
             Click here
           </Button>
         </Content>

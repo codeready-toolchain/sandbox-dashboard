@@ -1,10 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { server } from "../../mocks/server";
 import { setTokenGetter } from "../../api/authFetch";
-import {
-  SandboxProvider,
-  useSandboxContext,
-} from "../useSandboxContext";
+import { SandboxProvider, useSandboxContext } from "../useSandboxContext";
 
 function ContextConsumer() {
   const ctx = useSandboxContext();
@@ -61,9 +58,7 @@ describe("SandboxProvider", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("disabledIntegrations").textContent).toBe(
-        "[]",
-      );
+      expect(screen.getByTestId("disabledIntegrations").textContent).toBe("[]");
     });
   });
 });

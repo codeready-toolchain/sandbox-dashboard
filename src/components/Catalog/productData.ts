@@ -115,8 +115,7 @@ export const productData: ProductData[] = [
       },
       {
         iconType: "success",
-        value:
-          "Unified platform for VMs, containers, and serverless workloads",
+        value: "Unified platform for VMs, containers, and serverless workloads",
       },
       {
         iconType: "success",
