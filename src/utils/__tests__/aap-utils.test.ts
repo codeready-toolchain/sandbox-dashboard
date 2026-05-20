@@ -1,4 +1,9 @@
-import { decode, getReadyCondition, AnsibleStatus, AAPObject } from "../aap-utils";
+import {
+  decode,
+  getReadyCondition,
+  AnsibleStatus,
+  AAPObject,
+} from "../aap-utils";
 import type { AAPData, StatusCondition } from "../../types";
 
 describe("aap-utils", () => {
@@ -52,9 +57,7 @@ describe("aap-utils", () => {
           },
         ],
       };
-      expect(getReadyCondition(data, mockSetError)).toBe(
-        AnsibleStatus.UNKNOWN,
-      );
+      expect(getReadyCondition(data, mockSetError)).toBe(AnsibleStatus.UNKNOWN);
       expect(mockSetError).not.toHaveBeenCalled();
     });
 
@@ -147,9 +150,7 @@ describe("aap-utils", () => {
           },
         ],
       };
-      expect(getReadyCondition(data, mockSetError)).toBe(
-        AnsibleStatus.UNKNOWN,
-      );
+      expect(getReadyCondition(data, mockSetError)).toBe(AnsibleStatus.UNKNOWN);
       expect(mockSetError).toHaveBeenCalledWith(msg);
     });
 
@@ -213,9 +214,7 @@ describe("aap-utils", () => {
           },
         ],
       };
-      expect(getReadyCondition(data, mockSetError)).toBe(
-        AnsibleStatus.UNKNOWN,
-      );
+      expect(getReadyCondition(data, mockSetError)).toBe(AnsibleStatus.UNKNOWN);
       expect(mockSetError).not.toHaveBeenCalled();
     });
 
