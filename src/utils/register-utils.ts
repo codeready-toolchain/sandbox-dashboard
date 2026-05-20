@@ -10,10 +10,7 @@ export const signupDataToStatus = (signupData?: SignupData): Status => {
   if (!signupData.status.ready && signupData.status.verificationRequired) {
     return "verify";
   }
-  if (
-    !signupData.status.ready &&
-    signupData.status.reason === "Provisioning"
-  ) {
+  if (!signupData.status.ready && signupData.status.reason === "Provisioning") {
     return "provisioning";
   }
   return "pending-approval";

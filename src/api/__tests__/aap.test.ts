@@ -31,10 +31,7 @@ describe("getAAP", () => {
   it("should throw error on unsuccessful response", async () => {
     server.use(
       http.get(AAP_BASE, () => {
-        return HttpResponse.json(
-          { message: "Not found" },
-          { status: 404 },
-        );
+        return HttpResponse.json({ message: "Not found" }, { status: 404 });
       }),
     );
 

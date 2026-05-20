@@ -101,9 +101,7 @@ describe("initiatePhoneVerification", () => {
       }),
     );
 
-    await expect(
-      initiatePhoneVerification("+1", "1234567890"),
-    ).rejects.toThrow(
+    await expect(initiatePhoneVerification("+1", "1234567890")).rejects.toThrow(
       "Invalid phone number. Please verify the country code and number format, then try again.",
     );
   });
@@ -118,9 +116,7 @@ describe("initiatePhoneVerification", () => {
       }),
     );
 
-    await expect(
-      initiatePhoneVerification("+1", "1234567890"),
-    ).rejects.toThrow(
+    await expect(initiatePhoneVerification("+1", "1234567890")).rejects.toThrow(
       "This phone number is already in use. Please use a different number.",
     );
   });
@@ -156,12 +152,9 @@ describe("completePhoneVerification", () => {
 describe("verifyActivationCode", () => {
   it("should successfully verify activation code", async () => {
     server.use(
-      http.post(
-        `${REG_URL}/api/v1/signup/verification/activation-code`,
-        () => {
-          return new HttpResponse(null, { status: 200 });
-        },
-      ),
+      http.post(`${REG_URL}/api/v1/signup/verification/activation-code`, () => {
+        return new HttpResponse(null, { status: 200 });
+      }),
     );
 
     await expect(verifyActivationCode("123456")).resolves.not.toThrow();
@@ -169,15 +162,12 @@ describe("verifyActivationCode", () => {
 
   it("should throw error on unsuccessful verification", async () => {
     server.use(
-      http.post(
-        `${REG_URL}/api/v1/signup/verification/activation-code`,
-        () => {
-          return HttpResponse.json(
-            { message: "Invalid activation code" },
-            { status: 400 },
-          );
-        },
-      ),
+      http.post(`${REG_URL}/api/v1/signup/verification/activation-code`, () => {
+        return HttpResponse.json(
+          { message: "Invalid activation code" },
+          { status: 400 },
+        );
+      }),
     );
 
     await expect(verifyActivationCode("badcode")).rejects.toThrow(

@@ -13,8 +13,7 @@ export const MOCK_PROXY_URL = "https://proxy.example.com";
 export const MOCK_REG_SERVICE_URL = "https://registration.example.com";
 
 export const authConfigFixture: AuthConfigResponse = {
-  "auth-client-library-url":
-    "https://sso.devsandbox.dev/auth/js/keycloak.js",
+  "auth-client-library-url": "https://sso.devsandbox.dev/auth/js/keycloak.js",
   "auth-client-config": JSON.stringify({
     realm: "sandbox-dev",
     "auth-server-url": "https://sso.devsandbox.dev/auth",
@@ -139,9 +138,7 @@ export const statefulSetFixture: StatefulSetData = {
           },
           spec: {},
         },
-        volumeClaimTemplates: [
-          { metadata: { name: "data" } },
-        ],
+        volumeClaimTemplates: [{ metadata: { name: "data" } }],
       },
     },
   ],

@@ -68,14 +68,20 @@ describe("deleteSecretsAndPVCs", () => {
   it("should delete PVCs and secrets successfully", async () => {
     const deletedResources: string[] = [];
     server.use(
-      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc`, () => {
-        deletedResources.push("pvc");
-        return new HttpResponse(null, { status: 200 });
-      }),
-      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`, () => {
-        deletedResources.push("secret");
-        return new HttpResponse(null, { status: 200 });
-      }),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc`,
+        () => {
+          deletedResources.push("pvc");
+          return new HttpResponse(null, { status: 200 });
+        },
+      ),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`,
+        () => {
+          deletedResources.push("secret");
+          return new HttpResponse(null, { status: 200 });
+        },
+      ),
     );
 
     await expect(
@@ -87,12 +93,18 @@ describe("deleteSecretsAndPVCs", () => {
 
   it("should not throw on 404 responses", async () => {
     server.use(
-      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc`, () => {
-        return new HttpResponse(null, { status: 404 });
-      }),
-      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`, () => {
-        return new HttpResponse(null, { status: 404 });
-      }),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc`,
+        () => {
+          return new HttpResponse(null, { status: 404 });
+        },
+      ),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`,
+        () => {
+          return new HttpResponse(null, { status: 404 });
+        },
+      ),
     );
 
     await expect(
@@ -102,12 +114,15 @@ describe("deleteSecretsAndPVCs", () => {
 
   it("should throw on other error responses", async () => {
     server.use(
-      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc`, () => {
-        return HttpResponse.json(
-          { message: "Internal error" },
-          { status: 500 },
-        );
-      }),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc`,
+        () => {
+          return HttpResponse.json(
+            { message: "Internal error" },
+            { status: 500 },
+          );
+        },
+      ),
     );
 
     await expect(
@@ -127,9 +142,7 @@ describe("deletePVCsForSTS", () => {
             metadata: { labels: { app: "test", deployment: "test" } },
             spec: {},
           },
-          volumeClaimTemplates: [
-            { metadata: { name: "test-template" } },
-          ],
+          volumeClaimTemplates: [{ metadata: { name: "test-template" } }],
         },
         status: { conditions: [] },
       },
@@ -146,12 +159,18 @@ describe("deletePVCsForSTS", () => {
 
   it("should delete PVCs for StatefulSet successfully", async () => {
     server.use(
-      http.get(`${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims`, () => {
-        return HttpResponse.json(mockPVCData);
-      }),
-      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc-1`, () => {
-        return new HttpResponse(null, { status: 200 });
-      }),
+      http.get(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims`,
+        () => {
+          return HttpResponse.json(mockPVCData);
+        },
+      ),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims/test-pvc-1`,
+        () => {
+          return new HttpResponse(null, { status: 200 });
+        },
+      ),
     );
 
     await expect(
@@ -172,9 +191,12 @@ describe("getSecret", () => {
 
   it("should return secret data on successful response", async () => {
     server.use(
-      http.get(`${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`, () => {
-        return HttpResponse.json(mockSecret);
-      }),
+      http.get(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`,
+        () => {
+          return HttpResponse.json(mockSecret);
+        },
+      ),
     );
 
     const result = await getSecret(PROXY_URL, NS, "test-secret");
@@ -183,12 +205,12 @@ describe("getSecret", () => {
 
   it("should throw error on unsuccessful response", async () => {
     server.use(
-      http.get(`${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`, () => {
-        return HttpResponse.json(
-          { message: "Not found" },
-          { status: 404 },
-        );
-      }),
+      http.get(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/test-secret`,
+        () => {
+          return HttpResponse.json({ message: "Not found" }, { status: 404 });
+        },
+      ),
     );
 
     await expect(getSecret(PROXY_URL, NS, "test-secret")).rejects.toThrow();
@@ -205,9 +227,12 @@ describe("getPersistentVolumeClaims", () => {
 
   it("should return PVCs without labels", async () => {
     server.use(
-      http.get(`${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims`, () => {
-        return HttpResponse.json(mockPVCs);
-      }),
+      http.get(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/persistentvolumeclaims`,
+        () => {
+          return HttpResponse.json(mockPVCs);
+        },
+      ),
     );
 
     const result = await getPersistentVolumeClaims(PROXY_URL, NS);
@@ -248,10 +273,7 @@ describe("getDeployments", () => {
   it("should throw error on unsuccessful response", async () => {
     server.use(
       http.get(`${PROXY_URL}/apis/apps/v1/namespaces/${NS}/deployments`, () => {
-        return HttpResponse.json(
-          { message: "Forbidden" },
-          { status: 403 },
-        );
+        return HttpResponse.json({ message: "Forbidden" }, { status: 403 });
       }),
     );
 
@@ -280,9 +302,12 @@ describe("getStatefulSets", () => {
 
   it("should return statefulsets", async () => {
     server.use(
-      http.get(`${PROXY_URL}/apis/apps/v1/namespaces/${NS}/statefulsets`, () => {
-        return HttpResponse.json(mockStatefulSets);
-      }),
+      http.get(
+        `${PROXY_URL}/apis/apps/v1/namespaces/${NS}/statefulsets`,
+        () => {
+          return HttpResponse.json(mockStatefulSets);
+        },
+      ),
     );
 
     const result = await getStatefulSets(PROXY_URL, NS);
@@ -291,12 +316,12 @@ describe("getStatefulSets", () => {
 
   it("should throw error on unsuccessful response", async () => {
     server.use(
-      http.get(`${PROXY_URL}/apis/apps/v1/namespaces/${NS}/statefulsets`, () => {
-        return HttpResponse.json(
-          { message: "Forbidden" },
-          { status: 403 },
-        );
-      }),
+      http.get(
+        `${PROXY_URL}/apis/apps/v1/namespaces/${NS}/statefulsets`,
+        () => {
+          return HttpResponse.json({ message: "Forbidden" }, { status: 403 });
+        },
+      ),
     );
 
     await expect(getStatefulSets(PROXY_URL, NS)).rejects.toThrow();
