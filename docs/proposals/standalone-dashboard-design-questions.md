@@ -17,7 +17,7 @@ A `<AuthProvider>` component at the top of the tree that initializes `keycloak-j
 
 ```tsx
 <AuthProvider>
-  <App />   {/* only renders after keycloak init completes */}
+  <App /> {/* only renders after keycloak init completes */}
 </AuthProvider>
 ```
 
@@ -64,9 +64,9 @@ Use [MSW](https://mswjs.io/) to intercept `fetch` calls in the browser via a ser
 
 ```typescript
 // mocks/handlers.ts
-http.get('*/api/v1/signup', () => {
-  return HttpResponse.json(fixtures.readyUser)
-})
+http.get("*/api/v1/signup", () => {
+  return HttpResponse.json(fixtures.readyUser);
+});
 ```
 
 - **Pro:** No separate process — runs inside the browser, zero setup

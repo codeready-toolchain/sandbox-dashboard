@@ -69,7 +69,7 @@ An `<AuthProvider>` component wraps the entire app. It initializes `keycloak-js`
 
 ```tsx
 <AuthProvider>
-  <App />   {/* only renders after keycloak init completes */}
+  <App /> {/* only renders after keycloak init completes */}
 </AuthProvider>
 ```
 
@@ -93,9 +93,10 @@ Two layers:
 
 ```javascript
 window.__config__ = {
-  registrationServiceURL: "https://registration-service.apps.cluster.example.com",
+  registrationServiceURL:
+    "https://registration-service.apps.cluster.example.com",
   recaptchaSiteKey: "6Lc...",
-  environment: "prod"
+  environment: "prod",
 };
 ```
 
@@ -106,12 +107,12 @@ Note: `disabledIntegrations` is **not** in `config.js` — it comes exclusively 
 
 **Dynamic config (registration-service endpoints):**
 
-| Endpoint | Auth | Returns |
-|---|---|---|
-| `/api/v1/authconfig` | No | SSO base URL, realm, client ID |
-| `/api/v1/uiconfig` | Yes | Workato webhook URL (`workatoWebHookURL`, used for Marketo), disabled integrations |
-| `/api/v1/analytics/segment-write-key` | No | Segment write key |
-| `userData.proxyURL` | — | Kube API proxy URL (from signup response) |
+| Endpoint                              | Auth | Returns                                                                            |
+| ------------------------------------- | ---- | ---------------------------------------------------------------------------------- |
+| `/api/v1/authconfig`                  | No   | SSO base URL, realm, client ID                                                     |
+| `/api/v1/uiconfig`                    | Yes  | Workato webhook URL (`workatoWebHookURL`, used for Marketo), disabled integrations |
+| `/api/v1/analytics/segment-write-key` | No   | Segment write key                                                                  |
+| `userData.proxyURL`                   | —    | Kube API proxy URL (from signup response)                                          |
 
 ### API Client Architecture
 
@@ -146,10 +147,10 @@ This eliminates the need for a live registration-service or Keycloak instance fo
 
 React Router with two routes:
 
-| Path | Component | Description |
-|---|---|---|
-| `/` | `CatalogPage` | Product catalog with cards, banner, footer |
-| `/activities` | `ActivitiesPage` | Learning resources grid |
+| Path          | Component        | Description                                |
+| ------------- | ---------------- | ------------------------------------------ |
+| `/`           | `CatalogPage`    | Product catalog with cards, banner, footer |
+| `/activities` | `ActivitiesPage` | Learning resources grid                    |
 
 Nginx configured with `try_files $uri $uri/ /index.html` for SPA fallback.
 
@@ -167,6 +168,7 @@ The existing `SandboxProvider` / `useSandboxContext` pattern carries forward. It
 The context is initialized after authentication completes. It polls for user status changes (signup flow) and AAP status (provisioning flow) at configurable intervals.
 
 **Polling strategy (unchanged):**
+
 - `LONG_INTERVAL` (20s) — default poll for signup status
 - `SHORT_INTERVAL` (2s) — poll during provisioning, AAP status
 
@@ -181,6 +183,7 @@ The main page. Composed of:
 3. **Footer** — activation code entry link, Red Hat universal footer (`@rhds/elements`)
 
 Each product card contains:
+
 - Product icon and title
 - Feature description bullets
 - "Try it" button (triggers signup → verification → launch flow)
@@ -193,12 +196,12 @@ A grid of learning resource cards linking to developers.redhat.com articles and 
 
 #### Modals
 
-| Modal | Trigger | Purpose |
-|---|---|---|
-| `PhoneVerificationModal` | "Try it" when status is `verify` | Two-step: phone number → OTP code |
-| `AnsibleLaunchInfoModal` | "Try it" on AAP when ready | Shows AAP credentials (user, password, URL) |
-| `AnsibleDeleteInstanceModal` | Delete button on AAP card | Confirmation before AAP deletion |
-| `AccessCodeInputModal` | "Click here" in footer | Activation code entry |
+| Modal                        | Trigger                          | Purpose                                     |
+| ---------------------------- | -------------------------------- | ------------------------------------------- |
+| `PhoneVerificationModal`     | "Try it" when status is `verify` | Two-step: phone number → OTP code           |
+| `AnsibleLaunchInfoModal`     | "Try it" on AAP when ready       | Shows AAP credentials (user, password, URL) |
+| `AnsibleDeleteInstanceModal` | Delete button on AAP card        | Confirmation before AAP deletion            |
+| `AccessCodeInputModal`       | "Click here" in footer           | Activation code entry                       |
 
 ### Product Launch Flow
 
@@ -216,6 +219,7 @@ User clicks "Try it"
 ```
 
 Product URLs are derived from `userData` fields:
+
 - **OpenShift** — `consoleURL + /k8s/cluster/projects/{namespace}`
 - **OpenShift AI** — `rhodsMemberURL`
 - **Dev Spaces** — `cheDashboardURL` (fallback: construct from `consoleURL`)
@@ -245,12 +249,12 @@ Three independent tracking systems, all ported as-is:
 
 All third-party scripts are loaded **dynamically from React** — no static `<script>` tags in `index.html` beyond `config.js` and the Vite app entry. This carries forward the existing pattern. The `environment` value in `config.js` (`"prod"` vs `"dev"`) controls whether these scripts are loaded — when set to `"dev"`, they are all skipped:
 
-| Integration | Injection | Config | Skip in dev? |
-|---|---|---|---|
-| Google reCAPTCHA Enterprise | `loadRecaptchaScript()` via `useRecaptcha` hook | Site key from `config.js` | Yes |
-| TrustArc (cookie consent) | `document.createElement('script')` in layout | Self-contained | Yes |
-| Adobe Analytics (dpal.js) | `document.createElement('script')` in layout | Self-contained | Yes |
-| Red Hat footer elements | `@rhds/elements` npm package | Self-contained | No |
+| Integration                 | Injection                                       | Config                    | Skip in dev? |
+| --------------------------- | ----------------------------------------------- | ------------------------- | ------------ |
+| Google reCAPTCHA Enterprise | `loadRecaptchaScript()` via `useRecaptcha` hook | Site key from `config.js` | Yes          |
+| TrustArc (cookie consent)   | `document.createElement('script')` in layout    | Self-contained            | Yes          |
+| Adobe Analytics (dpal.js)   | `document.createElement('script')` in layout    | Self-contained            | Yes          |
+| Red Hat footer elements     | `@rhds/elements` npm package                    | Self-contained            | No           |
 
 ### Error Handling
 
@@ -287,21 +291,21 @@ public/
 
 ## Technology Stack
 
-| Concern | Choice |
-|---|---|
-| UI components | PatternFly React (`@patternfly/react-core`) |
-| Authentication | `keycloak-js` + `<AuthProvider>` / `useAuth()` |
-| API clients | Plain module functions + `authFetch` helper |
-| Dev mocking | MSW (Mock Service Worker) |
-| Configuration | `config.js` (ConfigMap) + reg-service endpoints |
-| Routing | React Router |
-| Build tooling | Vite |
-| Testing | Vitest + React Testing Library + MSW |
-| Task runner | Makefile (`make dev`, `make test`, `make lint`, `make build`, `make image`) |
-| Container build | Podman (multi-stage Containerfile, UBI nginx) |
-| CI | GitHub Actions (lint, test, image build+push) — calls Makefile targets |
-| E2e testing | OpenShift CI (Prow) against live cluster |
-| K8s API calls | Direct via reg-service proxy (as today) |
+| Concern         | Choice                                                                      |
+| --------------- | --------------------------------------------------------------------------- |
+| UI components   | PatternFly React (`@patternfly/react-core`)                                 |
+| Authentication  | `keycloak-js` + `<AuthProvider>` / `useAuth()`                              |
+| API clients     | Plain module functions + `authFetch` helper                                 |
+| Dev mocking     | MSW (Mock Service Worker)                                                   |
+| Configuration   | `config.js` (ConfigMap) + reg-service endpoints                             |
+| Routing         | React Router                                                                |
+| Build tooling   | Vite                                                                        |
+| Testing         | Vitest + React Testing Library + MSW                                        |
+| Task runner     | Makefile (`make dev`, `make test`, `make lint`, `make build`, `make image`) |
+| Container build | Podman (multi-stage Containerfile, UBI nginx)                               |
+| CI              | GitHub Actions (lint, test, image build+push) — calls Makefile targets      |
+| E2e testing     | OpenShift CI (Prow) against live cluster                                    |
+| K8s API calls   | Direct via reg-service proxy (as today)                                     |
 
 ## Deployment
 
@@ -338,7 +342,7 @@ Follows the pattern established in [tarsy](https://github.com/codeready-toolchai
 
 Each phase is one PR. Tests for ported code ship with that phase.
 
-### Phase 1: Project Scaffolding
+### Phase 1: Project Scaffolding - DONE
 
 - Initialize Vite + React + TypeScript project
 - Configure PatternFly CSS imports and theming

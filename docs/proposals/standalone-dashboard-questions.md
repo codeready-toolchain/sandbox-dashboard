@@ -64,10 +64,11 @@ A single `config.js` file provides the bootstrap URL in **both dev and productio
 ```javascript
 // config.js — dev: public/config.js, prod: ConfigMap
 window.__config__ = {
-  registrationServiceURL: "https://registration-service.apps.cluster.example.com",
+  registrationServiceURL:
+    "https://registration-service.apps.cluster.example.com",
   recaptchaSiteKey: "6Lc...",
   environment: "prod",
-  disabledIntegrations: []
+  disabledIntegrations: [],
 };
 ```
 

@@ -44,17 +44,17 @@ Port the dashboard to a standalone web application that:
 
 All API calls go through the registration-service:
 
-| Endpoint | Method | Auth | Purpose |
-|---|---|---|---|
-| `/api/v1/authconfig` | GET | No | SSO/OIDC configuration for the frontend |
-| `/api/v1/signup` | GET | Yes | Get current user's signup data and status |
-| `/api/v1/signup` | POST | Yes | Initiate signup (+ recaptcha token header) |
-| `/api/v1/signup/verification` | PUT | Yes | Initiate phone verification |
-| `/api/v1/signup/verification/:code` | GET | Yes | Complete phone verification |
-| `/api/v1/signup/verification/activation-code` | POST | Yes | Verify activation code |
-| `/api/v1/analytics/segment-write-key` | GET | No | Get Segment analytics key |
-| `/api/v1/uiconfig` | GET | Yes | Get UI configuration (webhook URL) |
-| `/api/v1/reset-namespaces` | POST | Yes | Reset user workspaces |
+| Endpoint                                      | Method | Auth | Purpose                                    |
+| --------------------------------------------- | ------ | ---- | ------------------------------------------ |
+| `/api/v1/authconfig`                          | GET    | No   | SSO/OIDC configuration for the frontend    |
+| `/api/v1/signup`                              | GET    | Yes  | Get current user's signup data and status  |
+| `/api/v1/signup`                              | POST   | Yes  | Initiate signup (+ recaptcha token header) |
+| `/api/v1/signup/verification`                 | PUT    | Yes  | Initiate phone verification                |
+| `/api/v1/signup/verification/:code`           | GET    | Yes  | Complete phone verification                |
+| `/api/v1/signup/verification/activation-code` | POST   | Yes  | Verify activation code                     |
+| `/api/v1/analytics/segment-write-key`         | GET    | No   | Get Segment analytics key                  |
+| `/api/v1/uiconfig`                            | GET    | Yes  | Get UI configuration (webhook URL)         |
+| `/api/v1/reset-namespaces`                    | POST   | Yes  | Reset user workspaces                      |
 
 The registration-service also acts as a **Kubernetes API proxy** — the dashboard makes direct K8s API calls (for AAP CRDs, secrets, deployments, PVCs, StatefulSets) through the proxy URL provided in `userData.proxyURL`.
 
@@ -114,10 +114,11 @@ Two layers, one code path:
 
 ```javascript
 window.__config__ = {
-  registrationServiceURL: "https://registration-service.apps.cluster.example.com",
+  registrationServiceURL:
+    "https://registration-service.apps.cluster.example.com",
   recaptchaSiteKey: "6Lc...",
   environment: "prod",
-  disabledIntegrations: []
+  disabledIntegrations: [],
 };
 ```
 
@@ -168,15 +169,15 @@ AAP operations (create, get status, delete, un-idle) continue to use direct K8s 
 
 ## Technology stack
 
-| Concern | Choice |
-|---|---|
-| UI components | PatternFly React (`@patternfly/react-core`) |
-| Authentication | `keycloak-js` + custom `useAuth()` hook |
-| Configuration | `config.js` (ConfigMap) + reg-service endpoints |
-| Routing | React Router |
-| Build tooling | Vite |
-| Testing | Vitest + React Testing Library |
-| K8s API calls | Direct via reg-service proxy (as today) |
+| Concern        | Choice                                          |
+| -------------- | ----------------------------------------------- |
+| UI components  | PatternFly React (`@patternfly/react-core`)     |
+| Authentication | `keycloak-js` + custom `useAuth()` hook         |
+| Configuration  | `config.js` (ConfigMap) + reg-service endpoints |
+| Routing        | React Router                                    |
+| Build tooling  | Vite                                            |
+| Testing        | Vitest + React Testing Library                  |
+| K8s API calls  | Direct via reg-service proxy (as today)         |
 
 ## What is out of scope
 

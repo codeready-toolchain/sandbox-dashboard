@@ -1,2 +1,8 @@
 tmp
 .cursor/**/common/
+
+node_modules
+dist
+public/config.js
+public/mockServiceWorker.js
+*.local

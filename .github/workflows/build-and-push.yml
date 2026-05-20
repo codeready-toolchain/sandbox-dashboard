@@ -1,0 +1,40 @@
+name: Build and Push Image
+
+on:
+  push:
+    branches: [main]
+
+env:
+  IMAGE_NAME: sandbox-dashboard
+  IMAGE_REGISTRY: quay.io
+  IMAGE_NAMESPACE: codeready-toolchain
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        uses: redhat-actions/buildah-build@v2
+        id: build
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          tags: latest ${{ github.sha }}
+          containerfiles: ./Containerfile
+
+      - name: Log in to registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Push image
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}

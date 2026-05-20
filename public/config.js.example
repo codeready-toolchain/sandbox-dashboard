@@ -1,0 +1,5 @@
+window.__config__ = {
+  registrationServiceURL: "https://registration-service.example.com",
+  recaptchaSiteKey: "test-site-key",
+  environment: "dev",
+};
