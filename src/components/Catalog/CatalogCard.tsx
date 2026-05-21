@@ -8,11 +8,13 @@ import {
   Flex,
   FlexItem,
   Tooltip,
+  Spinner,
 } from "@patternfly/react-core";
 import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle-icon";
 import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import CheckIcon from "@patternfly/react-icons/dist/esm/icons/check-icon";
+import TrashIcon from "@patternfly/react-icons/dist/esm/icons/trash-icon";
 import type { DescriptionIconType, ProductDescription } from "./productData";
 
 type CatalogCardProps = {
@@ -21,6 +23,10 @@ type CatalogCardProps = {
   description: ProductDescription[];
   link: string;
   greenCorner: boolean;
+  onTryIt: () => void;
+  loading?: boolean;
+  showDelete?: boolean;
+  onDelete?: () => void;
 };
 
 function DescriptionIcon({ type }: { type: DescriptionIconType }) {
@@ -77,6 +83,10 @@ export function CatalogCard({
   description,
   link,
   greenCorner,
+  onTryIt,
+  loading = false,
+  showDelete = false,
+  onDelete,
 }: CatalogCardProps) {
   return (
     <Card
@@ -120,21 +130,40 @@ export function CatalogCard({
         ))}
       </CardBody>
       <CardFooter>
-        {link ? (
-          <Button
-            variant="secondary"
-            component="a"
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            icon={<ExternalLinkAltIcon />}
-            iconPosition="end"
-          >
-            Try it
-          </Button>
-        ) : (
-          <Button variant="secondary">Try it</Button>
-        )}
+        <Flex gap={{ default: "gapSm" }} alignItems={{ default: "alignItemsCenter" }}>
+          <FlexItem>
+            <Button
+              variant="secondary"
+              onClick={onTryIt}
+              isDisabled={loading}
+              icon={link ? <ExternalLinkAltIcon /> : undefined}
+              iconPosition="end"
+              data-testid="try-it-button"
+            >
+              {loading ? (
+                <>
+                  <Spinner size="sm" /> Loading...
+                </>
+              ) : (
+                "Try it"
+              )}
+            </Button>
+          </FlexItem>
+          {showDelete && onDelete && (
+            <FlexItem>
+              <Tooltip content="Delete AAP instance">
+                <Button
+                  variant="plain"
+                  onClick={onDelete}
+                  aria-label="Delete AAP instance"
+                  data-testid="delete-aap-button"
+                >
+                  <TrashIcon />
+                </Button>
+              </Tooltip>
+            </FlexItem>
+          )}
+        </Flex>
       </CardFooter>
     </Card>
   );

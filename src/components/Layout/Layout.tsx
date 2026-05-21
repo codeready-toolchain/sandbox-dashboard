@@ -19,19 +19,29 @@ import {
   ToolbarContent,
   ToolbarGroup,
   ToolbarItem,
+  Divider,
 } from "@patternfly/react-core";
 import { useAuth } from "../../auth/useAuth";
+import { useSandboxContext } from "../../hooks/SandboxContext";
+import { WorkspaceResetModal } from "../Modals";
 import RedHatLogo from "../../assets/logos/logo_hat-only.svg";
 
 export function Layout() {
   const { givenName, familyName, logout } = useAuth();
+  const { userReady, refetchUserData } = useSandboxContext();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
   const displayName =
     givenName && familyName
       ? `${givenName} ${familyName}`
       : givenName || "User";
+
+  const handleResetComplete = async () => {
+    setIsResetModalOpen(false);
+    await refetchUserData();
+  };
 
   const masthead = (
     <Masthead>
@@ -103,6 +113,18 @@ export function Layout() {
                   }}
                 >
                   <DropdownList>
+                    {userReady && (
+                      <>
+                        <DropdownItem
+                          key="reset"
+                          onClick={() => setIsResetModalOpen(true)}
+                          data-testid="reset-workspaces-menu-item"
+                        >
+                          Reset Workspaces
+                        </DropdownItem>
+                        <Divider key="divider" />
+                      </>
+                    )}
                     <DropdownItem key="logout" onClick={() => logout()}>
                       Log out
                     </DropdownItem>
@@ -121,6 +143,11 @@ export function Layout() {
       <PageSection hasBodyWrapper={false} isFilled>
         <Outlet />
       </PageSection>
+      <WorkspaceResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onReset={handleResetComplete}
+      />
     </Page>
   );
 }

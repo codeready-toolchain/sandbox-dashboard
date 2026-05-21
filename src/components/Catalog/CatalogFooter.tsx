@@ -1,8 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Content, Button } from "@patternfly/react-core";
 import { FooterCopyright } from "@rhds/elements/react/rh-footer/rh-footer-copyright.js";
 import { FooterUniversal } from "@rhds/elements/react/rh-footer/rh-footer-universal.js";
 import "@rhds/elements/rh-footer/rh-footer-lightdom.css";
+import { AccessCodeInputModal } from "../Modals";
+import { useSandboxContext } from "../../hooks/SandboxContext";
 
 let trustArcElement: HTMLSpanElement | null = null;
 
@@ -29,9 +31,12 @@ function CookieConsentElement() {
 }
 
 export function CatalogFooter() {
-  // TODO: Phase 4 will wire this up to AccessCodeInputModal
-  const handleActivationCodeClick = () => {
-    // Placeholder — modal added in Phase 4
+  const { refetchUserData } = useSandboxContext();
+  const [isAccessCodeModalOpen, setIsAccessCodeModalOpen] = useState(false);
+
+  const handleActivationCodeVerified = async () => {
+    setIsAccessCodeModalOpen(false);
+    await refetchUserData();
   };
 
   return (
@@ -39,7 +44,12 @@ export function CatalogFooter() {
       <div style={{ padding: "16px", textAlign: "center" }}>
         <Content component="p">
           Have an activation code?{" "}
-          <Button variant="link" isInline onClick={handleActivationCodeClick}>
+          <Button
+            variant="link"
+            isInline
+            onClick={() => setIsAccessCodeModalOpen(true)}
+            data-testid="activation-code-link"
+          >
             Click here
           </Button>
         </Content>
@@ -112,6 +122,12 @@ export function CatalogFooter() {
           &copy; {new Date().getFullYear()} Red Hat, Inc.
         </FooterCopyright>
       </FooterUniversal>
+
+      <AccessCodeInputModal
+        isOpen={isAccessCodeModalOpen}
+        onClose={() => setIsAccessCodeModalOpen(false)}
+        onVerified={handleActivationCodeVerified}
+      />
     </>
   );
 }
