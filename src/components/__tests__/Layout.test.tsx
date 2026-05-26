@@ -6,6 +6,7 @@ import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
 import { SandboxContext, type SandboxContextType } from "../../hooks/SandboxContext";
 import { AnsibleStatus } from "../../utils/aap-utils";
 import { readyUserFixture } from "../../mocks/fixtures";
+import { UserStatus } from "../../types";
 
 const mockLogout = vi.fn();
 
@@ -24,7 +25,7 @@ function makeSandboxContext(
   overrides: Partial<SandboxContextType> = {},
 ): SandboxContextType {
   return {
-    userStatus: "ready",
+    userStatus: UserStatus.READY,
     userFound: true,
     userReady: true,
     verificationRequired: false,

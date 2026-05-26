@@ -4,12 +4,13 @@ import { SandboxContext } from "../../../hooks/SandboxContext";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { UserStatus } from "../../../types";
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
 ): SandboxContextType {
   return {
-    userStatus: "ready",
+    userStatus: UserStatus.READY,
     userFound: true,
     userReady: true,
     verificationRequired: false,

@@ -1,10 +1,11 @@
-export type Status =
-  | "unknown"
-  | "new"
-  | "verify"
-  | "pending-approval"
-  | "provisioning"
-  | "ready";
+export enum UserStatus {
+  UNKNOWN = "unknown",
+  NEW = "new",
+  VERIFY = "verify",
+  PENDING_APPROVAL = "pending-approval",
+  PROVISIONING = "provisioning",
+  READY = "ready",
+}
 
 export type SignupData = {
   name: string;

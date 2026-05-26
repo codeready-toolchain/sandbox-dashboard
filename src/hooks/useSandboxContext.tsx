@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AAPData, SignupData } from "../types";
+import { type AAPData, type SignupData, UserStatus } from "../types";
 import { getConfig } from "../config/config";
 import {
   getSignupData,
@@ -60,13 +60,13 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   }, [ansibleData]);
 
   const status = useMemo(
-    () => (statusUnknown ? "unknown" : signupDataToStatus(userData)),
+    () => (statusUnknown ? UserStatus.UNKNOWN : signupDataToStatus(userData)),
     [statusUnknown, userData],
   );
 
-  const verificationRequired = status === "verify";
-  const pendingApproval = status === "pending-approval";
-  const userReady = status === "ready";
+  const verificationRequired = status === UserStatus.VERIFY;
+  const pendingApproval = status === UserStatus.PENDING_APPROVAL;
+  const userReady = status === UserStatus.READY;
 
   const fetchData = async (
     isRefetch = false,
@@ -219,7 +219,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   // Poll user status
   const pollStatus = userFound && !userReady;
   const pollInterval =
-    status === "provisioning" ? SHORT_INTERVAL : LONG_INTERVAL;
+    status === UserStatus.PROVISIONING ? SHORT_INTERVAL : LONG_INTERVAL;
 
   useEffect(() => {
     if (pollStatus) {

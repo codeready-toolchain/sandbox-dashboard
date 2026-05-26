@@ -12,6 +12,7 @@ import {
 } from "../Modals";
 import { AnsibleStatus } from "../../utils/aap-utils";
 import { SHORT_INTERVAL } from "../../const";
+import { UserStatus } from "../../types";
 
 export function CatalogGrid() {
   const {
@@ -66,35 +67,35 @@ export function CatalogGrid() {
     [productURLs, markAsTried],
   );
 
-  const pollUntilStatusKnown = useCallback(async (): Promise<string> => {
+  const pollUntilStatusKnown = useCallback(async (): Promise<UserStatus> => {
     const data = await refetchUserData();
-    if (!data) return "new";
+    if (!data) return UserStatus.NEW;
 
-    if (data.status.ready) return "ready";
-    if (data.status.verificationRequired) return "verify";
-    if (data.status.reason === "Provisioning") return "provisioning";
+    if (data.status.ready) return UserStatus.READY;
+    if (data.status.verificationRequired) return UserStatus.VERIFY;
+    if (data.status.reason === "Provisioning") return UserStatus.PROVISIONING;
 
-    return "pending-approval";
+    return UserStatus.PENDING_APPROVAL;
   }, [refetchUserData]);
 
   const handleTryIt = useCallback(
     async (productId: Product) => {
-      if (userStatus === "new" || userStatus === "unknown") {
+      if (userStatus === UserStatus.NEW || userStatus === UserStatus.UNKNOWN) {
         setLoadingProduct(productId);
         try {
           await signupUser();
 
-          let resolvedStatus = "unknown";
+          let resolvedStatus: UserStatus = UserStatus.UNKNOWN;
           const maxAttempts = 30;
           for (let i = 0; i < maxAttempts; i++) {
             await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
             resolvedStatus = await pollUntilStatusKnown();
-            if (resolvedStatus !== "new" && resolvedStatus !== "unknown") break;
+            if (resolvedStatus !== UserStatus.NEW && resolvedStatus !== UserStatus.UNKNOWN) break;
           }
 
-          if (resolvedStatus === "verify") {
+          if (resolvedStatus === UserStatus.VERIFY) {
             setPhoneModalOpen(true);
-          } else if (resolvedStatus === "ready") {
+          } else if (resolvedStatus === UserStatus.READY) {
             if (productId === Product.AAP) {
               await handleAAPInstance(userData?.defaultUserNamespace || "");
               setAnsibleInfoModalOpen(true);

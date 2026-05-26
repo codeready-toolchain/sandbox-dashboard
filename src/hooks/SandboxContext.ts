@@ -1,9 +1,9 @@
 import { createContext, useContext } from "react";
-import type { AAPData, SignupData } from "../types";
+import { type AAPData, type SignupData, UserStatus } from "../types";
 import type { AnsibleStatus } from "../utils/aap-utils";
 
 export interface SandboxContextType {
-  userStatus: string;
+  userStatus: UserStatus;
   userFound: boolean;
   userReady: boolean;
   verificationRequired: boolean;

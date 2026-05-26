@@ -1,13 +1,14 @@
 import { signupDataToStatus } from "../register-utils";
+import { UserStatus } from "../../types";
 import type { SignupData } from "../../types";
 
 describe("register-utils", () => {
   describe("signupDataToStatus", () => {
-    it('should return "new" when signupData is undefined', () => {
-      expect(signupDataToStatus(undefined)).toBe("new");
+    it("should return UserStatus.NEW when signupData is undefined", () => {
+      expect(signupDataToStatus(undefined)).toBe(UserStatus.NEW);
     });
 
-    it('should return "ready" when status.ready is true', () => {
+    it("should return UserStatus.READY when status.ready is true", () => {
       const signupData: SignupData = {
         name: "Test User",
         compliantUsername: "testuser",
@@ -21,10 +22,10 @@ describe("register-utils", () => {
           reason: "",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe("ready");
+      expect(signupDataToStatus(signupData)).toBe(UserStatus.READY);
     });
 
-    it('should return "verify" when not ready and verification is required', () => {
+    it("should return UserStatus.VERIFY when not ready and verification is required", () => {
       const signupData: SignupData = {
         name: "Test User",
         compliantUsername: "testuser",
@@ -38,10 +39,10 @@ describe("register-utils", () => {
           reason: "",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe("verify");
+      expect(signupDataToStatus(signupData)).toBe(UserStatus.VERIFY);
     });
 
-    it('should return "provisioning" when not ready and reason is Provisioning', () => {
+    it("should return UserStatus.PROVISIONING when not ready and reason is Provisioning", () => {
       const signupData: SignupData = {
         name: "Test User",
         compliantUsername: "testuser",
@@ -55,10 +56,10 @@ describe("register-utils", () => {
           reason: "Provisioning",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe("provisioning");
+      expect(signupDataToStatus(signupData)).toBe(UserStatus.PROVISIONING);
     });
 
-    it('should return "pending-approval" for unknown states', () => {
+    it("should return UserStatus.PENDING_APPROVAL for unknown states", () => {
       const signupData: SignupData = {
         name: "Test User",
         compliantUsername: "testuser",
@@ -72,7 +73,7 @@ describe("register-utils", () => {
           reason: "SomeOtherReason",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe("pending-approval");
+      expect(signupDataToStatus(signupData)).toBe(UserStatus.PENDING_APPROVAL);
     });
   });
 });
