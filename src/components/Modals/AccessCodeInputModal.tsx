@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  type KeyboardEvent,
+  type ClipboardEvent,
+} from "react";
 import {
   Modal,
   ModalBody,
@@ -37,7 +43,10 @@ function CodeBoxes({
   }, []);
 
   const handleChange = (index: number, raw: string) => {
-    const char = raw.replace(/[^a-zA-Z0-9]/g, "").slice(-1).toUpperCase();
+    const char = raw
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(-1)
+      .toUpperCase();
     const next = [...values];
     next[index] = char;
     onChange(next);
@@ -118,15 +127,19 @@ function CodeBoxes({
             }}
             onMouseLeave={(e) => {
               if (document.activeElement !== e.target) {
-                e.currentTarget.style.borderColor = "var(--pf-t--global--border--color--default)";
+                e.currentTarget.style.borderColor =
+                  "var(--pf-t--global--border--color--default)";
               }
             }}
             onFocus={(e) => {
-              e.target.style.borderColor = "var(--pf-t--global--border--color--clicked)";
-              e.target.style.boxShadow = "0 0 0 1px var(--pf-t--global--border--color--clicked)";
+              e.target.style.borderColor =
+                "var(--pf-t--global--border--color--clicked)";
+              e.target.style.boxShadow =
+                "0 0 0 1px var(--pf-t--global--border--color--clicked)";
             }}
             onBlur={(e) => {
-              e.target.style.borderColor = "var(--pf-t--global--border--color--default)";
+              e.target.style.borderColor =
+                "var(--pf-t--global--border--color--default)";
               e.target.style.boxShadow = "none";
             }}
           />
@@ -141,7 +154,9 @@ export function AccessCodeInputModal({
   onClose,
   onVerified,
 }: AccessCodeInputModalProps) {
-  const [codeChars, setCodeChars] = useState<string[]>(Array(CODE_LENGTH).fill(""));
+  const [codeChars, setCodeChars] = useState<string[]>(
+    Array(CODE_LENGTH).fill(""),
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

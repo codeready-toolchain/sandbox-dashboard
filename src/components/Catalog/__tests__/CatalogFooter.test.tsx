@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { CatalogFooter } from "../CatalogFooter";
-import { SandboxContext, type SandboxContextType } from "../../../hooks/SandboxContext";
+import {
+  SandboxContext,
+  type SandboxContextType,
+} from "../../../hooks/SandboxContext";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { UserStatus } from "../../../types";

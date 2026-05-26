@@ -130,7 +130,10 @@ export function CatalogCard({
         ))}
       </CardBody>
       <CardFooter>
-        <Flex gap={{ default: "gapSm" }} alignItems={{ default: "alignItemsCenter" }}>
+        <Flex
+          gap={{ default: "gapSm" }}
+          alignItems={{ default: "alignItemsCenter" }}
+        >
           <FlexItem>
             <Button
               variant="secondary"

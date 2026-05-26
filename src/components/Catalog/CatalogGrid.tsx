@@ -48,9 +48,7 @@ export function CatalogGrid() {
   const markAsTried = useCallback(
     (productId: Product) => {
       setGreenCorners((prev) =>
-        prev.map((gc) =>
-          gc.id === productId ? { ...gc, show: true } : gc,
-        ),
+        prev.map((gc) => (gc.id === productId ? { ...gc, show: true } : gc)),
       );
     },
     [setGreenCorners],
@@ -90,7 +88,11 @@ export function CatalogGrid() {
           for (let i = 0; i < maxAttempts; i++) {
             await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
             resolvedStatus = await pollUntilStatusKnown();
-            if (resolvedStatus !== UserStatus.NEW && resolvedStatus !== UserStatus.UNKNOWN) break;
+            if (
+              resolvedStatus !== UserStatus.NEW &&
+              resolvedStatus !== UserStatus.UNKNOWN
+            )
+              break;
           }
 
           if (resolvedStatus === UserStatus.VERIFY) {
@@ -153,7 +155,7 @@ export function CatalogGrid() {
     if (userData?.defaultUserNamespace) {
       await refetchAAP(userData.defaultUserNamespace);
     }
-  }, [refetchAAP, userData?.defaultUserNamespace]);
+  }, [refetchAAP, userData]);
 
   const showAAPDelete =
     ansibleStatus !== AnsibleStatus.NEW &&

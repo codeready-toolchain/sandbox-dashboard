@@ -48,7 +48,7 @@ function PasswordField({ password }: { password: string }) {
         <TextInput
           value={showPassword ? password : "•".repeat(password.length || 16)}
           type="text"
-          isReadOnly
+          readOnly
           aria-label="Password"
           data-testid="ansible-password-field"
         />
@@ -200,9 +200,12 @@ export function AnsibleLaunchInfoModal({
                 <FlexItem style={{ minWidth: "80px" }}>
                   <span>Username:</span>
                 </FlexItem>
-                <FlexItem grow={{ default: "grow" }} style={{ maxWidth: "320px" }}>
+                <FlexItem
+                  grow={{ default: "grow" }}
+                  style={{ maxWidth: "320px" }}
+                >
                   <ClipboardCopy
-                    isReadOnly
+                    readOnly
                     hoverTip="Copy"
                     clickTip="Copied"
                     data-testid="ansible-username"
@@ -218,7 +221,10 @@ export function AnsibleLaunchInfoModal({
                 <FlexItem style={{ minWidth: "80px" }}>
                   <span>Password:</span>
                 </FlexItem>
-                <FlexItem grow={{ default: "grow" }} style={{ maxWidth: "320px" }}>
+                <FlexItem
+                  grow={{ default: "grow" }}
+                  style={{ maxWidth: "320px" }}
+                >
                   <PasswordField password={ansibleUIPassword} />
                 </FlexItem>
               </Flex>
@@ -227,7 +233,8 @@ export function AnsibleLaunchInfoModal({
             {/* Step 2: Red Hat account */}
             <div
               style={{
-                borderTop: "1px solid var(--pf-t--global--border--color--default)",
+                borderTop:
+                  "1px solid var(--pf-t--global--border--color--default)",
                 marginTop: "24px",
                 paddingTop: "24px",
               }}

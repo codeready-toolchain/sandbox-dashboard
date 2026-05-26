@@ -27,14 +27,18 @@ describe("WorkspaceResetModal", () => {
 
   it("renders nothing when closed", () => {
     renderModal(false);
-    expect(screen.queryByTestId("workspace-reset-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-reset-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the initial confirmation dialog", () => {
     renderModal();
     expect(screen.getByText("Reset Workspaces")).toBeInTheDocument();
     expect(screen.getByText(/delete all your workspaces/)).toBeInTheDocument();
-    expect(screen.getByText("I understand and I want to reset")).toBeInTheDocument();
+    expect(
+      screen.getByText("I understand and I want to reset"),
+    ).toBeInTheDocument();
   });
 
   it("progresses through the 3-state button", async () => {
@@ -45,7 +49,9 @@ describe("WorkspaceResetModal", () => {
     // Stage 1: initial → confirmed
     await user.click(screen.getByTestId("workspace-reset-button"));
     expect(screen.getByText("Reset my workspaces")).toBeInTheDocument();
-    expect(screen.getByText(/about to delete all your data/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/about to delete all your data/),
+    ).toBeInTheDocument();
 
     // Stage 2: confirmed → submitting → complete
     await user.click(screen.getByTestId("workspace-reset-button"));

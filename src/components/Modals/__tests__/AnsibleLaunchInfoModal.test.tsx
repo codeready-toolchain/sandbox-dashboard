@@ -22,7 +22,9 @@ describe("AnsibleLaunchInfoModal", () => {
 
   it("renders nothing when closed", () => {
     render(<AnsibleLaunchInfoModal {...defaultProps} isOpen={false} />);
-    expect(screen.queryByTestId("ansible-launch-info-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("ansible-launch-info-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the provisioned title with two-account instructions when ready", () => {
@@ -34,7 +36,9 @@ describe("AnsibleLaunchInfoModal", () => {
   it("shows AAP admin account section with credentials", () => {
     render(<AnsibleLaunchInfoModal {...defaultProps} />);
     expect(screen.getByText("AAP admin account")).toBeInTheDocument();
-    expect(screen.getByText(/Log in to your AAP admin account/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Log in to your AAP admin account/),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("ansible-username")).toBeInTheDocument();
     expect(screen.getByTestId("ansible-password-field")).toBeInTheDocument();
   });
@@ -47,7 +51,9 @@ describe("AnsibleLaunchInfoModal", () => {
 
   it("shows password toggle and copy buttons", () => {
     render(<AnsibleLaunchInfoModal {...defaultProps} />);
-    expect(screen.getByTestId("toggle-password-visibility")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("toggle-password-visibility"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("copy-password")).toBeInTheDocument();
   });
 
@@ -55,7 +61,9 @@ describe("AnsibleLaunchInfoModal", () => {
     const user = userEvent.setup();
     render(<AnsibleLaunchInfoModal {...defaultProps} />);
 
-    const passwordField = screen.getByTestId("ansible-password-field") as HTMLInputElement;
+    const passwordField = screen.getByTestId(
+      "ansible-password-field",
+    ) as HTMLInputElement;
     expect(passwordField.value).not.toContain("secret-password");
 
     await user.click(screen.getByTestId("toggle-password-visibility"));
@@ -73,7 +81,9 @@ describe("AnsibleLaunchInfoModal", () => {
 
   it("shows the access-again hint text", () => {
     render(<AnsibleLaunchInfoModal {...defaultProps} />);
-    expect(screen.getByText(/Access this information again/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Access this information again/),
+    ).toBeInTheDocument();
   });
 
   it("shows provisioning spinner when AAP is provisioning", () => {
@@ -83,7 +93,9 @@ describe("AnsibleLaunchInfoModal", () => {
         ansibleStatus={AnsibleStatus.PROVISIONING}
       />,
     );
-    expect(screen.getByText(/instance is being provisioned/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/instance is being provisioned/),
+    ).toBeInTheDocument();
   });
 
   it("shows error when ansibleError is set", () => {

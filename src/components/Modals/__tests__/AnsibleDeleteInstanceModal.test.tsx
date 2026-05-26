@@ -33,7 +33,9 @@ describe("AnsibleDeleteInstanceModal", () => {
 
   it("renders nothing when closed", () => {
     render(<AnsibleDeleteInstanceModal {...defaultProps} isOpen={false} />);
-    expect(screen.queryByTestId("ansible-delete-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("ansible-delete-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders confirmation dialog", () => {

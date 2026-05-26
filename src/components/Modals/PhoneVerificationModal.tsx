@@ -16,7 +16,11 @@ import {
   initiatePhoneVerification,
   completePhoneVerification,
 } from "../../api/registration";
-import { isValidCountryCode, isValidPhoneNumber, isValidOTP } from "../../utils/phone-utils";
+import {
+  isValidCountryCode,
+  isValidPhoneNumber,
+  isValidOTP,
+} from "../../utils/phone-utils";
 import { errorMessage } from "../../utils/common";
 
 type PhoneVerificationModalProps = {
@@ -106,7 +110,13 @@ export function PhoneVerificationModal({
       variant="small"
       data-testid="phone-verification-modal"
     >
-      <ModalHeader title={step === "phone" ? "Verify your phone number" : "Enter verification code"} />
+      <ModalHeader
+        title={
+          step === "phone"
+            ? "Verify your phone number"
+            : "Enter verification code"
+        }
+      />
       <ModalBody>
         {error && (
           <Alert
@@ -148,9 +158,14 @@ export function PhoneVerificationModal({
         ) : (
           <Form onSubmit={handleCodeSubmit} id="code-form">
             <Content component="p">
-              A verification code has been sent to your phone. Please enter it below.
+              A verification code has been sent to your phone. Please enter it
+              below.
             </Content>
-            <FormGroup label="Verification code" isRequired fieldId="verification-code">
+            <FormGroup
+              label="Verification code"
+              isRequired
+              fieldId="verification-code"
+            >
               <TextInput
                 id="verification-code"
                 value={verificationCode}
@@ -175,7 +190,12 @@ export function PhoneVerificationModal({
         >
           {step === "phone" ? "Send code" : "Verify"}
         </Button>
-        <Button key="cancel" variant="link" onClick={handleClose} isDisabled={submitting}>
+        <Button
+          key="cancel"
+          variant="link"
+          onClick={handleClose}
+          isDisabled={submitting}
+        >
           Cancel
         </Button>
         {submitting && <Spinner size="md" />}

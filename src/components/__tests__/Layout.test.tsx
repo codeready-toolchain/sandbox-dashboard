@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { Layout } from "../Layout/Layout";
 import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
-import { SandboxContext, type SandboxContextType } from "../../hooks/SandboxContext";
+import {
+  SandboxContext,
+  type SandboxContextType,
+} from "../../hooks/SandboxContext";
 import { AnsibleStatus } from "../../utils/aap-utils";
 import { readyUserFixture } from "../../mocks/fixtures";
 import { UserStatus } from "../../types";
@@ -47,7 +50,10 @@ function makeSandboxContext(
   };
 }
 
-function renderLayout(route = "/", sandboxOverrides: Partial<SandboxContextType> = {}) {
+function renderLayout(
+  route = "/",
+  sandboxOverrides: Partial<SandboxContextType> = {},
+) {
   return render(
     <AuthContext.Provider value={authValue}>
       <SandboxContext.Provider value={makeSandboxContext(sandboxOverrides)}>
@@ -55,7 +61,10 @@ function renderLayout(route = "/", sandboxOverrides: Partial<SandboxContextType>
           <Routes>
             <Route element={<Layout />}>
               <Route index element={<div>Catalog Content</div>} />
-              <Route path="activities" element={<div>Activities Content</div>} />
+              <Route
+                path="activities"
+                element={<div>Activities Content</div>}
+              />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -107,7 +116,9 @@ describe("Layout", () => {
     renderLayout("/", { userReady: true });
 
     await user.click(screen.getByText("John Doe"));
-    expect(screen.getByTestId("reset-workspaces-menu-item")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("reset-workspaces-menu-item"),
+    ).toBeInTheDocument();
   });
 
   it("hides Reset Workspaces option when user is not ready", async () => {
@@ -115,6 +126,8 @@ describe("Layout", () => {
     renderLayout("/", { userReady: false });
 
     await user.click(screen.getByText("John Doe"));
-    expect(screen.queryByTestId("reset-workspaces-menu-item")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("reset-workspaces-menu-item"),
+    ).not.toBeInTheDocument();
   });
 });

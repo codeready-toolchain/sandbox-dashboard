@@ -28,7 +28,9 @@ describe("PhoneVerificationModal", () => {
 
   it("renders nothing when closed", () => {
     renderModal(false);
-    expect(screen.queryByTestId("phone-verification-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("phone-verification-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the phone step initially", () => {
@@ -59,7 +61,10 @@ describe("PhoneVerificationModal", () => {
     await waitFor(() => {
       expect(screen.getByText("Enter verification code")).toBeInTheDocument();
     });
-    expect(registrationApi.initiatePhoneVerification).toHaveBeenCalledWith("+1", "5551234567");
+    expect(registrationApi.initiatePhoneVerification).toHaveBeenCalledWith(
+      "+1",
+      "5551234567",
+    );
   });
 
   it("shows error from API on phone step", async () => {
@@ -73,7 +78,9 @@ describe("PhoneVerificationModal", () => {
     await user.click(screen.getByText("Send code"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("phone-verification-error")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("phone-verification-error"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -96,7 +103,9 @@ describe("PhoneVerificationModal", () => {
     await waitFor(() => {
       expect(mockOnVerified).toHaveBeenCalled();
     });
-    expect(registrationApi.completePhoneVerification).toHaveBeenCalledWith("123456");
+    expect(registrationApi.completePhoneVerification).toHaveBeenCalledWith(
+      "123456",
+    );
   });
 
   it("calls onClose when Cancel is clicked", async () => {

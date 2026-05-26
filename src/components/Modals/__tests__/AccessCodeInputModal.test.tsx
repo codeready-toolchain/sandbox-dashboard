@@ -33,7 +33,9 @@ describe("AccessCodeInputModal", () => {
   it("renders the 5 code boxes", () => {
     renderModal();
     expect(screen.getByText("Enter the activation code")).toBeInTheDocument();
-    expect(screen.getByText("If you have an activation code, enter it now.")).toBeInTheDocument();
+    expect(
+      screen.getByText("If you have an activation code, enter it now."),
+    ).toBeInTheDocument();
     for (let i = 0; i < 5; i++) {
       expect(screen.getByTestId(`code-box-${i}`)).toBeInTheDocument();
     }
