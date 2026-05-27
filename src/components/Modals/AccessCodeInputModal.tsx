@@ -224,7 +224,7 @@ export function AccessCodeInputModal({
       <ModalFooter>
         <Button
           key="submit"
-          variant="secondary"
+          variant="primary"
           onClick={handleSubmit}
           isDisabled={submitting}
           isLoading={submitting}
@@ -234,7 +234,7 @@ export function AccessCodeInputModal({
         </Button>
         <Button
           key="cancel"
-          variant="primary"
+          variant="link"
           onClick={handleClose}
           isDisabled={submitting}
         >
