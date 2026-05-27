@@ -122,7 +122,7 @@ export function AnsibleLaunchInfoModal({
       variant="medium"
       data-testid="ansible-launch-info-modal"
     >
-      <ModalHeader title={titleContent as unknown as string} />
+      <ModalHeader title={titleContent} />
       <ModalBody>
         {ansibleError && (
           <Alert
