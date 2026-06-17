@@ -1,4 +1,4 @@
-.PHONY: dev lint test build image run-image clean
+.PHONY: dev lint lint-fix test build image run-image clean
 
 dev:
 	npm run dev
@@ -6,6 +6,10 @@ dev:
 lint:
 	npm run lint
 	npm run format:check
+
+lint-fix:
+	npm run lint -- --fix
+	npm run format
 
 test:
 	npm run test

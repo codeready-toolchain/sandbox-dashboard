@@ -1,7 +1,28 @@
+import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { server } from "./mocks/server";
 import { setTokenGetter } from "./api/authFetch";
 import { App } from "./App";
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
+  Footer: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer-block.js", () => ({
+  FooterBlock: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer-social-link.js", () => ({
+  FooterSocialLink: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-cta/rh-cta.js", () => ({
+  Cta: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
 
 beforeAll(() => {
   window.__config__ = {

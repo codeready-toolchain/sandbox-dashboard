@@ -3,6 +3,7 @@ import { CatalogBanner } from "../CatalogBanner";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { AnsibleStatus } from "../../../utils/aap-utils";
+import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { UserStatus } from "../../../types";
 
@@ -27,6 +28,12 @@ function makeContext(
     ansibleUILink: undefined,
     ansibleError: null,
     ansibleStatus: AnsibleStatus.NEW,
+    openclawData: undefined,
+    openclawError: null,
+    openclawStatus: OpenClawStatus.NEW,
+    openclawUILink: undefined,
+    handleOpenClawInstance: vi.fn(),
+    deleteOpenClaw: vi.fn(),
     disabledIntegrations: [],
     ...overrides,
   };

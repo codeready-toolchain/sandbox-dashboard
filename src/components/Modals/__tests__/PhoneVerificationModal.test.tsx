@@ -115,4 +115,63 @@ describe("PhoneVerificationModal", () => {
     await user.click(screen.getByText("Cancel"));
     expect(mockOnClose).toHaveBeenCalled();
   });
+
+  it("prevents duplicate phone submissions on rapid double-click", async () => {
+    let resolveCall: (() => void) | undefined;
+    vi.mocked(registrationApi.initiatePhoneVerification).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCall = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
+
+    const submitBtn = screen.getByTestId("phone-verification-submit");
+    await user.click(submitBtn);
+    await user.click(submitBtn);
+
+    expect(registrationApi.initiatePhoneVerification).toHaveBeenCalledTimes(1);
+
+    resolveCall!();
+    await waitFor(() => {
+      expect(screen.getByText("Enter verification code")).toBeInTheDocument();
+    });
+  });
+
+  it("prevents duplicate code submissions on rapid double-click", async () => {
+    vi.mocked(registrationApi.initiatePhoneVerification).mockResolvedValue();
+    let resolveCall: (() => void) | undefined;
+    vi.mocked(registrationApi.completePhoneVerification).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCall = resolve;
+        }),
+    );
+
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
+    await user.click(screen.getByTestId("phone-verification-submit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("verification-code-input")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByTestId("verification-code-input"), "123456");
+
+    const verifyBtn = screen.getByTestId("phone-verification-submit");
+    await user.click(verifyBtn);
+    await user.click(verifyBtn);
+
+    expect(registrationApi.completePhoneVerification).toHaveBeenCalledTimes(1);
+
+    resolveCall!();
+    await waitFor(() => {
+      expect(mockOnVerified).toHaveBeenCalledTimes(1);
+    });
+  });
 });

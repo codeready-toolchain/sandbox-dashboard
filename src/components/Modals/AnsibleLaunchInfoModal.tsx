@@ -1,29 +1,29 @@
-import { useState } from "react";
 import {
-  Modal,
-  ModalBody,
-  ModalHeader,
-  ModalFooter,
+  Alert,
   Button,
   ClipboardCopy,
   Content,
-  Alert,
   Flex,
   FlexItem,
-  Spinner,
   InputGroup,
   InputGroupItem,
-  InputGroupText,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
   TextInput,
+  Tooltip,
 } from "@patternfly/react-core";
-import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle-icon";
+import CopyIcon from "@patternfly/react-icons/dist/esm/icons/copy-icon";
+import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import EyeIcon from "@patternfly/react-icons/dist/esm/icons/eye-icon";
 import EyeSlashIcon from "@patternfly/react-icons/dist/esm/icons/eye-slash-icon";
-import CopyIcon from "@patternfly/react-icons/dist/esm/icons/copy-icon";
-import { AnsibleStatus } from "../../utils/aap-utils";
+import { useState } from "react";
 import AnsibleIcon from "../../assets/logos/ansible.svg";
 import RedHatLogo from "../../assets/logos/logo_hat-only.svg";
+import { AnsibleStatus } from "../../utils/aap-utils";
 
 type AnsibleLaunchInfoModalProps = {
   isOpen: boolean;
@@ -36,9 +36,11 @@ type AnsibleLaunchInfoModalProps = {
 };
 
 function PasswordField({ password }: { password: string }) {
+  const [passwordCopied, setPasswordCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleCopy = () => {
+  const handlePasswordCopy = () => {
+    setPasswordCopied(true);
     navigator.clipboard.writeText(password);
   };
 
@@ -46,33 +48,41 @@ function PasswordField({ password }: { password: string }) {
     <InputGroup>
       <InputGroupItem isFill>
         <TextInput
-          value={showPassword ? password : "•".repeat(password.length || 16)}
-          type="text"
-          readOnly
+          value={showPassword ? password : "*".repeat(25)}
+          readOnlyVariant="default"
           aria-label="Password"
           data-testid="ansible-password-field"
         />
       </InputGroupItem>
-      <InputGroupText>
-        <Button
-          variant="plain"
-          aria-label={showPassword ? "Hide password" : "Show password"}
-          onClick={() => setShowPassword((prev) => !prev)}
-          data-testid="toggle-password-visibility"
+      <InputGroupItem>
+        <Tooltip
+          content={passwordCopied ? "Password copied!" : "Copy password"}
+          onTooltipHidden={() => setPasswordCopied(false)}
+          exitDelay={1500}
+          entryDelay={300}
         >
-          {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
-        </Button>
-      </InputGroupText>
-      <InputGroupText>
-        <Button
-          variant="plain"
-          aria-label="Copy password"
-          onClick={handleCopy}
-          data-testid="copy-password"
-        >
-          <CopyIcon />
-        </Button>
-      </InputGroupText>
+          <Button
+            variant="control"
+            onClick={handlePasswordCopy}
+            aria-label="Copy password"
+            data-testid="copy-password"
+          >
+            <CopyIcon />
+          </Button>
+        </Tooltip>
+      </InputGroupItem>
+      <InputGroupItem>
+        <Tooltip content={showPassword ? "Hide password" : "Show password"}>
+          <Button
+            variant="control"
+            onClick={() => setShowPassword((prev) => !prev)}
+            aria-label="Show password"
+            data-testid="toggle-password-visibility"
+          >
+            {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+          </Button>
+        </Tooltip>
+      </InputGroupItem>
     </InputGroup>
   );
 }
@@ -175,9 +185,6 @@ export function AnsibleLaunchInfoModal({
                   style={{
                     width: "40px",
                     height: "40px",
-                    borderRadius: "50%",
-                    backgroundColor: "#1a1a1a",
-                    padding: "4px",
                   }}
                 />
               </FlexItem>
@@ -200,14 +207,11 @@ export function AnsibleLaunchInfoModal({
                 <FlexItem style={{ minWidth: "80px" }}>
                   <span>Username:</span>
                 </FlexItem>
-                <FlexItem
-                  grow={{ default: "grow" }}
-                  style={{ maxWidth: "320px" }}
-                >
+                <FlexItem>
                   <ClipboardCopy
-                    readOnly
-                    hoverTip="Copy"
-                    clickTip="Copied"
+                    isReadOnly
+                    hoverTip="Copy username"
+                    clickTip="Username copied!"
                     data-testid="ansible-username"
                   >
                     {ansibleUIUser || "—"}
@@ -218,13 +222,8 @@ export function AnsibleLaunchInfoModal({
                 alignItems={{ default: "alignItemsCenter" }}
                 gap={{ default: "gapMd" }}
               >
-                <FlexItem style={{ minWidth: "80px" }}>
-                  <span>Password:</span>
-                </FlexItem>
-                <FlexItem
-                  grow={{ default: "grow" }}
-                  style={{ maxWidth: "320px" }}
-                >
+                <FlexItem style={{ minWidth: "80px" }}>Password:</FlexItem>
+                <FlexItem>
                   <PasswordField password={ansibleUIPassword} />
                 </FlexItem>
               </Flex>

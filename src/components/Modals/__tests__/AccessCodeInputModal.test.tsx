@@ -107,4 +107,34 @@ describe("AccessCodeInputModal", () => {
 
     expect(screen.getByTestId("code-box-1")).toHaveFocus();
   });
+
+  it("prevents duplicate submissions on rapid double-click", async () => {
+    let resolveCall: (() => void) | undefined;
+    vi.mocked(registrationApi.verifyActivationCode).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCall = resolve;
+        }),
+    );
+
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.type(screen.getByTestId("code-box-0"), "A");
+    await user.type(screen.getByTestId("code-box-1"), "B");
+    await user.type(screen.getByTestId("code-box-2"), "C");
+    await user.type(screen.getByTestId("code-box-3"), "D");
+    await user.type(screen.getByTestId("code-box-4"), "E");
+
+    const submitBtn = screen.getByTestId("access-code-submit");
+    await user.click(submitBtn);
+    await user.click(submitBtn);
+
+    expect(registrationApi.verifyActivationCode).toHaveBeenCalledTimes(1);
+
+    resolveCall!();
+    await waitFor(() => {
+      expect(mockOnVerified).toHaveBeenCalledTimes(1);
+    });
+  });
 });

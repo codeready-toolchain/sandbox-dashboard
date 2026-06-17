@@ -8,6 +8,7 @@ export enum Product {
   DEVSPACES = "devspaces",
   AAP = "ansible-automation-platform",
   OPENSHIFT_VIRT = "openshift-virtualization",
+  OPENCLAW = "openclaw",
 }
 
 export enum Intcmp {
@@ -16,6 +17,7 @@ export enum Intcmp {
   RHODS = "701Pe00000do2uiIAA",
   OPENSHIFT_VIRT = "701Pe00000dov6IIAQ",
   AAP = "701Pe00000dowQXIAY",
+  OPENCLAW = "701Pe00000dowQXIAZ",
 }
 
 interface ProductURL {
@@ -72,6 +74,7 @@ export const productsURLMapping = (
         ? `${userData?.consoleURL}/k8s/ns/${userData?.defaultUserNamespace}/virtualization-overview`
         : "",
     },
+    { id: Product.OPENCLAW, url: "" },
   ];
 };
 

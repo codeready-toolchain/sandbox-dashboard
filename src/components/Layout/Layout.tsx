@@ -1,14 +1,11 @@
 import { useRef, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router";
 import {
   Dropdown,
   DropdownItem,
   DropdownList,
   Masthead,
-  MastheadBrand,
   MastheadContent,
-  MastheadMain,
-  MastheadLogo,
   MenuToggle,
   Nav,
   NavItem,
@@ -20,11 +17,15 @@ import {
   ToolbarGroup,
   ToolbarItem,
   Divider,
+  MastheadMain,
+  MastheadBrand,
+  MastheadLogo,
 } from "@patternfly/react-core";
 import { useAuth } from "../../auth/useAuth";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import { WorkspaceResetModal } from "../Modals";
-import RedHatLogo from "../../assets/logos/logo_hat-only.svg";
+import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
+import "./Layout.css";
 
 export function Layout() {
   const { givenName, familyName, logout } = useAuth();
@@ -32,6 +33,8 @@ export function Layout() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const displayName =
     givenName && familyName
@@ -50,14 +53,16 @@ export function Layout() {
           <MastheadLogo
             component="a"
             href="/"
-            onClick={(e: React.MouseEvent) => e.preventDefault()}
+            onClick={(e: React.MouseEvent) => {
+              e.preventDefault();
+              navigate("/");
+            }}
           >
-            <img
-              src={RedHatLogo}
-              alt="Red Hat"
+            <RedHatLogo
+              className="rh-logo"
               style={{ height: "36px", marginRight: "8px" }}
+              aria-label="Red Hat Developer Sandbox"
             />
-            Developer Sandbox
           </MastheadLogo>
         </MastheadBrand>
       </MastheadMain>
@@ -68,26 +73,13 @@ export function Layout() {
               <ToolbarItem>
                 <Nav variant="horizontal">
                   <NavList>
-                    <NavItem>
-                      <NavLink
-                        to="/"
-                        end
-                        className={({ isActive }) =>
-                          isActive ? "pf-m-current" : ""
-                        }
-                      >
+                    <NavItem isActive={location.pathname === "/"}>
+                      <NavLink to="/" end>
                         Catalog
                       </NavLink>
                     </NavItem>
-                    <NavItem>
-                      <NavLink
-                        to="/activities"
-                        className={({ isActive }) =>
-                          isActive ? "pf-m-current" : ""
-                        }
-                      >
-                        Activities
-                      </NavLink>
+                    <NavItem isActive={location.pathname === "/activities"}>
+                      <NavLink to="/activities">Activities</NavLink>
                     </NavItem>
                   </NavList>
                 </Nav>
@@ -140,7 +132,11 @@ export function Layout() {
 
   return (
     <Page masthead={masthead}>
-      <PageSection hasBodyWrapper={false} isFilled>
+      <PageSection
+        hasBodyWrapper={false}
+        isFilled
+        padding={{ default: "noPadding" }}
+      >
         <Outlet />
       </PageSection>
       <WorkspaceResetModal

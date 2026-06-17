@@ -1,21 +1,26 @@
 import {
+  Button,
   Card,
   CardBody,
   CardFooter,
   CardHeader,
-  Button,
   Content,
   Flex,
   FlexItem,
-  Tooltip,
+  Label,
   Spinner,
+  Tooltip,
 } from "@patternfly/react-core";
 import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle-icon";
-import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
-import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import CheckIcon from "@patternfly/react-icons/dist/esm/icons/check-icon";
-import TrashIcon from "@patternfly/react-icons/dist/esm/icons/trash-icon";
+import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
+import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
+import "../common/Card.css";
+import "./CatalogCard.css";
 import type { DescriptionIconType, ProductDescription } from "./productData";
+
+export type ButtonLabel = "Try it" | "Provision" | "Launch" | "Re-provision";
+export type DeleteButtonLabel = "Delete" | "Stop" | "Deleting";
 
 type CatalogCardProps = {
   title: string;
@@ -27,6 +32,10 @@ type CatalogCardProps = {
   loading?: boolean;
   showDelete?: boolean;
   onDelete?: () => void;
+  buttonLabel?: ButtonLabel;
+  deleteButtonLabel?: DeleteButtonLabel;
+  statusLabel?: string;
+  statusColor?: "blue" | "green" | "orange" | "red" | "grey";
 };
 
 function DescriptionIcon({ type }: { type: DescriptionIconType }) {
@@ -48,19 +57,22 @@ function DescriptionIcon({ type }: { type: DescriptionIconType }) {
 
 function GreenCorner({ show }: { show: boolean }) {
   if (!show) {
-    return <div style={{ width: "32px", height: "32px" }} />;
+    return null;
   }
   return (
     <Tooltip content="Tried" position="top">
       <div
         style={{
-          width: "32px",
-          height: "32px",
+          width: "35px",
+          height: "35px",
           backgroundColor: "#73C5C5",
           clipPath: "polygon(0 0, 100% 0, 0 100%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          position: "absolute",
+          top: 0,
+          left: 0,
         }}
       >
         <CheckIcon
@@ -87,15 +99,19 @@ export function CatalogCard({
   loading = false,
   showDelete = false,
   onDelete,
+  buttonLabel = "Try it",
+  deleteButtonLabel = "Delete",
+  statusLabel,
+  statusColor,
 }: CatalogCardProps) {
+  const isDeleting = deleteButtonLabel === "Deleting";
+  const showExternalIcon =
+    buttonLabel === "Launch" || (buttonLabel === "Try it" && !!link);
+
   return (
-    <Card
-      isCompact
-      style={{ width: "330px", height: "372px" }}
-      data-testid="catalog-card"
-    >
-      <GreenCorner show={greenCorner} />
-      <CardHeader>
+    <Card isCompact data-testid="catalog-card" className="sandbox-card">
+      <CardHeader className="sandbox-card-header">
+        <GreenCorner show={greenCorner} />
         <Flex
           alignItems={{ default: "alignItemsCenter" }}
           gap={{ default: "gapSm" }}
@@ -108,9 +124,20 @@ export function CatalogCard({
             />
           </FlexItem>
           <FlexItem>
-            <Content component="h3" style={{ fontWeight: 700 }}>
-              {title}
-            </Content>
+            <Flex direction={{ default: "column" }} gap={{ default: "gapXs" }}>
+              <FlexItem>
+                <Content component="h3" style={{ fontWeight: 700 }}>
+                  {title}
+                </Content>
+              </FlexItem>
+              {statusLabel && statusColor && (
+                <FlexItem>
+                  <Label color={statusColor} isCompact>
+                    {statusLabel}
+                  </Label>
+                </FlexItem>
+              )}
+            </Flex>
           </FlexItem>
         </Flex>
       </CardHeader>
@@ -139,7 +166,7 @@ export function CatalogCard({
               variant="secondary"
               onClick={onTryIt}
               isDisabled={loading}
-              icon={link ? <ExternalLinkAltIcon /> : undefined}
+              icon={showExternalIcon ? <ExternalLinkAltIcon /> : undefined}
               iconPosition="end"
               data-testid="try-it-button"
             >
@@ -148,20 +175,22 @@ export function CatalogCard({
                   <Spinner size="sm" /> Loading...
                 </>
               ) : (
-                "Try it"
+                buttonLabel
               )}
             </Button>
           </FlexItem>
           {showDelete && onDelete && (
             <FlexItem>
-              <Tooltip content="Delete AAP instance">
+              <Tooltip content={`${deleteButtonLabel} instance`}>
                 <Button
-                  variant="plain"
+                  variant="danger"
                   onClick={onDelete}
-                  aria-label="Delete AAP instance"
-                  data-testid="delete-aap-button"
+                  isDisabled={isDeleting}
+                  aria-label={`${deleteButtonLabel} instance`}
+                  data-testid="delete-instance-button"
                 >
-                  <TrashIcon />
+                  Delete instance
+                  {isDeleting ? <Spinner size="sm" /> : null}
                 </Button>
               </Tooltip>
             </FlexItem>

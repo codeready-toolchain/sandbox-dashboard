@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Modal,
   ModalBody,
@@ -26,6 +26,7 @@ export function WorkspaceResetModal({
 }: WorkspaceResetModalProps) {
   const [stage, setStage] = useState<ResetStage>("initial");
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
 
   const resetState = () => {
     setStage("initial");
@@ -38,12 +39,17 @@ export function WorkspaceResetModal({
   };
 
   const handleClick = async () => {
+    if (inFlightRef.current) {
+      return;
+    }
+
     if (stage === "initial") {
       setStage("confirmed");
       return;
     }
 
     if (stage === "confirmed") {
+      inFlightRef.current = true;
       setStage("submitting");
       setError(null);
       try {
@@ -53,6 +59,8 @@ export function WorkspaceResetModal({
       } catch (err) {
         setError(errorMessage(err));
         setStage("confirmed");
+      } finally {
+        inFlightRef.current = false;
       }
     }
   };

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   Modal,
   ModalBody,
@@ -42,6 +42,7 @@ export function PhoneVerificationModal({
   const [verificationCode, setVerificationCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const inFlightRef = useRef(false);
 
   const resetState = () => {
     setStep("phone");
@@ -50,6 +51,7 @@ export function PhoneVerificationModal({
     setVerificationCode("");
     setError(null);
     setSubmitting(false);
+    inFlightRef.current = false;
   };
 
   const handleClose = () => {
@@ -59,6 +61,8 @@ export function PhoneVerificationModal({
 
   const handlePhoneSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (inFlightRef.current) return;
+
     setError(null);
 
     if (!isValidCountryCode(countryCode)) {
@@ -70,6 +74,7 @@ export function PhoneVerificationModal({
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     try {
       await initiatePhoneVerification(countryCode, phoneNumber);
@@ -77,12 +82,17 @@ export function PhoneVerificationModal({
     } catch (err) {
       setError(errorMessage(err));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleCodeSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (inFlightRef.current) {
+      return;
+    }
+
     setError(null);
 
     if (!isValidOTP(verificationCode) || verificationCode.length === 0) {
@@ -90,6 +100,7 @@ export function PhoneVerificationModal({
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     try {
       await completePhoneVerification(verificationCode);
@@ -98,6 +109,7 @@ export function PhoneVerificationModal({
     } catch (err) {
       setError(errorMessage(err));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

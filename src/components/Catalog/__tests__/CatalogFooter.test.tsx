@@ -1,3 +1,4 @@
+import React from "react";
 import { render, screen } from "@testing-library/react";
 import { CatalogFooter } from "../CatalogFooter";
 import {
@@ -5,8 +6,35 @@ import {
   type SandboxContextType,
 } from "../../../hooks/SandboxContext";
 import { AnsibleStatus } from "../../../utils/aap-utils";
+import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { UserStatus } from "../../../types";
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
+  Footer: (
+    props: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>,
+  ) =>
+    React.createElement("div", {
+      ...props,
+      "data-testid":
+        (props as Record<string, unknown>)["data-testid"] ?? "rh-footer",
+    }),
+}));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer-block.js", () => ({
+  FooterBlock: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer-social-link.js", () => ({
+  FooterSocialLink: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-cta/rh-cta.js", () => ({
+  Cta: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
 
 function makeSandboxContext(
   overrides: Partial<SandboxContextType> = {},
@@ -29,6 +57,12 @@ function makeSandboxContext(
     ansibleUILink: undefined,
     ansibleError: null,
     ansibleStatus: AnsibleStatus.NEW,
+    openclawData: undefined,
+    openclawError: null,
+    openclawStatus: OpenClawStatus.NEW,
+    openclawUILink: undefined,
+    handleOpenClawInstance: vi.fn(),
+    deleteOpenClaw: vi.fn(),
     disabledIntegrations: [],
     ...overrides,
   };
@@ -49,8 +83,9 @@ describe("CatalogFooter", () => {
     expect(screen.getByText("Click here")).toBeInTheDocument();
   });
 
-  it("renders the Red Hat universal footer", () => {
+  it("renders the full Red Hat footer", () => {
     renderFooter();
+    expect(screen.getByTestId("rh-footer")).toBeInTheDocument();
     expect(screen.getByTestId("rh-footer-universal")).toBeInTheDocument();
   });
 

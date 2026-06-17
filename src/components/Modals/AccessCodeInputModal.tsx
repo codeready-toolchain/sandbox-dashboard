@@ -159,11 +159,13 @@ export function AccessCodeInputModal({
   );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const resetState = () => {
     setCodeChars(Array(CODE_LENGTH).fill(""));
     setError(null);
     setSubmitting(false);
+    isSubmittingRef.current = false;
   };
 
   const handleClose = () => {
@@ -172,6 +174,8 @@ export function AccessCodeInputModal({
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return;
+
     setError(null);
     const code = codeChars.join("");
 
@@ -180,6 +184,7 @@ export function AccessCodeInputModal({
       return;
     }
 
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
       await verifyActivationCode(code);
@@ -188,6 +193,7 @@ export function AccessCodeInputModal({
     } catch (err) {
       setError(errorMessage(err));
     } finally {
+      isSubmittingRef.current = false;
       setSubmitting(false);
     }
   };

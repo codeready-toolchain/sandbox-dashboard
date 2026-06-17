@@ -1,0 +1,43 @@
+.catalog-card-green-corner {
+  width: 35px;
+  height: 35px;
+  background-color: #589696;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+}
+
+.catalog-card__green-corner-icon {
+  color: #fff;
+  font-size: 12px;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+
+.catalog-card__icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background-color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.catalog-card__product-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.catalog-card__description-item {
+  padding-bottom: 8px;
+  font-size: 14px;
+}
+
+.catalog-card__description-item:last-child {
+  padding-bottom: 0;
+}
