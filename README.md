@@ -30,6 +30,9 @@ following:
 1. Modify your `config.js` file and set the environment to `dev-keycloak`.
 2. Start Keycloak with `make start-keycloak`.
 3. Start the UI with `make dev`.
+4. Go to `http://localhost:5173` and log in with the default test user:
+   - Username: `johndoe`
+   - Password: `developer-sandbox`
 
 ## Design
 
