@@ -1,6 +1,7 @@
 import { http, HttpResponse, type RequestHandler } from "msw";
 import {
   authConfigFixture,
+  localKeycloakAuthConfigFixture,
   readyUserFixture,
   uiConfigFixture,
   segmentWriteKeyFixture,
@@ -14,7 +15,11 @@ import {
 export const handlers: RequestHandler[] = [
   // Registration-service endpoints
   http.get("*/api/v1/authconfig", () => {
-    return HttpResponse.json(authConfigFixture);
+    const fixture =
+      window.__config__?.environment === "dev-keycloak"
+        ? localKeycloakAuthConfigFixture
+        : authConfigFixture;
+    return HttpResponse.json(fixture);
   }),
 
   http.get("*/api/v1/signup", () => {
