@@ -1,11 +1,13 @@
-import { useRef, useState } from "react";
-import { NavLink, Outlet, useNavigate, useLocation } from "react-router";
 import {
+  Divider,
   Dropdown,
   DropdownItem,
   DropdownList,
   Masthead,
+  MastheadBrand,
   MastheadContent,
+  MastheadLogo,
+  MastheadMain,
   MenuToggle,
   Nav,
   NavItem,
@@ -16,20 +18,16 @@ import {
   ToolbarContent,
   ToolbarGroup,
   ToolbarItem,
-  Divider,
-  MastheadMain,
-  MastheadBrand,
-  MastheadLogo,
 } from "@patternfly/react-core";
-import { useAuth } from "../../auth/useAuth";
+import { useRef, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import { WorkspaceResetModal } from "../Modals";
-import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import "./Layout.css";
 
 export function Layout() {
-  const { givenName, familyName, logout } = useAuth();
-  const { userReady, refetchUserData } = useSandboxContext();
+  const { userData, userReady, refetchUserData } = useSandboxContext();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -37,9 +35,9 @@ export function Layout() {
   const location = useLocation();
 
   const displayName =
-    givenName && familyName
-      ? `${givenName} ${familyName}`
-      : givenName || "User";
+    userData?.givenName && userData?.familyName
+      ? `${userData.givenName} ${userData.familyName}`
+      : userData?.givenName || "User";
 
   const handleResetComplete = async () => {
     setIsResetModalOpen(false);
