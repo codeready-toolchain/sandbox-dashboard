@@ -4,6 +4,10 @@ import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
   plugins: [react(), svgr()],
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
     environment: "jsdom",
