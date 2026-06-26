@@ -21,12 +21,14 @@ import {
 } from "@patternfly/react-core";
 import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { useAuth } from "../../auth/useAuth";
 import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import { WorkspaceResetModal } from "../Modals";
 import "./Layout.css";
 
 export function Layout() {
+  const { logout } = useAuth();
   const { userData, userReady, refetchUserData } = useSandboxContext();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -89,6 +91,7 @@ export function Layout() {
                   isOpen={isDropdownOpen}
                   onSelect={() => setIsDropdownOpen(false)}
                   onOpenChange={setIsDropdownOpen}
+                  popperProps={{ position: "end" }}
                   toggle={{
                     toggleNode: (
                       <MenuToggle
