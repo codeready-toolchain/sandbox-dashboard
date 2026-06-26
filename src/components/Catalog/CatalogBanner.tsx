@@ -11,9 +11,11 @@ import {
 } from "@patternfly/react-core";
 import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/outlined-question-circle-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
-import BannerImage from "../../assets/images/sandbox-banner-image.svg";
+import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
+import SalesImage from "../../assets/images/banner/sales.svg";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import { calculateDaysBetweenDates } from "../../utils/common";
+import { CommentAltIcon } from "@patternfly/react-icons";
 
 export function CatalogBanner() {
   const { userData, pendingApproval, verificationRequired, loading } =
@@ -55,19 +57,16 @@ export function CatalogBanner() {
 
   return (
     <Card isPlain isFullHeight={false} style={{ borderRadius: 0 }}>
-      <CardBody>
+      <CardBody style={{ padding: "21px 100px 0 100px" }}>
         <Flex
           alignItems={{ default: "alignItemsCenter" }}
           gap={{ default: "gapLg" }}
         >
-          <FlexItem
-            style={{ display: "none" }}
-            className="pf-v6-u-display-block-on-md"
-          >
+          <FlexItem className="pf-v6-u-display-block-on-md">
             <img
               src={BannerImage}
               alt="Red Hat Trial"
-              style={{ maxWidth: "207px", height: "auto", display: "block" }}
+              style={{ minWidth: "200px", height: "auto", display: "block" }}
             />
           </FlexItem>
           <FlexItem>
@@ -131,6 +130,35 @@ export function CatalogBanner() {
                 </Content>
               </div>
             )}
+          </FlexItem>
+          <FlexItem align={{ default: "alignRight" }}>
+            <a href="https://redhat.com/en/contact" target="_blank">
+              <Button variant="secondary" style={{ padding: "10px 15px" }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <CommentAltIcon />
+                  Contact sales
+                  <ExternalLinkAltIcon />
+                </span>
+              </Button>
+            </a>
+          </FlexItem>
+          <FlexItem>
+            <img
+              src={SalesImage}
+              alt="Contact sales"
+              style={{
+                minWidth: "200px",
+                height: "auto",
+                display: "block",
+                transform: "scaleX(-1)",
+              }}
+            />
           </FlexItem>
         </Flex>
       </CardBody>

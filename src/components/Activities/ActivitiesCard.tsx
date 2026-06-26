@@ -1,8 +1,9 @@
 import { Card, CardBody, CardHeader, Content } from "@patternfly/react-core";
-import type { ArticleData } from "./articleData";
+import "../common/Card.css";
+import type { Article } from "./articleData";
 
 interface ActivitiesCardProps {
-  article: ArticleData;
+  article: Article;
 }
 
 export function ActivitiesCard({
@@ -19,28 +20,18 @@ export function ActivitiesCard({
       data-analytics-text={title}
       data-analytics-region="sandbox-activities"
     >
-      <Card
-        isCompact
-        style={{
-          maxWidth: "326px",
-          minHeight: "368px",
-          borderRadius: "8px",
-        }}
-      >
-        <img
-          src={img}
-          alt={title}
-          style={{ width: "100%", height: "120px", objectFit: "cover" }}
-        />
-        <CardHeader>
-          <Content component="h3" style={{ fontWeight: 600 }}>
+      <Card isCompact className="sandbox-card">
+        <CardHeader className="sandbox-card-activity-header">
+          <img src={img} alt={title} />
+        </CardHeader>
+        <CardBody className="sandbox-card-body">
+          <Content
+            component="h3"
+            style={{ fontWeight: 600, marginTop: "10px" }}
+          >
             {title}
           </Content>
-        </CardHeader>
-        <CardBody>
-          <Content component="p" style={{ fontStyle: "italic" }}>
-            {description}
-          </Content>
+          <Content component="p">{description}</Content>
         </CardBody>
       </Card>
     </a>

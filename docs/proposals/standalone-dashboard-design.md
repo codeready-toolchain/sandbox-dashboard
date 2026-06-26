@@ -374,12 +374,26 @@ Each phase is one PR. Tests for ported code ship with that phase.
 
 ### Phase 4: Interactive Flows and Modals
 
-- Port the "Try it" button flow (full state machine)
+- Port the "Try it" / "Provision" / "Launch" button flow (full state machine, including OpenClaw-specific states: provisioning, ready, idled, terminating, deleting)
+- Port the delete button flow (`SandboxCatalogCardDeleteButton`) for AAP and OpenClaw products (state-aware labels: Delete / Stop / Deleting)
 - Port `PhoneVerificationModal` (phone number step + OTP step)
-- Port `AnsibleLaunchInfoModal` (credentials display)
-- Port `AnsibleDeleteInstanceModal` (confirmation dialog)
+- Port `AnsibleLaunchInfoModal` (AAP credentials display: user, password, URL)
+- Port `AnsibleDeleteInstanceModal` (AAP deletion confirmation)
+- Port `DeleteInstanceModal` (shared/reusable deletion confirmation dialog, parameterized by product name)
+- Port `OpenClawLaunchInfoModal` (multi-state: credential entry → provisioning progress → terminating cleanup → ready with launch button)
+- Port `OpenClawDeleteInstanceModal` (OpenClaw deletion confirmation, delegates to `DeleteInstanceModal`)
+- Port `CredentialAccordion` (multi-provider AI credential input with add/remove, per-provider validation, and inline error display)
+- Port `ProviderCredentialForm` (per-provider credential fields: API key with visibility toggle, GCP service account JSON, combobox, select)
+- Port `CredentialList` (chip-based display of added AI provider credentials)
 - Port `AccessCodeInputModal` (activation code entry)
 - Port workspace reset confirmation dialog (upgrade user menu)
+- Port `OpenClawBackendClient` — OpenClaw lifecycle management via Kube API proxy (SpaceRequest CRUD, Claw CR CRUD, un-idle, secret management, workspace environment setup: ServiceAccount, RoleBindings, NetworkPolicy, TokenRequest, kubeconfig secret)
+- Port OpenClaw provider configuration (`openclaw-providers.ts` — Google Gemini, Anthropic Claude, OpenAI, xAI/Grok, OpenRouter, Vertex AI Google/Anthropic, Custom/Self-Hosted with endpoint URL + API format + model)
+- Port OpenClaw validators (`openclaw-validators.ts` — GCP service account JSON validation)
+- Port OpenClaw utility functions (`openclaw-utils.ts` — status enum, ready-condition evaluation, SpaceRequest helpers, K8s resource builders for Claw CR, secrets, ServiceAccount, RoleBindings, NetworkPolicy, TokenRequest, kubeconfig)
+- Port OpenClaw workspace content (`openclaw-workspace-content.ts` — default SOUL.md, AGENTS.md, BOOTSTRAP.md files and dev-sandbox skill injected into new instances)
+- Port OpenClaw types (`types/openclaw.ts` — `OpenClawItem`, `SpaceRequestItem`, credential/provider/workspace types, GCP credential schemas)
+- Extend `SandboxProvider` / `useSandboxContext` with OpenClaw state management (SpaceRequest polling, Claw CR status, provisioning/terminating/deleting flows, credential submission, UI link derivation with device-pairing path)
 
 ### Phase 5: Analytics and Third-Party Integrations
 

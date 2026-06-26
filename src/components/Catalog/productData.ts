@@ -4,6 +4,7 @@ import AnsibleIcon from "../../assets/logos/ansible.svg";
 import OpenShiftAIIcon from "../../assets/logos/openshift-ai.svg";
 import DevSpacesIcon from "../../assets/logos/devspaces.svg";
 import OpenshiftVirtualizationIcon from "../../assets/logos/openshift-virtualization.svg";
+import OpenClawIcon from "../../assets/logos/openclaw.svg";
 
 export type DescriptionIconType = "success" | "warning";
 
@@ -124,6 +125,33 @@ export const productData: ProductData[] = [
       {
         iconType: "success",
         value: "Comprehensive development and operations tools",
+      },
+    ],
+  },
+  {
+    id: Product.OPENCLAW,
+    title: "OpenClaw",
+    image: OpenClawIcon,
+    description: [
+      {
+        iconType: "success",
+        value: "Personal AI assistant running on your cluster",
+      },
+      {
+        iconType: "success",
+        value: "Bring your own LLM API keys (OpenAI, Anthropic, Google, etc.)",
+      },
+      {
+        iconType: "success",
+        value: "Full workspace access — code, debug, and deploy",
+      },
+      {
+        iconType: "success",
+        value: "Kubernetes-native with managed lifecycle",
+      },
+      {
+        iconType: "warning",
+        value: "Requires at least one AI provider credential",
       },
     ],
   },

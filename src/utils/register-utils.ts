@@ -1,17 +1,18 @@
-import type { Status, SignupData } from "../types";
+import { UserStatus } from "../types";
+import type { SignupData } from "../types";
 
-export const signupDataToStatus = (signupData?: SignupData): Status => {
+export const signupDataToStatus = (signupData?: SignupData): UserStatus => {
   if (!signupData) {
-    return "new";
+    return UserStatus.NEW;
   }
   if (signupData.status.ready) {
-    return "ready";
+    return UserStatus.READY;
   }
   if (!signupData.status.ready && signupData.status.verificationRequired) {
-    return "verify";
+    return UserStatus.VERIFY;
   }
   if (!signupData.status.ready && signupData.status.reason === "Provisioning") {
-    return "provisioning";
+    return UserStatus.PROVISIONING;
   }
-  return "pending-approval";
+  return UserStatus.PENDING_APPROVAL;
 };

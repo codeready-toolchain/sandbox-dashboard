@@ -3,6 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { Layout } from "../Layout/Layout";
 import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
+import {
+  SandboxContext,
+  type SandboxContextType,
+} from "../../hooks/SandboxContext";
+import { AnsibleStatus } from "../../utils/aap-utils";
+import { OpenClawStatus } from "../../utils/openclaw-utils";
+import { readyUserFixture } from "../../mocks/fixtures";
+import { UserStatus } from "../../types";
 
 const mockLogout = vi.fn();
 
@@ -17,17 +25,57 @@ const authValue: AuthContextValue = {
   logout: mockLogout,
 };
 
-function renderLayout(route = "/") {
+function makeSandboxContext(
+  overrides: Partial<SandboxContextType> = {},
+): SandboxContextType {
+  return {
+    userStatus: UserStatus.READY,
+    userFound: true,
+    userReady: true,
+    verificationRequired: false,
+    pendingApproval: false,
+    userData: readyUserFixture,
+    loading: false,
+    refetchUserData: vi.fn(),
+    signupUser: vi.fn(),
+    refetchAAP: vi.fn(),
+    handleAAPInstance: vi.fn(),
+    ansibleData: undefined,
+    ansibleUIUser: undefined,
+    ansibleUIPassword: "",
+    ansibleUILink: undefined,
+    ansibleError: null,
+    ansibleStatus: AnsibleStatus.NEW,
+    openclawData: undefined,
+    openclawError: null,
+    openclawStatus: OpenClawStatus.NEW,
+    openclawUILink: undefined,
+    handleOpenClawInstance: vi.fn(),
+    deleteOpenClaw: vi.fn(),
+    disabledIntegrations: [],
+    ...overrides,
+  };
+}
+
+function renderLayout(
+  route = "/",
+  sandboxOverrides: Partial<SandboxContextType> = {},
+) {
   return render(
     <AuthContext.Provider value={authValue}>
-      <MemoryRouter initialEntries={[route]}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<div>Catalog Content</div>} />
-            <Route path="activities" element={<div>Activities Content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <SandboxContext.Provider value={makeSandboxContext(sandboxOverrides)}>
+        <MemoryRouter initialEntries={[route]}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<div>Catalog Content</div>} />
+              <Route
+                path="activities"
+                element={<div>Activities Content</div>}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </SandboxContext.Provider>
     </AuthContext.Provider>,
   );
 }
@@ -68,5 +116,25 @@ describe("Layout", () => {
 
     await user.click(screen.getByText("Log out"));
     expect(mockLogout).toHaveBeenCalled();
+  });
+
+  it("shows Reset Workspaces option when user is ready", async () => {
+    const user = userEvent.setup();
+    renderLayout("/", { userReady: true });
+
+    await user.click(screen.getByText("John Doe"));
+    expect(
+      screen.getByTestId("reset-workspaces-menu-item"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Reset Workspaces option when user is not ready", async () => {
+    const user = userEvent.setup();
+    renderLayout("/", { userReady: false });
+
+    await user.click(screen.getByText("John Doe"));
+    expect(
+      screen.queryByTestId("reset-workspaces-menu-item"),
+    ).not.toBeInTheDocument();
   });
 });

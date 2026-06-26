@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AAPData, SignupData } from "../types";
+import {
+  type AAPData,
+  type OpenClawItem,
+  type SignupData,
+  UserStatus,
+} from "../types";
 import { getConfig } from "../config/config";
 import {
   getSignupData,
@@ -9,10 +14,23 @@ import {
 } from "../api/registration";
 import { getAAP, createAAP, unIdleAAP } from "../api/aap";
 import { getSecret } from "../api/kube";
+import * as openclawApi from "../api/openclaw";
 import { useRecaptcha } from "./useRecaptcha";
 import { LONG_INTERVAL, SHORT_INTERVAL } from "../const";
 import { signupDataToStatus } from "../utils/register-utils";
 import { AnsibleStatus, decode, getReadyCondition } from "../utils/aap-utils";
+import {
+  OpenClawStatus,
+  getOpenClawReadyCondition,
+  isSpaceRequestReady,
+  isSpaceRequestTerminating,
+  getSpaceRequestNamespace,
+} from "../utils/openclaw-utils";
+import {
+  defaultOpenClawWorkspace,
+  defaultOpenClawSkills,
+} from "../utils/openclaw-workspace-content";
+import type { AddedCredential } from "../utils/openclaw-providers";
 import { errorMessage } from "../utils/common";
 import { SandboxContext } from "./SandboxContext";
 
@@ -42,6 +60,19 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   );
   const [ansibleError, setAnsibleError] = useState<string | null>(null);
 
+  const [clawNamespace, setClawNamespace] = useState<string | undefined>();
+  const pendingCredentials = useRef<AddedCredential[] | undefined>(undefined);
+  const pendingDisableDevicePairing = useRef(false);
+  const creatingSpaceRequest = useRef(false);
+  const creatingOpenClaw = useRef(false);
+  const deletingOpenClaw = useRef(false);
+  const [openclawData, setOpenclawData] = useState<OpenClawItem | undefined>();
+  const [openclawStatus, setOpenclawStatus] = useState<OpenClawStatus>(
+    OpenClawStatus.NEW,
+  );
+  const [openclawUILink, setOpenclawUILink] = useState<string | undefined>();
+  const [openclawError, setOpenclawError] = useState<string | null>(null);
+
   const userDataRef = useRef<SignupData | undefined>(undefined);
   const proxyURLRef = useRef<string | undefined>(undefined);
   const ansibleStatusRef = useRef(ansibleStatus);
@@ -60,13 +91,13 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   }, [ansibleData]);
 
   const status = useMemo(
-    () => (statusUnknown ? "unknown" : signupDataToStatus(userData)),
+    () => (statusUnknown ? UserStatus.UNKNOWN : signupDataToStatus(userData)),
     [statusUnknown, userData],
   );
 
-  const verificationRequired = status === "verify";
-  const pendingApproval = status === "pending-approval";
-  const userReady = status === "ready";
+  const verificationRequired = status === UserStatus.VERIFY;
+  const pendingApproval = status === UserStatus.PENDING_APPROVAL;
+  const userReady = status === UserStatus.READY;
 
   const fetchData = async (
     isRefetch = false,
@@ -173,6 +204,248 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getOpenClawData = async (userNamespace: string) => {
+    const proxyURL = proxyURLRef.current;
+    if (!proxyURL) return;
+
+    setOpenclawError(null);
+    try {
+      const sr = await openclawApi.getSpaceRequest(proxyURL, userNamespace);
+
+      if (!sr) {
+        if (deletingOpenClaw.current) {
+          deletingOpenClaw.current = false;
+          setClawNamespace(undefined);
+          setOpenclawData(undefined);
+          setOpenclawStatus(OpenClawStatus.NEW);
+          setOpenclawUILink(undefined);
+          setOpenclawError(null);
+          return;
+        }
+
+        if (pendingCredentials.current && !creatingSpaceRequest.current) {
+          creatingSpaceRequest.current = true;
+          try {
+            await openclawApi.createSpaceRequest(proxyURL, userNamespace);
+            setOpenclawStatus(OpenClawStatus.PROVISIONING);
+          } catch (e) {
+            pendingCredentials.current = undefined;
+            setOpenclawError(errorMessage(e));
+            setOpenclawStatus(OpenClawStatus.NEW);
+          } finally {
+            creatingSpaceRequest.current = false;
+          }
+          return;
+        }
+        setOpenclawStatus(OpenClawStatus.NEW);
+        return;
+      }
+
+      if (isSpaceRequestTerminating(sr)) {
+        if (deletingOpenClaw.current) return;
+        setOpenclawStatus(OpenClawStatus.TERMINATING);
+        return;
+      }
+
+      if (deletingOpenClaw.current) return;
+
+      const targetNamespace = getSpaceRequestNamespace(sr);
+      if (!targetNamespace) {
+        setOpenclawStatus(OpenClawStatus.PROVISIONING);
+        return;
+      }
+
+      setClawNamespace(targetNamespace);
+
+      const data = await openclawApi.getOpenClaw(proxyURL, targetNamespace);
+      setOpenclawData(data);
+
+      if (!data && pendingCredentials.current && !creatingOpenClaw.current) {
+        creatingOpenClaw.current = true;
+        const credentials = pendingCredentials.current;
+        const disableDevicePairing = pendingDisableDevicePairing.current;
+        try {
+          await openclawApi.setupWorkspaceEnvironment(
+            proxyURL,
+            userNamespace,
+            targetNamespace,
+          );
+          const currentUserData = userDataRef.current;
+          if (!currentUserData?.apiEndpoint) {
+            throw new Error(
+              "Cannot create workspace kubeconfig: apiEndpoint is missing from signup data",
+            );
+          }
+          await openclawApi.createWorkspaceKubeconfig(
+            proxyURL,
+            userNamespace,
+            targetNamespace,
+            currentUserData.apiEndpoint,
+          );
+
+          await openclawApi.createOpenClaw(
+            proxyURL,
+            targetNamespace,
+            credentials,
+            disableDevicePairing,
+            defaultOpenClawWorkspace,
+            defaultOpenClawSkills,
+          );
+          pendingCredentials.current = undefined;
+          pendingDisableDevicePairing.current = false;
+          setOpenclawStatus(OpenClawStatus.PROVISIONING);
+        } catch (e) {
+          setOpenclawError(errorMessage(e));
+          setOpenclawStatus(OpenClawStatus.UNKNOWN);
+          try {
+            await openclawApi.cleanupWorkspaceEnvironment(
+              proxyURL,
+              userNamespace,
+            );
+          } catch {
+            // Best-effort cleanup
+          }
+        } finally {
+          creatingOpenClaw.current = false;
+        }
+        return;
+      }
+
+      const st = getOpenClawReadyCondition(data, setOpenclawError);
+      setOpenclawStatus(st);
+      if (data?.status?.url) {
+        try {
+          const url = new URL(data.status.url);
+          if (!data.spec?.auth?.disableDevicePairing) {
+            url.pathname = `${url.pathname.replace(
+              /\/$/,
+              "",
+            )}/integration/device-pairing/`;
+          }
+          setOpenclawUILink(url.toString());
+        } catch {
+          setOpenclawUILink(data.status.url);
+        }
+      }
+
+      if (st === OpenClawStatus.UNKNOWN && isSpaceRequestReady(sr)) {
+        setOpenclawStatus(OpenClawStatus.PROVISIONING);
+      }
+    } catch (e) {
+      setOpenclawError(errorMessage(e));
+    }
+  };
+
+  const handleOpenClawInstance = async (
+    userNamespace: string,
+    credentials?: AddedCredential[],
+    disableDevicePairing?: boolean,
+  ): Promise<boolean> => {
+    const proxyURL = proxyURLRef.current;
+    if (!proxyURL) return false;
+
+    // Fetch current state first
+    let currentStatus = openclawStatus;
+    let resolvedNamespace = clawNamespace;
+
+    try {
+      const sr = await openclawApi.getSpaceRequest(proxyURL, userNamespace);
+      if (sr) {
+        const ns = getSpaceRequestNamespace(sr);
+        if (ns) {
+          resolvedNamespace = ns;
+          const data = await openclawApi.getOpenClaw(proxyURL, ns);
+          currentStatus = getOpenClawReadyCondition(data, () => {});
+        }
+      } else {
+        currentStatus = OpenClawStatus.NEW;
+      }
+    } catch {
+      // Use existing state
+    }
+
+    if (
+      currentStatus === OpenClawStatus.PROVISIONING ||
+      currentStatus === OpenClawStatus.READY
+    ) {
+      return true;
+    }
+
+    if (currentStatus === OpenClawStatus.DELETING) {
+      return false;
+    }
+
+    if (currentStatus === OpenClawStatus.TERMINATING) {
+      if (!credentials || credentials.length === 0) return false;
+      pendingCredentials.current = credentials;
+      pendingDisableDevicePairing.current = disableDevicePairing ?? false;
+      setOpenclawStatus(OpenClawStatus.TERMINATING);
+      return true;
+    }
+
+    if (currentStatus === OpenClawStatus.IDLED && resolvedNamespace) {
+      try {
+        await openclawApi.unIdleOpenClaw(proxyURL, resolvedNamespace);
+        setOpenclawStatus(OpenClawStatus.PROVISIONING);
+        return true;
+      } catch (e) {
+        console.error(e);
+        setOpenclawError(errorMessage(e));
+        return false;
+      }
+    }
+
+    if (!credentials || credentials.length === 0) return false;
+
+    try {
+      pendingCredentials.current = credentials;
+      pendingDisableDevicePairing.current = disableDevicePairing ?? false;
+      await openclawApi.createSpaceRequest(proxyURL, userNamespace);
+      setOpenclawStatus(OpenClawStatus.PROVISIONING);
+      return true;
+    } catch (e) {
+      pendingCredentials.current = undefined;
+      setOpenclawError(errorMessage(e));
+      console.error(e);
+      return false;
+    }
+  };
+
+  const deleteOpenClaw = async (userNamespace: string) => {
+    const proxyURL = proxyURLRef.current;
+    if (!proxyURL) return;
+
+    deletingOpenClaw.current = true;
+    setOpenclawStatus(OpenClawStatus.DELETING);
+    setOpenclawUILink(undefined);
+    setOpenclawError(null);
+
+    const results = await Promise.allSettled([
+      clawNamespace
+        ? openclawApi.deleteOpenClawCR(proxyURL, clawNamespace)
+        : Promise.resolve(),
+      openclawApi.deleteSpaceRequest(proxyURL, userNamespace),
+      openclawApi.cleanupWorkspaceEnvironment(proxyURL, userNamespace),
+    ]);
+
+    const failures = results.filter(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+
+    if (failures.length > 0) {
+      for (const f of failures) {
+        console.error(f.reason);
+      }
+      deletingOpenClaw.current = false;
+      setOpenclawStatus(OpenClawStatus.FAILED);
+      setOpenclawError(errorMessage(failures[0].reason));
+      return;
+    }
+
+    setClawNamespace(undefined);
+    setOpenclawData(undefined);
+  };
+
   // Initial fetch
   const initRef = useRef(false);
   useEffect(() => {
@@ -219,7 +492,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   // Poll user status
   const pollStatus = userFound && !userReady;
   const pollInterval =
-    status === "provisioning" ? SHORT_INTERVAL : LONG_INTERVAL;
+    status === UserStatus.PROVISIONING ? SHORT_INTERVAL : LONG_INTERVAL;
 
   useEffect(() => {
     if (pollStatus) {
@@ -240,6 +513,30 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     }
     return undefined;
   }, [userData?.defaultUserNamespace, userData?.proxyURL]);
+
+  // Initial OpenClaw fetch
+  useEffect(() => {
+    if (userData?.defaultUserNamespace) {
+      void (async () => {
+        await getOpenClawData(userData.defaultUserNamespace!);
+      })();
+    }
+  }, [userData?.defaultUserNamespace, userData?.proxyURL]);
+
+  // Poll OpenClaw status during provisioning/terminating/deleting
+  useEffect(() => {
+    if (
+      userData?.defaultUserNamespace &&
+      (openclawStatus === OpenClawStatus.PROVISIONING ||
+        openclawStatus === OpenClawStatus.TERMINATING ||
+        openclawStatus === OpenClawStatus.DELETING)
+    ) {
+      const ns = userData.defaultUserNamespace;
+      const handle = setInterval(() => getOpenClawData(ns), SHORT_INTERVAL);
+      return () => clearInterval(handle);
+    }
+    return undefined;
+  }, [userData?.defaultUserNamespace, userData?.proxyURL, openclawStatus]);
 
   // segmentWriteKey will be consumed in Phase 5
   void segmentWriteKey;
@@ -264,6 +561,12 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         ansibleUILink,
         ansibleError,
         ansibleStatus,
+        openclawData,
+        openclawError,
+        openclawStatus,
+        openclawUILink,
+        handleOpenClawInstance,
+        deleteOpenClaw,
         segmentTrackClick: undefined,
         marketoWebhookURL,
         disabledIntegrations,

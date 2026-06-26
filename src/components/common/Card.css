@@ -1,0 +1,30 @@
+.sandbox-card {
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  min-height: 320px;
+  transition: box-shadow 0.5s;
+}
+
+.sandbox-card:hover {
+  box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+.sandbox-card-header {
+  background-color: var(--pf-t--global--background--color--secondary--default);
+  border-bottom: 1px solid var(--pf-t--global--border--color--default);
+  margin-bottom: 10px;
+  overflow: hidden;
+  padding: 20px 0 10px 10px;
+}
+
+.sandbox-card-activity-header.pf-v6-c-card__header {
+  padding: 0;
+  padding-block: 0;
+  padding-inline: 0;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.sandbox-card-activity-header img {
+  width: 100%;
+  display: block;
+}
