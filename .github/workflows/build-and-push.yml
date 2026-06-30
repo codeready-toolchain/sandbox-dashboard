@@ -25,12 +25,19 @@ jobs:
           tags: latest ${{ github.sha }}
           containerfiles: ./Containerfile
 
-      - name: Log in to registry
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: ${{ env.IMAGE_REGISTRY }}
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Login to Quay.io
+        env:
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          REGISTRY_AUTH_FILE="${RUNNER_TEMP}/containers-auth.json"
+          export REGISTRY_AUTH_FILE
+          echo "REGISTRY_AUTH_FILE=${REGISTRY_AUTH_FILE}" >> "${GITHUB_ENV}"
+          CREDS="$(printf '%s' "${QUAY_TOKEN}" | base64 -d)"
+          podman login --authfile "${REGISTRY_AUTH_FILE}" \
+            --user "${CREDS%%:*}" \
+            --password "${CREDS#*:}" \
+            quay.io
 
       - name: Push image
         uses: redhat-actions/push-to-registry@v2
