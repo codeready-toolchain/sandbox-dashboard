@@ -331,8 +331,8 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 **GitHub Actions** for everything that can run without a cluster:
 
-- **`ci.yml`** — runs on PRs and pushes to main: lint, type check, Vitest unit tests
-- **`build-and-push.yml`** — runs on merge to main: `redhat-actions/buildah-build` + `redhat-actions/podman-login` + `redhat-actions/push-to-registry` to quay.io
+- **`ci.yml`** — runs on PRs and pushes to master: lint, type check, Vitest unit tests
+- **`build-and-push.yml`** — runs on merge to master: `redhat-actions/buildah-build` + `redhat-actions/podman-login` + `redhat-actions/push-to-registry` to quay.io
 
 **OpenShift CI (Prow)** for e2e tests only — tests that need a live cluster with the registration-service, Keycloak, and the full toolchain stack.
 
