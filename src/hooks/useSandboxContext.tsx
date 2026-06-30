@@ -5,7 +5,7 @@ import {
   type SignupData,
   UserStatus,
 } from "../types";
-import { getConfig } from "../config/config";
+import { Environment, getConfig } from "../config/config";
 import {
   getSignupData,
   signup,
@@ -38,7 +38,7 @@ export { useSandboxContext } from "./SandboxContext";
 
 export function SandboxProvider({ children }: { children: ReactNode }) {
   const config = getConfig();
-  const isProd = config.environment === "prod";
+  const isProd = config.environment === Environment.PRODUCTION;
   useRecaptcha(isProd);
 
   const [segmentWriteKey, setSegmentWriteKey] = useState<string>();

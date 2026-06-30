@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
 import Keycloak from "keycloak-js";
-import { getConfig } from "../config/config";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setTokenGetter } from "../api/authFetch";
+import { Environment, getConfig } from "../config/config";
 import type { AuthConfigResponse } from "../types";
 import { AuthContext, type AuthContextValue } from "./AuthContext";
 
@@ -13,9 +13,8 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const config = getConfig();
-  const isDev = config.environment === "dev";
 
-  if (isDev) {
+  if (config.environment === Environment.DEVELOPMENT) {
     return <DevBypassProvider>{children}</DevBypassProvider>;
   }
 

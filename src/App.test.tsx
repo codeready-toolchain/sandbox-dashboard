@@ -1,8 +1,8 @@
-import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { server } from "./mocks/server";
+import React from "react";
 import { setTokenGetter } from "./api/authFetch";
 import { App } from "./App";
+import { server } from "./mocks/server";
 
 vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
   Footer: (props: React.HTMLAttributes<HTMLDivElement>) =>
