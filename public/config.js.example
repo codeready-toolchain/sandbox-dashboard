@@ -6,4 +6,9 @@ window.__config__ = {
   registrationServiceURL: "https://registration-service.example.com",
   recaptchaSiteKey: "test-site-key",
   environment: "dev",
+  auth: {
+    clientId: "sandbox-public",
+    realm: "sandbox-dev",
+    url: "http://localhost:8080",
+  }
 };
