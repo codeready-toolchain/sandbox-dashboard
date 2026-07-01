@@ -5,7 +5,6 @@ import svgr from "vite-plugin-svgr";
 export default defineConfig({
   plugins: [react(), svgr()],
   server: {
-    port: 5173,
     proxy: {
       // Endpoint to catch the requests to the "/token" endpoint of the SSO.
       // It helps avoiding the CORS issues of that particular endpoint. The
@@ -16,7 +15,6 @@ export default defineConfig({
         target: "https://sso.redhat.com",
       },
     },
-    strictPort: true,
   },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
