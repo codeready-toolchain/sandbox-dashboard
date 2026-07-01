@@ -35,7 +35,7 @@ jobs:
           echo "REGISTRY_AUTH_FILE=${REGISTRY_AUTH_FILE}" >> "${GITHUB_ENV}"
           CREDS="$(printf '%s' "${QUAY_TOKEN}" | base64 -d)"
           podman login --authfile "${REGISTRY_AUTH_FILE}" \
-            --user "${CREDS%%:*}" \
+            --username "${CREDS%%:*}" \
             --password "${CREDS#*:}" \
             quay.io
 
