@@ -10,6 +10,7 @@ import { productData } from "../productData";
 import { UserStatus } from "../../../types";
 import type { SignupData } from "../../../types";
 import { Product } from "../../../hooks/useProductURLs";
+import { act } from "react";
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -149,7 +150,9 @@ describe("CatalogGrid", () => {
       .setup({ advanceTimers: vi.advanceTimersByTime })
       .click(aapTryIt!);
 
-    await vi.advanceTimersByTimeAsync(3000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
 
     await waitFor(() => {
       expect(handleAAPInstance).toHaveBeenCalledWith(freshNamespace);
