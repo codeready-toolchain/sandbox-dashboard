@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug in Chrome",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Start Vite",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Current Test",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vitest", "run", "${relativeFile}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Dev + Debug",
+      "configurations": ["Start Vite", "Debug in Chrome"],
+      "stopAll": true
+    }
+  ]
+}
