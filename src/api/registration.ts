@@ -1,4 +1,4 @@
-import { getConfig } from "../config/config";
+import { Environment, getConfig } from "../config/config";
 import type { CommonResponse, SignupData, UIConfig } from "../types";
 import { isValidCountryCode, isValidPhoneNumber } from "../utils/phone-utils";
 import { authFetch } from "./authFetch";
@@ -55,7 +55,7 @@ export async function signup(): Promise<void> {
   const env = getConfig().environment;
   const headers: Record<string, string> = {};
 
-  if (env === "prod") {
+  if (env === Environment.PRODUCTION) {
     try {
       headers["Recaptcha-Token"] = await getRecaptchaToken();
     } catch (err) {

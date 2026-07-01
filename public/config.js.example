@@ -1,8 +1,14 @@
 // environment: "dev"          - fake auth bypass + MSW mocks (no external deps)
 // environment: "dev-keycloak" - real Keycloak on localhost:8080 + MSW mocks
+// environment: "dev-stage"    - real Keycloak + stage registration-service
 // environment: "prod"         - real Keycloak + real registration-service
 window.__config__ = {
   registrationServiceURL: "https://registration-service.example.com",
   recaptchaSiteKey: "test-site-key",
   environment: "dev",
+  auth: {
+    clientId: "sandbox-public",
+    realm: "sandbox-dev",
+    url: "http://localhost:8080",
+  }
 };
