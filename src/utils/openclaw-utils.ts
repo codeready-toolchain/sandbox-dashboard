@@ -1,4 +1,5 @@
 import type {
+  JsonCredentialSchema,
   OpenClawCustomProvider,
   OpenClawGcpConfig,
   OpenClawItem,
@@ -366,3 +367,26 @@ export const buildKubeconfig = (opts: {
 
   return JSON.stringify(kubeconfig);
 };
+
+/**
+ * Extracts the project ID from the Vertex JSON credentials.
+ * @param json the JSON object to extract the project ID from.
+ * @returns the extracted project ID.
+ */
+export function extractGcpProjectId(json: string): string {
+  try {
+    const parsed: JsonCredentialSchema = JSON.parse(json);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "type" in parsed &&
+      parsed.type === "service_account" &&
+      "project_id" in parsed
+    ) {
+      return parsed.project_id;
+    }
+  } catch {
+    // Invalid JSON
+  }
+  return "";
+}

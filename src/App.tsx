@@ -2,7 +2,7 @@ import { BrowserRouter, Route, Routes } from "react-router";
 import { AuthProvider } from "./auth";
 import { SandboxProvider } from "./hooks/useSandboxContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { NotificationProvider } from "./notifications/NotificationContext";
+import { NotificationProvider } from "./notifications/NotificationProvider";
 import { Layout } from "./components/Layout/Layout";
 import { CatalogPage } from "./components/Catalog/CatalogPage";
 import { ActivitiesPage } from "./components/Activities/ActivitiesPage";

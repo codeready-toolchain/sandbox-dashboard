@@ -34,8 +34,6 @@ import type { AddedCredential } from "../utils/openclaw-providers";
 import { errorMessage } from "../utils/common";
 import { SandboxContext } from "./SandboxContext";
 
-export { useSandboxContext } from "./SandboxContext";
-
 export function SandboxProvider({ children }: { children: ReactNode }) {
   const config = getConfig();
   const isProd = config.environment === Environment.PRODUCTION;

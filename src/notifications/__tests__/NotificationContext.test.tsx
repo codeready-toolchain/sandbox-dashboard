@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AlertVariant } from "@patternfly/react-core";
-import { NotificationProvider } from "../NotificationContext";
+import { NotificationProvider } from "../NotificationProvider";
 import { useNotifications } from "../useNotifications";
 
 function TestConsumer() {

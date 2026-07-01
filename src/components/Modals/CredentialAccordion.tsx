@@ -21,7 +21,6 @@ import {
   useRef,
   useState,
 } from "react";
-import type { JsonCredentialSchema } from "../../types";
 import {
   PROVIDERS,
   type AddedCredential,
@@ -29,6 +28,7 @@ import {
 } from "../../utils/openclaw-providers";
 import { ProviderCredentialForm } from "./ProviderCredentialForm";
 import { SelectProvider } from "./SelectProvider";
+import { extractGcpProjectId } from "../../utils/openclaw-utils";
 
 type CredentialEntry = {
   id: string;
@@ -93,24 +93,6 @@ function validateFields(
   }
 
   return errors;
-}
-
-export function extractGcpProjectId(json: string): string {
-  try {
-    const parsed: JsonCredentialSchema = JSON.parse(json);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "type" in parsed &&
-      parsed.type === "service_account" &&
-      "project_id" in parsed
-    ) {
-      return parsed.project_id;
-    }
-  } catch {
-    // Invalid JSON
-  }
-  return "";
 }
 
 export const CredentialAccordion = forwardRef<

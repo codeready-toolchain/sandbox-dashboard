@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { setTokenGetter } from "../../api/authFetch";
 import { server } from "../../mocks/server";
-import { SandboxProvider, useSandboxContext } from "../useSandboxContext";
+import { SandboxProvider } from "../useSandboxContext";
+import { useSandboxContext } from "../SandboxContext";
 
 function ContextConsumer() {
   const ctx = useSandboxContext();
