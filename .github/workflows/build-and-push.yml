@@ -28,16 +28,16 @@ jobs:
       - name: Login to Quay.io
         env:
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
         run: |
           set -euo pipefail
           REGISTRY_AUTH_FILE="${RUNNER_TEMP}/containers-auth.json"
           export REGISTRY_AUTH_FILE
           echo "REGISTRY_AUTH_FILE=${REGISTRY_AUTH_FILE}" >> "${GITHUB_ENV}"
-          CREDS="$(printf '%s' "${QUAY_TOKEN}" | base64 -d)"
-          podman login --authfile "${REGISTRY_AUTH_FILE}" \
-            --username "${CREDS%%:*}" \
-            --password "${CREDS#*:}" \
-            quay.io
+          podman login \
+            --authfile "${REGISTRY_AUTH_FILE}" \
+            --username "${QUAY_USERNAME}" \
+            --password-stdin quay.io <<< "${QUAY_TOKEN}"
 
       - name: Push image
         uses: redhat-actions/push-to-registry@v2
