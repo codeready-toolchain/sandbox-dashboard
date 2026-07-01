@@ -108,10 +108,15 @@ function KeycloakProvider({
         // behalf. It basically strips that part and sends it to the original
         // SSO token URL.
         if (config.auth) {
+          const realmUrl = `${clientConfig["auth-server-url"]}/realms/${clientConfig.realm}/protocol/openid-connect`;
           keycloak = new Keycloak({
-            url: clientConfig["auth-server-url"],
-            realm: clientConfig.realm,
             clientId: config.auth.clientId,
+            oidcProvider: {
+              authorization_endpoint: `${realmUrl}/auth`,
+              token_endpoint: `/vite-sso-token-proxy${realmUrl}/token`,
+              end_session_endpoint: `${realmUrl}/logout`,
+              userinfo_endpoint: `${realmUrl}/userinfo`,
+            },
           });
         } else {
           throw new Error(
