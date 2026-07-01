@@ -5,7 +5,10 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 
 async function bootstrap() {
-  if (window.__config__?.environment === "dev") {
+  if (
+    window.__config__?.environment === "dev" ||
+    window.__config__?.environment === "dev-keycloak"
+  ) {
     const { worker } = await import("./mocks/browser");
     await worker.start({ onUnhandledRequest: "bypass" });
   }

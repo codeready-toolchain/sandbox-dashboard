@@ -25,6 +25,17 @@ export const authConfigFixture: AuthConfigResponse = {
   "signup-url": MOCK_REG_SERVICE_URL,
 };
 
+export const localKeycloakAuthConfigFixture: AuthConfigResponse = {
+  "auth-client-library-url": "http://localhost:8080/js/keycloak.js",
+  "auth-client-config": JSON.stringify({
+    realm: "sandbox-dev",
+    "auth-server-url": "http://localhost:8080",
+    clientId: "sandbox-public",
+    "public-client": true,
+  }),
+  "signup-url": MOCK_REG_SERVICE_URL,
+};
+
 export const readyUserFixture: SignupData = {
   name: "John Doe",
   compliantUsername: "johndoe",

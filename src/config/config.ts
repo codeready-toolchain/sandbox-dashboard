@@ -1,7 +1,7 @@
 export interface AppConfig {
   registrationServiceURL: string;
   recaptchaSiteKey: string;
-  environment: "dev" | "prod";
+  environment: "dev" | "dev-keycloak" | "prod";
 }
 
 declare global {

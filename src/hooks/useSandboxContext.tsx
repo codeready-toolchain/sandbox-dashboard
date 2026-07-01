@@ -38,7 +38,7 @@ export { useSandboxContext } from "./SandboxContext";
 
 export function SandboxProvider({ children }: { children: ReactNode }) {
   const config = getConfig();
-  const isProd = config.environment !== "dev";
+  const isProd = config.environment === "prod";
   useRecaptcha(isProd);
 
   const [segmentWriteKey, setSegmentWriteKey] = useState<string>();

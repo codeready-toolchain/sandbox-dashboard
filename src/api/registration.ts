@@ -52,10 +52,10 @@ export async function getRecaptchaToken(): Promise<string> {
 }
 
 export async function signup(): Promise<void> {
-  const isDev = getConfig().environment === "dev";
+  const env = getConfig().environment;
   const headers: Record<string, string> = {};
 
-  if (!isDev) {
+  if (env === "prod") {
     try {
       headers["Recaptcha-Token"] = await getRecaptchaToken();
     } catch (err) {
