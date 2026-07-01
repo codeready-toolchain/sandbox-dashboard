@@ -37,10 +37,12 @@ describe("getConfig", () => {
       };
 
       const config = getConfig();
-      expect(config.environment).toBe(Environment.DEVELOPMENT_KEYCLOAK);
-      expect(config.auth?.url).toBe("http://localhost:8180");
-      expect(config.auth?.realm).toBe("sandbox");
-      expect(config.auth?.clientId).toBe("sandbox-client");
+      if (config.environment !== Environment.DEVELOPMENT_KEYCLOAK) {
+        throw new Error("expected dev-keycloak environment");
+      }
+      expect(config.auth.url).toBe("http://localhost:8180");
+      expect(config.auth.realm).toBe("sandbox");
+      expect(config.auth.clientId).toBe("sandbox-client");
     });
 
     it("throws when auth is not provided", () => {

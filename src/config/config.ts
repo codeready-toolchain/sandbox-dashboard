@@ -14,31 +14,54 @@ export enum Environment {
 }
 
 /**
- * Defines the expected structure to make the UI connect to a specified
- * Keycloak instance.
+ * Defines the expected authentication configuration options when the UI is
+ * launched in "dev-keycloak" mode.
  */
-export interface KeycloakConfig {
-  url: string;
+export interface KeycloakConfigDevKeycloak {
+  clientId: string;
   realm: string;
+  url: string;
+}
+
+/**
+ * Defines the expected authentication configuration options when the UI is
+ * launched in "dev-stage" mode.
+ */
+export interface KeycloakConfigDevStage {
   clientId: string;
 }
 
 /**
- * Defines the parsed and validated application configuration for the UI.
+ * Defines the base configuration options that must always be present.
  */
-export interface AppConfig {
-  auth?: KeycloakConfig;
+interface AppConfigBase {
   registrationServiceURL: string;
   recaptchaSiteKey: string;
-  environment: Environment;
 }
+
+/**
+ * Discriminated union representing the parsed application configuration.
+ * Narrowing on the environment gives access to the corresponding
+ * authentication shape.
+ */
+export type AppConfig =
+  | (AppConfigBase & { environment: Environment.DEVELOPMENT; auth?: undefined })
+  | (AppConfigBase & {
+      environment: Environment.DEVELOPMENT_KEYCLOAK;
+      auth: KeycloakConfigDevKeycloak;
+    })
+  | (AppConfigBase & {
+      environment: Environment.DEVELOPMENT_STAGE;
+      auth: KeycloakConfigDevStage;
+    })
+  | (AppConfigBase & { environment: Environment.PRODUCTION; auth?: undefined });
 
 /**
  * Defines the configuration "raw", without any structure, which is used to
  * represent the raw "config.js" structure that gets fed into the application.
  */
 export interface AppConfigRaw {
-  auth?: KeycloakConfig;
+  auth?: { url?: string; realm?: string; clientId?: string };
   registrationServiceURL: string;
   recaptchaSiteKey: string;
   environment: string;
@@ -64,59 +87,62 @@ export function getConfig(): AppConfig {
     throw new Error("window.__config__ is not defined. Is config.js loaded?");
   }
 
-  // Parse the specified environment.
-  let environment: Environment;
+  const { registrationServiceURL, recaptchaSiteKey } = config;
+
   switch (config.environment) {
     case "dev":
-      environment = Environment.DEVELOPMENT;
-      break;
-    case "dev-keycloak":
-      environment = Environment.DEVELOPMENT_KEYCLOAK;
-      break;
-    case "dev-stage":
-      environment = Environment.DEVELOPMENT_STAGE;
-      break;
+      return {
+        environment: Environment.DEVELOPMENT,
+        registrationServiceURL,
+        recaptchaSiteKey,
+      };
+
+    case "dev-keycloak": {
+      const auth = config.auth;
+      if (
+        !auth ||
+        !auth.clientId ||
+        !String(auth.clientId).trim() ||
+        !auth.realm ||
+        !String(auth.realm).trim() ||
+        !auth.url ||
+        !String(auth.url).trim()
+      ) {
+        throw new Error(
+          `In the "dev-keycloak" environment you need to specify an "auth" object with the "clientId", "realm" and "url" fields.`,
+        );
+      }
+      return {
+        environment: Environment.DEVELOPMENT_KEYCLOAK,
+        registrationServiceURL,
+        recaptchaSiteKey,
+        auth: { clientId: auth.clientId, realm: auth.realm, url: auth.url },
+      };
+    }
+
+    case "dev-stage": {
+      const auth = config.auth;
+      if (!auth || !auth.clientId || !String(auth.clientId).trim()) {
+        throw new Error(
+          `In the "dev-stage" environment you need to specify an "auth" object with the "clientId" key.`,
+        );
+      }
+      return {
+        environment: Environment.DEVELOPMENT_STAGE,
+        registrationServiceURL,
+        recaptchaSiteKey,
+        auth: { clientId: auth.clientId },
+      };
+    }
+
     case "prod":
-      environment = Environment.PRODUCTION;
-      break;
+      return {
+        environment: Environment.PRODUCTION,
+        registrationServiceURL,
+        recaptchaSiteKey,
+      };
+
     default:
       throw new Error(`Unknown environment specified: "${config.environment}"`);
   }
-
-  // Make sure that in the "development keycloak" environment the whole auth
-  // object is populated.
-  if (environment === Environment.DEVELOPMENT_KEYCLOAK) {
-    if (
-      !config.auth ||
-      !config.auth.clientId ||
-      !String(config.auth.clientId).trim() ||
-      !config.auth.realm ||
-      !String(config.auth.realm).trim() ||
-      !config.auth.url ||
-      !String(config.auth.url).trim()
-    ) {
-      throw new Error(
-        `In the "${environment}" environment you need to specify an "auth" object with the "clientId", "realm" and "url" fields.`,
-      );
-    }
-  }
-
-  // Make sure that in the "development stage" environment the required
-  // "clientId" parameter has been specified in the configuration.
-  if (environment === Environment.DEVELOPMENT_STAGE) {
-    if (
-      !config.auth ||
-      !config.auth.clientId ||
-      !String(config.auth.clientId).trim()
-    ) {
-      throw new Error(
-        `In the "dev-stage" environment you need to specify an "auth" object with the "clientId" key.`,
-      );
-    }
-  }
-
-  return {
-    ...config,
-    environment: environment,
-  };
 }
