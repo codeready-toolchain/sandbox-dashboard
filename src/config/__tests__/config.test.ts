@@ -70,7 +70,7 @@ describe("getConfig", () => {
       };
 
       expect(() => getConfig()).toThrow(
-        /you need to specify an "auth" object with the "clientId", "realm" and "url" fields/,
+        /Missing required configuration field: "clientId"/,
       );
     });
 
@@ -87,7 +87,7 @@ describe("getConfig", () => {
       };
 
       expect(() => getConfig()).toThrow(
-        /you need to specify an "auth" object with the "clientId", "realm" and "url" fields/,
+        /Missing required configuration field: "clientId"/,
       );
     });
 
@@ -104,7 +104,7 @@ describe("getConfig", () => {
       };
 
       expect(() => getConfig()).toThrow(
-        /you need to specify an "auth" object with the "clientId", "realm" and "url" fields/,
+        /Missing required configuration field: "realm"/,
       );
     });
 
@@ -121,7 +121,7 @@ describe("getConfig", () => {
       };
 
       expect(() => getConfig()).toThrow(
-        /you need to specify an "auth" object with the "clientId", "realm" and "url" fields/,
+        /Missing required configuration field: "realm"/,
       );
     });
 
@@ -137,7 +137,7 @@ describe("getConfig", () => {
         },
       };
       expect(() => getConfig()).toThrow(
-        /you need to specify an "auth" object with the "clientId", "realm" and "url" fields/,
+        /Missing required configuration field: "url"/,
       );
     });
 
@@ -153,7 +153,7 @@ describe("getConfig", () => {
         },
       };
       expect(() => getConfig()).toThrow(
-        /you need to specify an "auth" object with the "clientId", "realm" and "url" fields/,
+        /Missing required configuration field: "url"/,
       );
     });
   });
@@ -181,7 +181,7 @@ describe("getConfig", () => {
       },
     };
     expect(() => getConfig()).toThrow(
-      'In the "dev-stage" environment you need to specify an "auth" object with the "clientId" key.',
+      /Missing required configuration field: "clientId"/,
     );
   });
 

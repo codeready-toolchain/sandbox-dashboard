@@ -76,6 +76,14 @@ declare global {
   }
 }
 
+function requireNonBlankString(fieldName: string, value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Missing required configuration field: "${fieldName}"`);
+  }
+
+  return value;
+}
+
 /**
  * Parse the configuration and returned the structured configuration.
  * @returns the application's configuration in a structured format.
@@ -87,7 +95,14 @@ export function getConfig(): AppConfig {
     throw new Error("window.__config__ is not defined. Is config.js loaded?");
   }
 
-  const { registrationServiceURL, recaptchaSiteKey } = config;
+  const recaptchaSiteKey = requireNonBlankString(
+    "recaptchaSiteKey",
+    config.recaptchaSiteKey,
+  );
+  const registrationServiceURL = requireNonBlankString(
+    "registrationServiceURL",
+    config.registrationServiceURL,
+  );
 
   switch (config.environment) {
     case "dev":
@@ -98,16 +113,7 @@ export function getConfig(): AppConfig {
       };
 
     case "dev-keycloak": {
-      const auth = config.auth;
-      if (
-        !auth ||
-        !auth.clientId ||
-        !String(auth.clientId).trim() ||
-        !auth.realm ||
-        !String(auth.realm).trim() ||
-        !auth.url ||
-        !String(auth.url).trim()
-      ) {
+      if (!config.auth) {
         throw new Error(
           `In the "dev-keycloak" environment you need to specify an "auth" object with the "clientId", "realm" and "url" fields.`,
         );
@@ -116,13 +122,16 @@ export function getConfig(): AppConfig {
         environment: Environment.DEVELOPMENT_KEYCLOAK,
         registrationServiceURL,
         recaptchaSiteKey,
-        auth: { clientId: auth.clientId, realm: auth.realm, url: auth.url },
+        auth: {
+          clientId: requireNonBlankString("clientId", config.auth.clientId),
+          realm: requireNonBlankString("realm", config.auth.realm),
+          url: requireNonBlankString("url", config.auth.url),
+        },
       };
     }
 
     case "dev-stage": {
-      const auth = config.auth;
-      if (!auth || !auth.clientId || !String(auth.clientId).trim()) {
+      if (!config.auth) {
         throw new Error(
           `In the "dev-stage" environment you need to specify an "auth" object with the "clientId" key.`,
         );
@@ -131,7 +140,9 @@ export function getConfig(): AppConfig {
         environment: Environment.DEVELOPMENT_STAGE,
         registrationServiceURL,
         recaptchaSiteKey,
-        auth: { clientId: auth.clientId },
+        auth: {
+          clientId: requireNonBlankString("clientId", config.auth.clientId),
+        },
       };
     }
 
