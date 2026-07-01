@@ -76,6 +76,12 @@ declare global {
   }
 }
 
+/**
+ * Validates the given value to not be blank, and throws an error if it is.
+ * @param fieldName the name of the field that we are validating.
+ * @param value the value to check.
+ * @returns the validated value.
+ */
 function requireNonBlankString(fieldName: string, value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`Missing required configuration field: "${fieldName}"`);

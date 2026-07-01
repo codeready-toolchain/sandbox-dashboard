@@ -1,16 +1,11 @@
-import {
-  createContext,
-  useCallback,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   AlertGroup,
   AlertActionCloseButton,
   type AlertVariant,
 } from "@patternfly/react-core";
+import { NotificationContext } from "./NotificationContext";
 
 interface AlertEntry {
   key: number;
@@ -18,17 +13,6 @@ interface AlertEntry {
   title: string;
   description?: string;
 }
-
-export interface NotificationContextValue {
-  addAlert: (
-    variant: AlertVariant,
-    title: string,
-    description?: string,
-  ) => void;
-}
-
-export const NotificationContext =
-  createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts] = useState<AlertEntry[]>([]);
