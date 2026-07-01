@@ -45,7 +45,7 @@ following:
    modify the `auth` object's fields accordingly.
 3. Start Keycloak with `make start-keycloak`.
 4. Start the UI with `make dev`.
-5. Go to `http://localhost:5173` and log in with the default test user:
+5. Go to the URL provided by the Vite and log in with the default test user:
    - Username: `johndoe`
    - Password: `developer-sandbox`
 
@@ -59,7 +59,7 @@ these steps:
    `registrationServiceURL` to the stage's registration service URL, and the
    `auth.clientId` to the stage's client ID for development.
 2. Start the UI with `make dev`.
-3. Go to `http://localhost:5173` and log in with your Red Hat credentials.
+3. Go to the URL provided by Vite and and log in with your Red Hat credentials.
 
 Here the authentication provider will query the registration service for the
 SSO configuration details, and configure your UI's settings so that they point
