@@ -9,8 +9,9 @@ import {
   deploymentFixture,
   statefulSetFixture,
   pvcFixture,
-  aapReadyFixture,
 } from "./fixtures";
+import { aapMockHandlers } from "./handlers/aap-handlers";
+import { openClawMockHandlers } from "./handlers/openclaw-handlers";
 
 export const handlers: RequestHandler[] = [
   // Registration-service endpoints
@@ -79,32 +80,9 @@ export const handlers: RequestHandler[] = [
     return new HttpResponse(null, { status: 200 });
   }),
 
-  // AAP proxy endpoints
-  http.get(
-    "*/apis/aap.ansible.com/v1alpha1/namespaces/:ns/ansibleautomationplatforms",
-    () => {
-      return HttpResponse.json(aapReadyFixture);
-    },
-  ),
+  // AAP handlers (stateful mock with lifecycle transitions)
+  ...aapMockHandlers,
 
-  http.post(
-    "*/apis/aap.ansible.com/v1alpha1/namespaces/:ns/ansibleautomationplatforms",
-    () => {
-      return new HttpResponse(null, { status: 201 });
-    },
-  ),
-
-  http.patch(
-    "*/apis/aap.ansible.com/v1alpha1/namespaces/:ns/ansibleautomationplatforms/sandbox-aap",
-    () => {
-      return new HttpResponse(null, { status: 200 });
-    },
-  ),
-
-  http.delete(
-    "*/apis/aap.ansible.com/v1alpha1/namespaces/:ns/ansibleautomationplatforms/sandbox-aap",
-    () => {
-      return new HttpResponse(null, { status: 200 });
-    },
-  ),
+  // OpenClaw handlers (stateful mock with lifecycle transitions)
+  ...openClawMockHandlers,
 ];
