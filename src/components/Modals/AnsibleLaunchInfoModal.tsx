@@ -22,7 +22,7 @@ import EyeIcon from "@patternfly/react-icons/dist/esm/icons/eye-icon";
 import EyeSlashIcon from "@patternfly/react-icons/dist/esm/icons/eye-slash-icon";
 import { useState } from "react";
 import AnsibleIcon from "../../assets/logos/ansible.svg";
-import RedHatLogo from "../../assets/logos/logo_hat-only.svg";
+import RedHatLogo from "../../assets/logos/red_hat_logo.svg";
 import { AnsibleStatus } from "../../utils/aap-utils";
 
 type AnsibleLaunchInfoModalProps = {
