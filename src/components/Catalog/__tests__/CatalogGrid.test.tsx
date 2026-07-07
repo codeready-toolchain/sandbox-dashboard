@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
@@ -42,6 +42,26 @@ function makeContext(
     disabledIntegrations: [],
     ...overrides,
   };
+}
+
+function getOpenShiftCardWithButton(): {
+  card: HTMLElement;
+  tryItButton: HTMLButtonElement;
+} {
+  const card = screen
+    .getAllByTestId("catalog-card")
+    .find(
+      (c) =>
+        c.textContent?.includes("OpenShift") &&
+        !c.textContent?.includes("OpenShift AI") &&
+        !c.textContent?.includes("OpenShift Virtualization"),
+    );
+  expect(card).toBeDefined();
+
+  const tryItButton = card!.querySelector("[data-testid='try-it-button']");
+  expect(tryItButton).not.toBeNull();
+
+  return { card: card!, tryItButton: tryItButton as HTMLButtonElement };
 }
 
 describe("CatalogGrid", () => {
@@ -96,15 +116,14 @@ describe("CatalogGrid", () => {
         <CatalogGrid />
       </SandboxContext.Provider>,
     );
-    const deleteButtons = screen.queryAllByTestId("catalog-card-delete");
-    const openclawDeleteBtn = deleteButtons.find((btn) =>
-      btn
-        .closest("[data-testid='catalog-card']")
-        ?.textContent?.includes(
-          productData.find((p) => p.id === Product.OPENCLAW)?.title ?? "",
-        ),
-    );
-    expect(openclawDeleteBtn).toBeUndefined();
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+    expect(
+      openclawCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
   });
 
   it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is DELETING", () => {
@@ -479,27 +498,16 @@ describe("CatalogGrid", () => {
       </SandboxContext.Provider>,
     );
 
-    const openshiftCard = screen
-      .getAllByTestId("catalog-card")
-      .find(
-        (card) =>
-          card.textContent?.includes("OpenShift") &&
-          !card.textContent?.includes("OpenShift AI") &&
-          !card.textContent?.includes("OpenShift Virtualization"),
-      );
-    expect(openshiftCard).toBeDefined();
-
-    const mainButton = openshiftCard!.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const { card: openshiftCard, tryItButton: mainButton } =
+      getOpenShiftCardWithButton();
     expect(mainButton.textContent).toContain("Try it");
 
     expect(
-      openshiftCard!.querySelector("[data-testid='delete-instance-button']"),
+      openshiftCard.querySelector("[data-testid='delete-instance-button']"),
     ).toBeNull();
 
-    expect(openshiftCard!.textContent).not.toContain("Ready");
-    expect(openshiftCard!.textContent).not.toContain("Provisioning");
+    expect(openshiftCard.textContent).not.toContain("Ready");
+    expect(openshiftCard.textContent).not.toContain("Provisioning");
   });
 
   it("does not disable the main button when OpenClaw status is PROVISIONING", () => {
@@ -520,6 +528,50 @@ describe("CatalogGrid", () => {
       "[data-testid='try-it-button']",
     ) as HTMLButtonElement;
     expect(mainButton).not.toBeDisabled();
+  });
+
+  it("calls ensureUserIsReady and opens product URL for simple cards when user is ready", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    render(
+      <SandboxContext.Provider value={makeContext()}>
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(tryItButton);
+
+    expect(windowOpenSpy).toHaveBeenCalled();
+    windowOpenSpy.mockRestore();
+  });
+
+  it("does not open product URL for simple cards when verification is required", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ verificationRequired: true, userReady: false })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(tryItButton);
+
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+    windowOpenSpy.mockRestore();
   });
 
   it("passes fresh namespace from refetch to handleAAPInstance after signup", async () => {
@@ -572,5 +624,136 @@ describe("CatalogGrid", () => {
     await waitFor(() => {
       expect(handleAAPInstance).toHaveBeenCalledWith(freshNamespace);
     });
+  });
+
+  it("deduplicates concurrent ensureUserIsReady calls via the useRef in-flight guard", async () => {
+    let resolveSignup!: () => void;
+    const signupPromise = new Promise<void>((resolve) => {
+      resolveSignup = resolve;
+    });
+
+    const signupUser = vi.fn().mockReturnValue(signupPromise);
+    const refetchUserData = vi.fn().mockResolvedValue({
+      ...readyUserFixture,
+      status: { ready: true, reason: "", verificationRequired: false },
+    });
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          userStatus: UserStatus.NEW,
+          userReady: false,
+          userFound: false,
+          userData: undefined,
+          signupUser,
+          refetchUserData,
+          disabledIntegrations: [],
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    await act(async () => {
+      fireEvent.click(tryItButton);
+      fireEvent.click(tryItButton);
+    });
+
+    resolveSignup();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets the in-flight guard after signup completes so subsequent calls work", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    const signupUser = vi.fn().mockResolvedValue(undefined);
+    const refetchUserData = vi.fn().mockResolvedValue({
+      ...readyUserFixture,
+      status: { ready: true, reason: "", verificationRequired: false },
+    });
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          userStatus: UserStatus.NEW,
+          userReady: false,
+          userFound: false,
+          userData: undefined,
+          signupUser,
+          refetchUserData,
+          disabledIntegrations: [],
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(1);
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(2);
+
+    windowOpenSpy.mockRestore();
+  });
+
+  it("resets the in-flight guard even when signup polling exhausts all attempts", async () => {
+    const signupUser = vi.fn().mockResolvedValue(undefined);
+    const refetchUserData = vi.fn().mockResolvedValue(null);
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          userStatus: UserStatus.NEW,
+          userReady: false,
+          userFound: false,
+          userData: undefined,
+          signupUser,
+          refetchUserData,
+          disabledIntegrations: [],
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(1);
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(2);
   });
 });

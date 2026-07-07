@@ -15,115 +15,43 @@ import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle
 import CheckIcon from "@patternfly/react-icons/dist/esm/icons/check-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
-import { useSandboxContext } from "../../hooks/SandboxContext";
-import { Product } from "../../hooks/useProductURLs";
-import { AnsibleStatus } from "../../utils/aap-utils";
-import { OpenClawStatus } from "../../utils/openclaw-utils";
 import "../common/Card.css";
 import "./CatalogCard.css";
+import { ButtonLabel } from "./catalogCardTypes";
+import type { StatusLabel } from "./catalogCardTypes";
 import type { DescriptionIconType, ProductData } from "./productData";
 
 /**
- * Defines the possible labels for the card's main button.
+ * Defines the properties of the CatalogCard component.
  */
-const enum ButtonLabel {
-  TRY_IT = "Try it",
-  PROVISION = "Provision",
-  PROVISIONING = "Provisioning...",
-  LAUNCH = "Launch",
-  REPROVISION = "Re-provision",
-  DELETING = "Deleting...",
-}
-
-/**
- * Defines the colors which the status label can have.
- */
-const enum StatusColor {
-  BLUE = "blue",
-  GREEN = "green",
-  GREY = "grey",
-  ORANGE = "orange",
-  RED = "red",
-}
-
-/**
- * Defines the structure of a status label.
- */
-type StatusLabel = {
-  color: StatusColor;
-  label: "Provisioning" | "Ready" | "Idled" | "Deleting" | "Failed";
-};
-
 type CatalogCardProps = {
+  /** The product to be shown in the card. */
   product: ProductData;
-  link: string;
+  /** The status label to render in the card's header. */
+  statusLabel?: StatusLabel;
+  /**
+   * The label of the primary button. Usually used for launching or opening
+   * the product's page.
+   */
+  primaryButtonLabel: ButtonLabel;
+  /** Shows or hides the green corner on the top left part of the card. */
   isGreenCornerVisible: boolean;
-  onTryIt: () => void;
-  onDelete?: () => void;
+  /** Controls whether the primary button is disabled. */
+  isPrimaryButtonDisabled: boolean;
+  /** Controls whether the spinner is visible in the primary button. */
+  isPrimaryButtonSpinnerVisible: boolean;
+  /**
+   * Controls whether the "external link" icon is visible in the primary
+   * button.
+   */
+  isPrimaryButtonExtIconVisible: boolean;
+  /** Controls whether the "delete" button is visible in the card. */
+  isDeleteButtonVisible: boolean;
+  /** Action to perform when the primary button is clicked. */
+  onClickPrimaryButton: () => void;
+  /** Action to perform when the "delete" button is clicked. */
+  onClickDeleteButton?: () => void;
 };
-
-/**
- * Obtains the main button's label.
- * @param status the status from which determine the button label.
- * @returns the label of the main button.
- */
-function getButtonLabel(status: AnsibleStatus | OpenClawStatus): ButtonLabel {
-  switch (status) {
-    case AnsibleStatus.NEW:
-    case AnsibleStatus.NOT_DEPLOYED:
-    case AnsibleStatus.UNKNOWN:
-    case OpenClawStatus.NEW:
-    case OpenClawStatus.FAILED:
-      return ButtonLabel.PROVISION;
-
-    case AnsibleStatus.PROVISIONING:
-    case OpenClawStatus.PROVISIONING:
-      return ButtonLabel.PROVISIONING;
-
-    case AnsibleStatus.READY:
-    case OpenClawStatus.READY:
-      return ButtonLabel.LAUNCH;
-
-    case AnsibleStatus.IDLED:
-    case OpenClawStatus.IDLED:
-      return ButtonLabel.REPROVISION;
-
-    case OpenClawStatus.TERMINATING:
-    case OpenClawStatus.DELETING:
-      return ButtonLabel.DELETING;
-
-    default:
-      return ButtonLabel.TRY_IT;
-  }
-}
-
-/**
- * Obtains a label, if applicable.
- * @param status the status from which derive the label.
- * @returns a label text and color depending on the given status.
- */
-function getStatusLabel(
-  status: AnsibleStatus | OpenClawStatus,
-): StatusLabel | undefined {
-  switch (status) {
-    case AnsibleStatus.PROVISIONING:
-    case OpenClawStatus.PROVISIONING:
-      return { label: "Provisioning", color: StatusColor.BLUE };
-    case AnsibleStatus.READY:
-    case OpenClawStatus.READY:
-      return { label: "Ready", color: StatusColor.GREEN };
-    case AnsibleStatus.IDLED:
-    case OpenClawStatus.IDLED:
-      return { label: "Idled", color: StatusColor.ORANGE };
-    case OpenClawStatus.TERMINATING:
-    case OpenClawStatus.DELETING:
-      return { label: "Deleting", color: StatusColor.RED };
-    case OpenClawStatus.FAILED:
-      return { label: "Failed", color: StatusColor.RED };
-    default:
-      return undefined;
-  }
-}
 
 function DescriptionIcon({ type }: { type: DescriptionIconType }) {
   if (type === "warning") {
@@ -183,35 +111,16 @@ function GreenCorner({ isVisible }: { isVisible: boolean }) {
 
 export function CatalogCard({
   product,
-  link,
+  statusLabel,
+  primaryButtonLabel,
   isGreenCornerVisible,
-  onTryIt,
-  onDelete,
+  isPrimaryButtonDisabled,
+  isPrimaryButtonSpinnerVisible,
+  isPrimaryButtonExtIconVisible,
+  isDeleteButtonVisible,
+  onClickPrimaryButton,
+  onClickDeleteButton,
 }: CatalogCardProps) {
-  const { ansibleStatus, openclawStatus } = useSandboxContext();
-
-  // Determine the labels and statuses if applicable, and whether we should be
-  // showing the delete button or not.
-  let buttonLabel: ButtonLabel = ButtonLabel.TRY_IT;
-  let statusLabel: StatusLabel | undefined;
-  let showDelete = false;
-
-  if (product.id === Product.AAP) {
-    buttonLabel = getButtonLabel(ansibleStatus);
-    statusLabel = getStatusLabel(ansibleStatus);
-    showDelete =
-      ansibleStatus !== AnsibleStatus.NEW &&
-      ansibleStatus !== AnsibleStatus.NOT_DEPLOYED;
-  } else if (product.id === Product.OPENCLAW) {
-    buttonLabel = getButtonLabel(openclawStatus);
-    statusLabel = getStatusLabel(openclawStatus);
-    showDelete =
-      openclawStatus !== OpenClawStatus.NEW &&
-      openclawStatus !== OpenClawStatus.DELETING &&
-      openclawStatus !== OpenClawStatus.TERMINATING &&
-      openclawStatus !== OpenClawStatus.UNKNOWN;
-  }
-
   return (
     <Card isCompact data-testid="catalog-card" className="sandbox-card">
       <CardHeader className="sandbox-card-header">
@@ -268,11 +177,10 @@ export function CatalogCard({
           <FlexItem>
             <Button
               variant="secondary"
-              onClick={onTryIt}
-              isDisabled={buttonLabel === ButtonLabel.DELETING}
+              onClick={onClickPrimaryButton}
+              isDisabled={isPrimaryButtonDisabled}
               icon={
-                buttonLabel === ButtonLabel.LAUNCH ||
-                (buttonLabel === ButtonLabel.TRY_IT && !!link) ? (
+                isPrimaryButtonExtIconVisible ? (
                   <ExternalLinkAltIcon />
                 ) : undefined
               }
@@ -283,23 +191,22 @@ export function CatalogCard({
                 alignItems={{ default: "alignItemsCenter" }}
                 gap={{ default: "gapSm" }}
               >
-                {buttonLabel === ButtonLabel.DELETING ||
-                buttonLabel === ButtonLabel.PROVISIONING ? (
+                {isPrimaryButtonSpinnerVisible ? (
                   <>
-                    <Spinner size="md" /> {buttonLabel}
+                    <Spinner size="md" /> {primaryButtonLabel}
                   </>
                 ) : (
-                  buttonLabel
+                  primaryButtonLabel
                 )}
               </Flex>
             </Button>
           </FlexItem>
-          {showDelete && onDelete && (
+          {isDeleteButtonVisible && onClickDeleteButton && (
             <FlexItem>
               <Tooltip content="Delete instance">
                 <Button
                   variant="danger"
-                  onClick={onDelete}
+                  onClick={onClickDeleteButton}
                   aria-label="Delete instance"
                   data-testid="delete-instance-button"
                 >

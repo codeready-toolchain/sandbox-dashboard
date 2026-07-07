@@ -1,20 +1,16 @@
 import { Grid, GridItem } from "@patternfly/react-core";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import useGreenCorners from "../../hooks/useGreenCorners";
 import useProductURLs, { Product } from "../../hooks/useProductURLs";
 import { UserStatus } from "../../types";
-import { OpenClawStatus } from "../../utils/openclaw-utils";
-import {
-  AnsibleDeleteInstanceModal,
-  AnsibleLaunchInfoModal,
-  OpenClawDeleteInstanceModal,
-  OpenClawLaunchInfoModal,
-  PhoneVerificationModal,
-} from "../Modals";
+import { PhoneVerificationModal } from "../Modals";
+import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
 import { CatalogCard } from "./CatalogCard";
-import { productData } from "./productData";
+import { ButtonLabel, type EnsureUserIsReadyResult } from "./catalogCardTypes";
+import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
+import { productData, type ProductData } from "./productData";
 
 export function CatalogGrid() {
   const {
@@ -24,56 +20,28 @@ export function CatalogGrid() {
     userData,
     signupUser,
     refetchUserData,
-    handleAAPInstance,
-    refetchAAP,
-    ansibleUILink,
-    ansibleUIUser,
-    ansibleUIPassword,
-    ansibleStatus,
-    ansibleError,
-    openclawStatus,
-    openclawError,
-    openclawUILink,
-    handleOpenClawInstance,
-    deleteOpenClaw,
     disabledIntegrations,
   } = useSandboxContext();
 
+  /**
+   * Filters the disabled products so that they do not get shown in the
+   * catalog.
+   */
   const enabledProducts = useMemo(
     () =>
       productData.filter((p) => !(disabledIntegrations ?? []).includes(p.id)),
     [disabledIntegrations],
   );
-  const { greenCorners, setGreenCorners } = useGreenCorners(enabledProducts);
+  const { greenCorners, markProductAsTried } = useGreenCorners(enabledProducts);
   const productURLs = useProductURLs();
 
-  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
-  const [ansibleInfoModalOpen, setAnsibleInfoModalOpen] = useState(false);
-  const [ansibleDeleteModalOpen, setAnsibleDeleteModalOpen] = useState(false);
-  const [openclawInfoModalOpen, setOpenclawInfoModalOpen] = useState(false);
-  const [openclawDeleteModalOpen, setOpenclawDeleteModalOpen] = useState(false);
-  const [openclawDeleting, setOpenclawDeleting] = useState(false);
+  const [isPhoneModalOpen, setPhoneModalOpen] = useState<boolean>(false);
+  const userSignupCreationInFlight = useRef(false);
 
-  const markAsTried = useCallback(
-    (productId: Product) => {
-      setGreenCorners((prev) =>
-        prev.map((gc) => (gc.id === productId ? { ...gc, show: true } : gc)),
-      );
-    },
-    [setGreenCorners],
-  );
-
-  const openProductURL = useCallback(
-    (productId: Product) => {
-      const url = productURLs.find((pu) => pu.id === productId)?.url;
-      if (url) {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-      markAsTried(productId);
-    },
-    [productURLs, markAsTried],
-  );
-
+  /**
+   * Polls for the user signup until the back end returns a known status for
+   * the resource.
+   */
   const pollUntilStatusKnown = useCallback(async (): Promise<{
     status: UserStatus;
     namespace?: string;
@@ -91,130 +59,113 @@ export function CatalogGrid() {
     return { status: UserStatus.PENDING_APPROVAL, namespace };
   }, [refetchUserData]);
 
-  const handleTryIt = useCallback(
-    async (productId: Product) => {
+  /**
+   * Sign's up the user and it might trigger the phone verification flow if
+   * it is so required. Useful function so that the dependents know that it is
+   * safe to do further actions on the user data.
+   */
+  const ensureUserIsReady =
+    useCallback(async (): Promise<EnsureUserIsReadyResult> => {
       if (userStatus === UserStatus.NEW || userStatus === UserStatus.UNKNOWN) {
-        await signupUser();
-
-        let resolved: { status: UserStatus; namespace?: string } = {
-          status: UserStatus.UNKNOWN,
-        };
-        const maxAttempts = 30;
-        for (let i = 0; i < maxAttempts; i++) {
-          await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
-          resolved = await pollUntilStatusKnown();
-          if (
-            resolved.status !== UserStatus.NEW &&
-            resolved.status !== UserStatus.UNKNOWN
-          )
-            break;
+        if (userSignupCreationInFlight.current) {
+          return { ready: false };
         }
 
-        if (resolved.status === UserStatus.VERIFY) {
-          setPhoneModalOpen(true);
-        } else if (resolved.status === UserStatus.READY) {
-          if (productId === Product.AAP) {
-            await handleAAPInstance(resolved.namespace || "");
-            setAnsibleInfoModalOpen(true);
-          } else if (productId === Product.OPENCLAW) {
-            setOpenclawInfoModalOpen(true);
-          } else {
-            openProductURL(productId);
+        userSignupCreationInFlight.current = true;
+        try {
+          await signupUser();
+
+          let resolved: { status: UserStatus; namespace?: string } = {
+            status: UserStatus.UNKNOWN,
+          };
+
+          const maxAttempts = 30;
+          for (let i = 0; i < maxAttempts; i++) {
+            await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
+            resolved = await pollUntilStatusKnown();
+            if (
+              resolved.status !== UserStatus.NEW &&
+              resolved.status !== UserStatus.UNKNOWN
+            )
+              break;
           }
+
+          if (resolved.status === UserStatus.VERIFY) {
+            setPhoneModalOpen(true);
+            return { ready: false };
+          }
+
+          if (resolved.status === UserStatus.READY) {
+            return { ready: true, namespace: resolved.namespace || "" };
+          }
+        } finally {
+          userSignupCreationInFlight.current = false;
         }
-        return;
+
+        return { ready: false };
       }
 
       if (verificationRequired) {
         setPhoneModalOpen(true);
-        return;
+        return { ready: false };
       }
 
       if (userReady) {
-        if (productId === Product.AAP) {
-          await handleAAPInstance(userData?.defaultUserNamespace || "");
-          setAnsibleInfoModalOpen(true);
-          markAsTried(productId);
-          return;
-        }
-
-        if (productId === Product.OPENCLAW) {
-          if (openclawStatus === OpenClawStatus.READY && openclawUILink) {
-            window.open(openclawUILink, "_blank", "noopener,noreferrer");
-            markAsTried(productId);
-          } else if (openclawStatus === OpenClawStatus.IDLED) {
-            await handleOpenClawInstance(userData?.defaultUserNamespace || "");
-          } else if (
-            openclawStatus === OpenClawStatus.PROVISIONING ||
-            openclawStatus === OpenClawStatus.TERMINATING
-          ) {
-            setOpenclawInfoModalOpen(true);
-          } else {
-            setOpenclawInfoModalOpen(true);
-          }
-          return;
-        }
-
-        openProductURL(productId);
+        return { ready: true, namespace: userData?.defaultUserNamespace || "" };
       }
-    },
-    [
+
+      return { ready: false };
+    }, [
       userStatus,
       verificationRequired,
       userReady,
       userData?.defaultUserNamespace,
       signupUser,
       pollUntilStatusKnown,
-      handleAAPInstance,
-      handleOpenClawInstance,
-      openProductURL,
-      markAsTried,
-      openclawStatus,
-      openclawUILink,
-    ],
-  );
+    ]);
 
+  /**
+   * Closes the phone verification model and updates the user signup's data.
+   */
   const handlePhoneVerified = useCallback(async () => {
     setPhoneModalOpen(false);
     await refetchUserData();
   }, [refetchUserData]);
 
-  const handleAAPDeleted = useCallback(async () => {
-    setAnsibleDeleteModalOpen(false);
-    if (userData?.defaultUserNamespace) {
-      await refetchAAP(userData.defaultUserNamespace);
-    }
-  }, [refetchAAP, userData]);
-
-  const handleOpenClawProvision = useCallback(
-    async (
-      credentials: import("../../utils/openclaw-providers").AddedCredential[],
-    ): Promise<boolean> => {
-      if (!userData?.defaultUserNamespace) return false;
-      const success = await handleOpenClawInstance(
-        userData.defaultUserNamespace,
-        credentials,
-        false,
-      );
-      if (success) {
-        markAsTried(Product.OPENCLAW);
+  /**
+   * Gets the URL for the given product and opens it in a new tab. It also
+   * marks the product as "tried" so that a green mark can be applied to the
+   * card.
+   */
+  const openProductURL = useCallback(
+    (productId: Product) => {
+      const url = productURLs.find((pu) => pu.id === productId)?.url;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        markProductAsTried(productId);
       }
-      return success;
     },
-    [handleOpenClawInstance, userData, markAsTried],
+    [productURLs, markProductAsTried],
   );
 
-  const handleOpenClawDelete = useCallback(async () => {
-    if (!userData?.defaultUserNamespace) return;
-    setOpenclawDeleting(true);
-    try {
-      await deleteOpenClaw(userData.defaultUserNamespace);
-    } finally {
-      setOpenclawDeleting(false);
-      setOpenclawDeleteModalOpen(false);
-    }
-  }, [deleteOpenClaw, userData?.defaultUserNamespace]);
+  /**
+   * Handles opening the product's URL for the cards that do not hold any
+   * state, and only require opening a new tab with the product's URL.
+   */
+  const handleOnClickPrimaryButtonSimpleCards = useCallback(
+    async (product: ProductData) => {
+      const isUserReady = await ensureUserIsReady();
+      if (!isUserReady.ready) {
+        return;
+      }
 
+      openProductURL(product.id);
+    },
+    [ensureUserIsReady, openProductURL],
+  );
+
+  // We treat not having the "disabledIntegrations" field set as all of them
+  // being disabled.
   if (disabledIntegrations === undefined) {
     return null;
   }
@@ -223,74 +174,58 @@ export function CatalogGrid() {
     <>
       <Grid hasGutter>
         {enabledProducts.map((product) => {
-          let onDelete: (() => void) | undefined;
-          if (product.id === Product.AAP) {
-            onDelete = () => setAnsibleDeleteModalOpen(true);
-          } else if (product.id === Product.OPENCLAW) {
-            onDelete = () => setOpenclawDeleteModalOpen(true);
+          const isGreenCornerVisible =
+            greenCorners?.find((gc) => gc.id === product.id)?.show || false;
+
+          switch (product.id) {
+            case Product.AAP:
+              return (
+                <GridItem key={product.id} span={4}>
+                  <AnsibleCatalogCard
+                    product={product}
+                    isGreenCornerVisible={isGreenCornerVisible}
+                    ensureUserIsReady={ensureUserIsReady}
+                    markProductAsTried={markProductAsTried}
+                  />
+                </GridItem>
+              );
+            case Product.OPENCLAW:
+              return (
+                <GridItem key={product.id} span={4}>
+                  <OpenClawCatalogCard
+                    product={product}
+                    isGreenCornerVisible={isGreenCornerVisible}
+                    ensureUserIsReady={ensureUserIsReady}
+                    markProductAsTried={markProductAsTried}
+                  />
+                </GridItem>
+              );
+            default:
+              return (
+                <GridItem key={product.id} span={4}>
+                  <CatalogCard
+                    product={product}
+                    primaryButtonLabel={ButtonLabel.TRY_IT}
+                    isGreenCornerVisible={isGreenCornerVisible}
+                    isPrimaryButtonDisabled={false}
+                    isPrimaryButtonSpinnerVisible={false}
+                    isPrimaryButtonExtIconVisible
+                    isDeleteButtonVisible={false}
+                    onClickPrimaryButton={() =>
+                      handleOnClickPrimaryButtonSimpleCards(product)
+                    }
+                  />
+                </GridItem>
+              );
           }
-          return (
-            <GridItem key={product.id} span={4}>
-              <CatalogCard
-                product={product}
-                link={productURLs.find((pu) => pu.id === product.id)?.url || ""}
-                isGreenCornerVisible={
-                  greenCorners?.find((gc) => gc.id === product.id)?.show ||
-                  false
-                }
-                onTryIt={() => handleTryIt(product.id)}
-                onDelete={onDelete}
-              />
-            </GridItem>
-          );
         })}
       </Grid>
 
       <PhoneVerificationModal
-        isOpen={phoneModalOpen}
+        isOpen={isPhoneModalOpen}
         onClose={() => setPhoneModalOpen(false)}
         onVerified={handlePhoneVerified}
       />
-
-      <AnsibleLaunchInfoModal
-        isOpen={ansibleInfoModalOpen}
-        onClose={() => setAnsibleInfoModalOpen(false)}
-        ansibleUILink={ansibleUILink}
-        ansibleUIUser={ansibleUIUser}
-        ansibleUIPassword={ansibleUIPassword}
-        ansibleStatus={ansibleStatus}
-        ansibleError={ansibleError}
-      />
-
-      {userData?.proxyURL && userData?.defaultUserNamespace && (
-        <>
-          <AnsibleDeleteInstanceModal
-            isOpen={ansibleDeleteModalOpen}
-            onClose={() => setAnsibleDeleteModalOpen(false)}
-            onDeleted={handleAAPDeleted}
-            proxyURL={userData.proxyURL}
-            userNamespace={userData.defaultUserNamespace}
-          />
-
-          <OpenClawLaunchInfoModal
-            isOpen={openclawInfoModalOpen}
-            onClose={() => setOpenclawInfoModalOpen(false)}
-            productId={Product.OPENCLAW}
-            openclawStatus={openclawStatus}
-            openclawError={openclawError}
-            openclawUILink={openclawUILink}
-            onProvision={handleOpenClawProvision}
-            onLaunch={markAsTried}
-          />
-
-          <OpenClawDeleteInstanceModal
-            isOpen={openclawDeleteModalOpen}
-            onClose={() => setOpenclawDeleteModalOpen(false)}
-            onDelete={handleOpenClawDelete}
-            deleting={openclawDeleting}
-          />
-        </>
-      )}
     </>
   );
 }
