@@ -5,7 +5,6 @@ import { useSandboxContext } from "../../hooks/SandboxContext";
 import useGreenCorners from "../../hooks/useGreenCorners";
 import useProductURLs, { Product } from "../../hooks/useProductURLs";
 import { UserStatus } from "../../types";
-import { AnsibleStatus } from "../../utils/aap-utils";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
 import {
   AnsibleDeleteInstanceModal,
@@ -14,58 +13,8 @@ import {
   OpenClawLaunchInfoModal,
   PhoneVerificationModal,
 } from "../Modals";
-import {
-  CatalogCard,
-  type ButtonLabel,
-  type DeleteButtonLabel,
-} from "./CatalogCard";
+import { CatalogCard } from "./CatalogCard";
 import { productData } from "./productData";
-
-function getOpenClawButtonLabel(status: OpenClawStatus): ButtonLabel {
-  switch (status) {
-    case OpenClawStatus.READY:
-      return "Launch";
-    case OpenClawStatus.IDLED:
-      return "Re-provision";
-    case OpenClawStatus.PROVISIONING:
-    case OpenClawStatus.TERMINATING:
-    case OpenClawStatus.DELETING:
-      return "Provision";
-    case OpenClawStatus.FAILED:
-    case OpenClawStatus.UNKNOWN:
-    case OpenClawStatus.NEW:
-    default:
-      return "Provision";
-  }
-}
-
-function getOpenClawDeleteLabel(status: OpenClawStatus): DeleteButtonLabel {
-  if (status === OpenClawStatus.DELETING) return "Deleting";
-  if (status === OpenClawStatus.TERMINATING) return "Stop";
-  return "Delete";
-}
-
-function getOpenClawStatusLabel(status: OpenClawStatus): {
-  label: string;
-  color: "blue" | "green" | "orange" | "red" | "grey";
-} | null {
-  switch (status) {
-    case OpenClawStatus.PROVISIONING:
-      return { label: "Provisioning", color: "blue" };
-    case OpenClawStatus.READY:
-      return { label: "Ready", color: "green" };
-    case OpenClawStatus.IDLED:
-      return { label: "Idled", color: "orange" };
-    case OpenClawStatus.TERMINATING:
-      return { label: "Terminating", color: "orange" };
-    case OpenClawStatus.DELETING:
-      return { label: "Deleting", color: "red" };
-    case OpenClawStatus.FAILED:
-      return { label: "Failed", color: "red" };
-    default:
-      return null;
-  }
-}
 
 export function CatalogGrid() {
   const {
@@ -104,7 +53,6 @@ export function CatalogGrid() {
   const [openclawInfoModalOpen, setOpenclawInfoModalOpen] = useState(false);
   const [openclawDeleteModalOpen, setOpenclawDeleteModalOpen] = useState(false);
   const [openclawDeleting, setOpenclawDeleting] = useState(false);
-  const [loadingProduct, setLoadingProduct] = useState<Product | null>(null);
 
   const markAsTried = useCallback(
     (productId: Product) => {
@@ -146,38 +94,33 @@ export function CatalogGrid() {
   const handleTryIt = useCallback(
     async (productId: Product) => {
       if (userStatus === UserStatus.NEW || userStatus === UserStatus.UNKNOWN) {
-        setLoadingProduct(productId);
-        try {
-          await signupUser();
+        await signupUser();
 
-          let resolved: { status: UserStatus; namespace?: string } = {
-            status: UserStatus.UNKNOWN,
-          };
-          const maxAttempts = 30;
-          for (let i = 0; i < maxAttempts; i++) {
-            await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
-            resolved = await pollUntilStatusKnown();
-            if (
-              resolved.status !== UserStatus.NEW &&
-              resolved.status !== UserStatus.UNKNOWN
-            )
-              break;
-          }
+        let resolved: { status: UserStatus; namespace?: string } = {
+          status: UserStatus.UNKNOWN,
+        };
+        const maxAttempts = 30;
+        for (let i = 0; i < maxAttempts; i++) {
+          await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
+          resolved = await pollUntilStatusKnown();
+          if (
+            resolved.status !== UserStatus.NEW &&
+            resolved.status !== UserStatus.UNKNOWN
+          )
+            break;
+        }
 
-          if (resolved.status === UserStatus.VERIFY) {
-            setPhoneModalOpen(true);
-          } else if (resolved.status === UserStatus.READY) {
-            if (productId === Product.AAP) {
-              await handleAAPInstance(resolved.namespace || "");
-              setAnsibleInfoModalOpen(true);
-            } else if (productId === Product.OPENCLAW) {
-              setOpenclawInfoModalOpen(true);
-            } else {
-              openProductURL(productId);
-            }
+        if (resolved.status === UserStatus.VERIFY) {
+          setPhoneModalOpen(true);
+        } else if (resolved.status === UserStatus.READY) {
+          if (productId === Product.AAP) {
+            await handleAAPInstance(resolved.namespace || "");
+            setAnsibleInfoModalOpen(true);
+          } else if (productId === Product.OPENCLAW) {
+            setOpenclawInfoModalOpen(true);
+          } else {
+            openProductURL(productId);
           }
-        } finally {
-          setLoadingProduct(null);
         }
         return;
       }
@@ -189,12 +132,7 @@ export function CatalogGrid() {
 
       if (userReady) {
         if (productId === Product.AAP) {
-          setLoadingProduct(productId);
-          try {
-            await handleAAPInstance(userData?.defaultUserNamespace || "");
-          } finally {
-            setLoadingProduct(null);
-          }
+          await handleAAPInstance(userData?.defaultUserNamespace || "");
           setAnsibleInfoModalOpen(true);
           markAsTried(productId);
           return;
@@ -205,14 +143,7 @@ export function CatalogGrid() {
             window.open(openclawUILink, "_blank", "noopener,noreferrer");
             markAsTried(productId);
           } else if (openclawStatus === OpenClawStatus.IDLED) {
-            setLoadingProduct(productId);
-            try {
-              await handleOpenClawInstance(
-                userData?.defaultUserNamespace || "",
-              );
-            } finally {
-              setLoadingProduct(null);
-            }
+            await handleOpenClawInstance(userData?.defaultUserNamespace || "");
           } else if (
             openclawStatus === OpenClawStatus.PROVISIONING ||
             openclawStatus === OpenClawStatus.TERMINATING
@@ -284,15 +215,6 @@ export function CatalogGrid() {
     }
   }, [deleteOpenClaw, userData?.defaultUserNamespace]);
 
-  const showAAPDelete =
-    ansibleStatus !== AnsibleStatus.NEW &&
-    ansibleStatus !== AnsibleStatus.NOT_DEPLOYED;
-
-  const showOpenClawDelete =
-    openclawStatus !== OpenClawStatus.NEW &&
-    openclawStatus !== OpenClawStatus.DELETING &&
-    openclawStatus !== OpenClawStatus.UNKNOWN;
-
   if (disabledIntegrations === undefined) {
     return null;
   }
@@ -301,57 +223,23 @@ export function CatalogGrid() {
     <>
       <Grid hasGutter>
         {enabledProducts.map((product) => {
-          const isAAP = product.id === Product.AAP;
-          const isOpenClaw = product.id === Product.OPENCLAW;
-
-          let buttonLabel: "Try it" | "Provision" | "Launch" | "Re-provision" =
-            "Try it";
-          let deleteButtonLabel: "Delete" | "Stop" | "Deleting" = "Delete";
-          let statusLabel: string | undefined;
-          let statusColor:
-            | "blue"
-            | "green"
-            | "orange"
-            | "red"
-            | "grey"
-            | undefined;
-          let showDelete = false;
           let onDelete: (() => void) | undefined;
-
-          if (isAAP) {
-            showDelete = showAAPDelete;
+          if (product.id === Product.AAP) {
             onDelete = () => setAnsibleDeleteModalOpen(true);
-          } else if (isOpenClaw) {
-            buttonLabel = getOpenClawButtonLabel(openclawStatus);
-            deleteButtonLabel = getOpenClawDeleteLabel(openclawStatus);
-            const statusInfo = getOpenClawStatusLabel(openclawStatus);
-            if (statusInfo) {
-              statusLabel = statusInfo.label;
-              statusColor = statusInfo.color;
-            }
-            showDelete = showOpenClawDelete;
+          } else if (product.id === Product.OPENCLAW) {
             onDelete = () => setOpenclawDeleteModalOpen(true);
           }
-
           return (
             <GridItem key={product.id} span={4}>
               <CatalogCard
-                title={product.title}
-                image={product.image}
-                description={product.description}
+                product={product}
                 link={productURLs.find((pu) => pu.id === product.id)?.url || ""}
-                greenCorner={
+                isGreenCornerVisible={
                   greenCorners?.find((gc) => gc.id === product.id)?.show ||
                   false
                 }
                 onTryIt={() => handleTryIt(product.id)}
-                loading={loadingProduct === product.id}
-                showDelete={showDelete}
                 onDelete={onDelete}
-                buttonLabel={buttonLabel}
-                deleteButtonLabel={deleteButtonLabel}
-                statusLabel={statusLabel}
-                statusColor={statusColor}
               />
             </GridItem>
           );
