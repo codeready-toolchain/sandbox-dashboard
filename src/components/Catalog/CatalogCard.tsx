@@ -163,9 +163,8 @@ export function CatalogCard({
             style={{ paddingBottom: "8px", fontSize: "14px" }}
           >
             <FlexItem>
-              <DescriptionIcon type={desc.iconType} />
+              <DescriptionIcon type={desc.iconType} /> {desc.value}
             </FlexItem>
-            <FlexItem>{desc.value}</FlexItem>
           </Flex>
         ))}
       </CardBody>

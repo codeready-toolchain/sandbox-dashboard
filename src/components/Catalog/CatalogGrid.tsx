@@ -1,4 +1,4 @@
-import { Grid, GridItem } from "@patternfly/react-core";
+import "./CatalogGrid.css";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
 import { useSandboxContext } from "../../hooks/SandboxContext";
@@ -189,34 +189,34 @@ export function CatalogGrid() {
 
   return (
     <>
-      <Grid hasGutter>
+      <div className="sandbox-catalog-grid">
         {enabledProductsData.map((product) => {
           switch (product.id) {
             case Product.AAP:
               return (
-                <GridItem key={product.id} span={4}>
+                <div key={product.id} className="sandbox-catalog-card-wrapper">
                   <AnsibleCatalogCard
                     product={product}
                     isGreenCornerVisible={isProductTried(product.id)}
                     ensureUserIsReady={ensureUserIsReady}
                     markProductAsTried={markProductAsTried}
                   />
-                </GridItem>
+                </div>
               );
             case Product.OPENCLAW:
               return (
-                <GridItem key={product.id} span={4}>
+                <div key={product.id} className="sandbox-catalog-card-wrapper">
                   <OpenClawCatalogCard
                     product={product}
                     isGreenCornerVisible={isProductTried(product.id)}
                     ensureUserIsReady={ensureUserIsReady}
                     markProductAsTried={markProductAsTried}
                   />
-                </GridItem>
+                </div>
               );
             default:
               return (
-                <GridItem key={product.id} span={4}>
+                <div key={product.id} className="sandbox-catalog-card-wrapper">
                   <CatalogCard
                     product={product}
                     primaryButtonLabel={ButtonLabel.TRY_IT}
@@ -229,11 +229,11 @@ export function CatalogGrid() {
                       handleOnClickPrimaryButtonSimpleCards(product)
                     }
                   />
-                </GridItem>
+                </div>
               );
           }
         })}
-      </Grid>
+      </div>
 
       <PhoneVerificationModal
         isOpen={isPhoneModalOpen}
