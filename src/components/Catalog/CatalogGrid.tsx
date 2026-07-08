@@ -2,8 +2,8 @@ import { Grid, GridItem } from "@patternfly/react-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
 import { useSandboxContext } from "../../hooks/SandboxContext";
-import useGreenCorners from "../../hooks/useGreenCorners";
 import useProductURLs, { Product } from "../../hooks/useProductURLs";
+import useTriedProducts from "../../hooks/useTriedProducts";
 import { UserStatus } from "../../types";
 import { PhoneVerificationModal } from "../Modals";
 import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
@@ -25,14 +25,31 @@ export function CatalogGrid() {
 
   /**
    * Filters the disabled products so that they do not get shown in the
-   * catalog.
+   * catalog, and so that they are not used for the green corners.
    */
-  const enabledProducts = useMemo(
-    () =>
-      productData.filter((p) => !(disabledIntegrations ?? []).includes(p.id)),
-    [disabledIntegrations],
-  );
-  const { greenCorners, markProductAsTried } = useGreenCorners(enabledProducts);
+  const {
+    enabledProductsData: enabledProductsData,
+    enabledProducts: enabledProductIds,
+  } = useMemo(() => {
+    const disabledIntegs: string[] = disabledIntegrations ?? [];
+    const enabledProductsData: ProductData[] = [];
+    const enabledProducts: Set<Product> = new Set<Product>();
+
+    for (const pd of productData) {
+      if (!disabledIntegs.includes(pd.id)) {
+        enabledProductsData.push(pd);
+        enabledProducts.add(pd.id);
+      }
+    }
+
+    return {
+      enabledProductsData: enabledProductsData,
+      enabledProducts: enabledProducts,
+    };
+  }, [disabledIntegrations]);
+
+  const { isProductTried, markProductAsTried } =
+    useTriedProducts(enabledProductIds);
   const productURLs = useProductURLs();
 
   const [isPhoneModalOpen, setPhoneModalOpen] = useState<boolean>(false);
@@ -173,17 +190,14 @@ export function CatalogGrid() {
   return (
     <>
       <Grid hasGutter>
-        {enabledProducts.map((product) => {
-          const isGreenCornerVisible =
-            greenCorners?.find((gc) => gc.id === product.id)?.show || false;
-
+        {enabledProductsData.map((product) => {
           switch (product.id) {
             case Product.AAP:
               return (
                 <GridItem key={product.id} span={4}>
                   <AnsibleCatalogCard
                     product={product}
-                    isGreenCornerVisible={isGreenCornerVisible}
+                    isGreenCornerVisible={isProductTried(product.id)}
                     ensureUserIsReady={ensureUserIsReady}
                     markProductAsTried={markProductAsTried}
                   />
@@ -194,7 +208,7 @@ export function CatalogGrid() {
                 <GridItem key={product.id} span={4}>
                   <OpenClawCatalogCard
                     product={product}
-                    isGreenCornerVisible={isGreenCornerVisible}
+                    isGreenCornerVisible={isProductTried(product.id)}
                     ensureUserIsReady={ensureUserIsReady}
                     markProductAsTried={markProductAsTried}
                   />
@@ -206,7 +220,7 @@ export function CatalogGrid() {
                   <CatalogCard
                     product={product}
                     primaryButtonLabel={ButtonLabel.TRY_IT}
-                    isGreenCornerVisible={isGreenCornerVisible}
+                    isGreenCornerVisible={isProductTried(product.id)}
                     isPrimaryButtonDisabled={false}
                     isPrimaryButtonSpinnerVisible={false}
                     isPrimaryButtonExtIconVisible
