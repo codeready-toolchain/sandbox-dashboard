@@ -24,8 +24,10 @@ export enum BulletPointIconType {
 export type ProductDescription = {
   /** The phrase or line to show. */
   bulletPoint: string;
-  /** The type of icon to render before the bullet point. */
-  iconType: BulletPointIconType;
+  /** The type of icon to render before the bullet point. Defaults to
+   * "success" if nothing is specified.
+   */
+  iconType?: BulletPointIconType;
 };
 
 /**
@@ -55,7 +57,7 @@ export type Product = {
   /**
    * A URL template with the appropriate {@link URLTemplateVars} to be
    * interpolated.
-   **/
+   */
   urlTemplate?: string;
   /**
    * A custom resolver for returning the product's URL.

@@ -57,7 +57,7 @@ type CatalogCardProps = {
   onClickDeleteButton?: () => void;
 };
 
-function DescriptionIcon({ type }: { type: BulletPointIconType }) {
+function DescriptionIcon({ type }: { type: BulletPointIconType | undefined }) {
   if (type === BulletPointIconType.WARNING) {
     return (
       <InfoCircleIcon
