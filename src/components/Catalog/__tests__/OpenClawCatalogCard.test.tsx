@@ -2,16 +2,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
-import { Product } from "../../../hooks/useProductURLs";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { UserStatus } from "../../../types";
+import { ProductType, type Product } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { OpenClawCatalogCard } from "../OpenClawCatalogCard";
-import { productData } from "../productData";
+import { products } from "../productData";
 
-const openclawProduct = productData.find((p) => p.id === Product.OPENCLAW)!;
+const openclawProduct = products.find((p) => p.type === ProductType.OPENCLAW)!;
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -100,7 +100,7 @@ describe("OpenClawCatalogCard", () => {
       "_blank",
       "noopener,noreferrer",
     );
-    expect(markProductAsTried).toHaveBeenCalledWith(Product.OPENCLAW);
+    expect(markProductAsTried).toHaveBeenCalledWith(openclawProduct);
 
     windowOpenSpy.mockRestore();
   });

@@ -19,14 +19,18 @@ import "../common/Card.css";
 import "./CatalogCard.css";
 import { ButtonLabel } from "./catalogCardTypes";
 import type { StatusLabel } from "./catalogCardTypes";
-import type { DescriptionIconType, ProductData } from "./productData";
+import {
+  BulletPointIconType,
+  type Product,
+  type ProductDescription,
+} from "../../types/product";
 
 /**
  * Defines the properties of the CatalogCard component.
  */
 type CatalogCardProps = {
   /** The product to be shown in the card. */
-  product: ProductData;
+  product: Product;
   /** The status label to render in the card's header. */
   statusLabel?: StatusLabel;
   /**
@@ -53,8 +57,8 @@ type CatalogCardProps = {
   onClickDeleteButton?: () => void;
 };
 
-function DescriptionIcon({ type }: { type: DescriptionIconType }) {
-  if (type === "warning") {
+function DescriptionIcon({ type }: { type: BulletPointIconType }) {
+  if (type === BulletPointIconType.WARNING) {
     return (
       <InfoCircleIcon
         color="var(--pf-t--global--color--nonstatus--teal--default)"
@@ -155,15 +159,15 @@ export function CatalogCard({
         </Flex>
       </CardHeader>
       <CardBody>
-        {product.description.map((desc) => (
+        {product.description.map((desc: ProductDescription, index: number) => (
           <Flex
-            key={desc.value}
+            key={index}
             gap={{ default: "gapSm" }}
             alignItems={{ default: "alignItemsFlexStart" }}
             style={{ paddingBottom: "8px", fontSize: "14px" }}
           >
             <FlexItem>
-              <DescriptionIcon type={desc.iconType} /> {desc.value}
+              <DescriptionIcon type={desc.iconType} /> {desc.bulletPoint}
             </FlexItem>
           </Flex>
         ))}

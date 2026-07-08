@@ -1,12 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 import { useSandboxContext } from "../../hooks/SandboxContext";
-import type { Product } from "../../hooks/useProductURLs";
+import type { Product } from "../../types/product";
 import { AnsibleStatus } from "../../utils/aap-utils";
 import { AnsibleDeleteInstanceModal, AnsibleLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
-import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 import type { EnsureUserIsReadyResult } from "./catalogCardTypes";
-import type { ProductData } from "./productData";
+import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 
 /**
  * Obtains the main button's label.
@@ -57,7 +56,7 @@ function getStatusLabel(status: AnsibleStatus): StatusLabel | undefined {
  */
 type AnsibleCatalogCardProps = {
   /** The product to be shown in the card */
-  product: ProductData;
+  product: Product;
   /** Shows or hides the green corner on the top left part of the card. */
   isGreenCornerVisible: boolean;
   /**
@@ -125,7 +124,7 @@ export function AnsibleCatalogCard({
       await handleAAPInstance(isUserReady.namespace || "");
 
       setAnsibleInfoModalOpen(true);
-      markProductAsTried(product.id);
+      markProductAsTried(product);
     } finally {
       ansibleProvisionInFlight.current = false;
     }

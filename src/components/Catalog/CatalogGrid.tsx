@@ -2,15 +2,16 @@ import "./CatalogGrid.css";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
 import { useSandboxContext } from "../../hooks/SandboxContext";
-import useProductURLs, { Product } from "../../hooks/useProductURLs";
+import useProductURLResolver from "../../hooks/useProductURLResolver";
 import useTriedProducts from "../../hooks/useTriedProducts";
 import { UserStatus } from "../../types";
+import { ProductType, type Product } from "../../types/product";
 import { PhoneVerificationModal } from "../Modals";
 import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, type EnsureUserIsReadyResult } from "./catalogCardTypes";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
-import { productData, type ProductData } from "./productData";
+import { products } from "./productData";
 
 export function CatalogGrid() {
   const {
@@ -27,30 +28,22 @@ export function CatalogGrid() {
    * Filters the disabled products so that they do not get shown in the
    * catalog, and so that they are not used for the green corners.
    */
-  const {
-    enabledProductsData: enabledProductsData,
-    enabledProducts: enabledProductIds,
-  } = useMemo(() => {
+  const enabledProducts: Product[] = useMemo(() => {
     const disabledIntegs: string[] = disabledIntegrations ?? [];
-    const enabledProductsData: ProductData[] = [];
-    const enabledProducts: Set<Product> = new Set<Product>();
+    const filtered: Product[] = [];
 
-    for (const pd of productData) {
-      if (!disabledIntegs.includes(pd.id)) {
-        enabledProductsData.push(pd);
-        enabledProducts.add(pd.id);
+    for (const product of products) {
+      if (!disabledIntegs.includes(product.type)) {
+        filtered.push(product);
       }
     }
 
-    return {
-      enabledProductsData: enabledProductsData,
-      enabledProducts: enabledProducts,
-    };
+    return filtered;
   }, [disabledIntegrations]);
 
   const { isProductTried, markProductAsTried } =
-    useTriedProducts(enabledProductIds);
-  const productURLs = useProductURLs();
+    useTriedProducts(enabledProducts);
+  const { getProductURL } = useProductURLResolver();
 
   const [isPhoneModalOpen, setPhoneModalOpen] = useState<boolean>(false);
   const userSignupCreationInFlight = useRef(false);
@@ -155,14 +148,14 @@ export function CatalogGrid() {
    * card.
    */
   const openProductURL = useCallback(
-    (productId: Product) => {
-      const url = productURLs.find((pu) => pu.id === productId)?.url;
+    (product: Product) => {
+      const url = getProductURL(product);
       if (url) {
         window.open(url, "_blank", "noopener,noreferrer");
-        markProductAsTried(productId);
+        markProductAsTried(product);
       }
     },
-    [productURLs, markProductAsTried],
+    [getProductURL, markProductAsTried],
   );
 
   /**
@@ -170,13 +163,13 @@ export function CatalogGrid() {
    * state, and only require opening a new tab with the product's URL.
    */
   const handleOnClickPrimaryButtonSimpleCards = useCallback(
-    async (product: ProductData) => {
+    async (product: Product) => {
       const isUserReady = await ensureUserIsReady();
       if (!isUserReady.ready) {
         return;
       }
 
-      openProductURL(product.id);
+      openProductURL(product);
     },
     [ensureUserIsReady, openProductURL],
   );
@@ -190,25 +183,31 @@ export function CatalogGrid() {
   return (
     <>
       <div className="sandbox-catalog-grid">
-        {enabledProductsData.map((product) => {
-          switch (product.id) {
-            case Product.AAP:
+        {enabledProducts.map((product: Product) => {
+          switch (product.type) {
+            case ProductType.AAP:
               return (
-                <div key={product.id} className="sandbox-catalog-card-wrapper">
+                <div
+                  key={product.type}
+                  className="sandbox-catalog-card-wrapper"
+                >
                   <AnsibleCatalogCard
                     product={product}
-                    isGreenCornerVisible={isProductTried(product.id)}
+                    isGreenCornerVisible={isProductTried(product)}
                     ensureUserIsReady={ensureUserIsReady}
                     markProductAsTried={markProductAsTried}
                   />
                 </div>
               );
-            case Product.OPENCLAW:
+            case ProductType.OPENCLAW:
               return (
-                <div key={product.id} className="sandbox-catalog-card-wrapper">
+                <div
+                  key={product.type}
+                  className="sandbox-catalog-card-wrapper"
+                >
                   <OpenClawCatalogCard
                     product={product}
-                    isGreenCornerVisible={isProductTried(product.id)}
+                    isGreenCornerVisible={isProductTried(product)}
                     ensureUserIsReady={ensureUserIsReady}
                     markProductAsTried={markProductAsTried}
                   />
@@ -216,11 +215,14 @@ export function CatalogGrid() {
               );
             default:
               return (
-                <div key={product.id} className="sandbox-catalog-card-wrapper">
+                <div
+                  key={product.type}
+                  className="sandbox-catalog-card-wrapper"
+                >
                   <CatalogCard
                     product={product}
                     primaryButtonLabel={ButtonLabel.TRY_IT}
-                    isGreenCornerVisible={isProductTried(product.id)}
+                    isGreenCornerVisible={isProductTried(product)}
                     isPrimaryButtonDisabled={false}
                     isPrimaryButtonSpinnerVisible={false}
                     isPrimaryButtonExtIconVisible

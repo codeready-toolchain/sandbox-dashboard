@@ -1,13 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import { useSandboxContext } from "../../hooks/SandboxContext";
-import { Product } from "../../hooks/useProductURLs";
 import type { AddedCredential } from "../../utils/openclaw-providers";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
 import { DeleteInstanceModal, OpenClawLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 import type { EnsureUserIsReadyResult } from "./catalogCardTypes";
-import type { ProductData } from "./productData";
+import type { Product } from "../../types/product";
 
 /**
  * Obtains the main button's label.
@@ -66,7 +65,7 @@ function getStatusLabel(status: OpenClawStatus): StatusLabel | undefined {
  */
 type OpenClawCatalogCardProps = {
   /** The product to be shown in the card */
-  product: ProductData;
+  product: Product;
   /** Shows or hides the green corner on the top left part of the card. */
   isGreenCornerVisible: boolean;
   /**
@@ -132,7 +131,7 @@ export function OpenClawCatalogCard({
       case OpenClawStatus.READY:
         if (openclawUILink) {
           window.open(openclawUILink, "_blank", "noopener,noreferrer");
-          markProductAsTried(product.id);
+          markProductAsTried(product);
         } else {
           setOpenClawInfoModalOpen(true);
         }
@@ -189,7 +188,7 @@ export function OpenClawCatalogCard({
         );
 
         if (success) {
-          markProductAsTried(product.id);
+          markProductAsTried(product);
         }
 
         return success;
@@ -250,7 +249,7 @@ export function OpenClawCatalogCard({
           <OpenClawLaunchInfoModal
             isOpen={isOpenClawInfoModalOpen}
             onClose={() => setOpenClawInfoModalOpen(false)}
-            productId={Product.OPENCLAW}
+            product={product}
             openclawStatus={openclawStatus}
             openclawError={openclawError}
             openclawUILink={openclawUILink}
