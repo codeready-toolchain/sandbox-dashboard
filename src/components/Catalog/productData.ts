@@ -1,157 +1,198 @@
-import { Product } from "../../hooks/useProductURLs";
-import OpenShiftIcon from "../../assets/logos/openshift.svg";
 import AnsibleIcon from "../../assets/logos/ansible.svg";
-import OpenShiftAIIcon from "../../assets/logos/openshift-ai.svg";
 import DevSpacesIcon from "../../assets/logos/devspaces.svg";
-import OpenshiftVirtualizationIcon from "../../assets/logos/openshift-virtualization.svg";
 import OpenClawIcon from "../../assets/logos/openclaw.svg";
+import OpenShiftAIIcon from "../../assets/logos/openshift-ai.svg";
+import OpenshiftVirtualizationIcon from "../../assets/logos/openshift-virtualization.svg";
+import OpenShiftIcon from "../../assets/logos/openshift.svg";
+import {
+  BulletPointIconType,
+  ProductType,
+  type Product,
+  type URLTemplateVars,
+} from "../../types/product";
 
-export type DescriptionIconType = "success" | "warning";
-
-export type ProductDescription = {
-  iconType: DescriptionIconType;
-  value: string;
-};
-
-export type ProductData = {
-  id: Product;
-  title: string;
-  image: string;
-  description: ProductDescription[];
-};
-
-export const productData: ProductData[] = [
+export const products: Product[] = [
   {
-    id: Product.OPENSHIFT_CONSOLE,
+    type: ProductType.OPENSHIFT_CONSOLE,
     title: "OpenShift",
     image: OpenShiftIcon,
+    urlTemplate: "{{consoleURL}}/k8s/cluster/projects/{{defaultUserNamespace}}",
     description: [
       {
-        iconType: "success",
-        value: "Comprehensive cloud-native application platform",
+        bulletPoint: "Comprehensive cloud-native application platform",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Consistently develop and deploy applications at scale",
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Consistently develop and deploy applications at scale",
       },
       {
-        iconType: "success",
-        value: "Streamline application development with CI/CD tools",
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Streamline application development with CI/CD tools",
       },
       {
-        iconType: "success",
-        value:
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint:
           "Manage containers, VMs, and serverless workloads across the hybrid cloud",
       },
     ],
   },
   {
-    id: Product.OPENSHIFT_AI,
+    type: ProductType.OPENSHIFT_AI,
     title: "OpenShift AI",
     image: OpenShiftAIIcon,
+    urlTemplate: "{{rhodsMemberURL}}",
     description: [
-      { iconType: "success", value: "Scalable AI and ML platform" },
-      { iconType: "success", value: "Optimized for AI workloads" },
-      { iconType: "success", value: "Train, serve and monitor models" },
       {
-        iconType: "success",
-        value: "Supports predictive and generative AI",
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Scalable AI and ML platform",
       },
-      { iconType: "success", value: "Scales across the hybrid cloud" },
+      {
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Optimized for AI workloads",
+      },
+      {
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Train, serve and monitor models",
+      },
+      {
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Supports predictive and generative AI",
+      },
+      {
+        iconType: BulletPointIconType.SUCCESS,
+        bulletPoint: "Scales across the hybrid cloud",
+      },
     ],
   },
   {
-    id: Product.DEVSPACES,
+    type: ProductType.DEVSPACES,
     title: "Dev Spaces",
     image: DevSpacesIcon,
+    resolveURL: (urlTemplateVars: URLTemplateVars): string => {
+      // Prefer the given "Che Dashboard" url from the user signup.
+      if (urlTemplateVars.cheDashboardURL) {
+        return urlTemplateVars.cheDashboardURL;
+      }
+
+      // Otherwise, derive the Dev Spaces URL from the Console URL. Basically
+      // obtain the OpenShift domain and use it by prepending "devspaces" to
+      // it.
+      //
+      // - https://console-openshift-console.apps.cluster1.example.com
+      // - https://devspaces.apps.cluster1.example.com.
+      if (!urlTemplateVars.consoleURL) {
+        return "";
+      }
+
+      const index = urlTemplateVars.consoleURL.indexOf(".apps");
+      if (index === -1) {
+        return "";
+      }
+
+      return `https://devspaces${urlTemplateVars.consoleURL.substring(index)}`;
+    },
     description: [
-      { iconType: "success", value: "Cloud Development Environment" },
       {
-        iconType: "success",
-        value: "Developer workspaces defined as code",
+        bulletPoint: "Cloud Development Environment",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Kubernetes development made easy",
+        bulletPoint: "Developer workspaces defined as code",
+        iconType: BulletPointIconType.SUCCESS,
       },
-      { iconType: "success", value: "Near instant onboarding" },
-      { iconType: "success", value: "VS Code and JetBrains IDEs" },
+      {
+        bulletPoint: "Kubernetes development made easy",
+        iconType: BulletPointIconType.SUCCESS,
+      },
+      {
+        bulletPoint: "Near instant onboarding",
+        iconType: BulletPointIconType.SUCCESS,
+      },
+      {
+        bulletPoint: "VS Code and JetBrains IDEs",
+        iconType: BulletPointIconType.SUCCESS,
+      },
     ],
   },
   {
-    id: Product.AAP,
+    type: ProductType.AAP,
     title: "Ansible Automation Platform",
     image: AnsibleIcon,
     description: [
       {
-        iconType: "success",
-        value: "Scalable, centralized automation solution",
+        bulletPoint: "Scalable, centralized automation solution",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Available on-prem, cloud, and hybrid",
+        bulletPoint: "Available on-prem, cloud, and hybrid",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Manage and monitor workflows, content, and execution",
+        bulletPoint: "Manage and monitor workflows, content, and execution",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Enforce policies and consistent configurations",
+        bulletPoint: "Enforce policies and consistent configurations",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "warning",
-        value: "30-minute environment provisioning",
+        bulletPoint: "30-minute environment provisioning",
+        iconType: BulletPointIconType.WARNING,
       },
     ],
   },
   {
-    id: Product.OPENSHIFT_VIRT,
+    type: ProductType.OPENSHIFT_VIRTUALIZATION,
     title: "OpenShift Virtualization",
     image: OpenshiftVirtualizationIcon,
+    urlTemplate:
+      "{{consoleURL}}/k8s/ns/{{defaultUserNamespace}}/virtualization-overview",
     description: [
       {
-        iconType: "success",
-        value: "Migrate traditional VM workloads to OpenShift",
+        bulletPoint: "Migrate traditional VM workloads to OpenShift",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Unified platform for VMs, containers, and serverless workloads",
+        bulletPoint:
+          "Unified platform for VMs, containers, and serverless workloads",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Supports modernizing application development",
+        bulletPoint: "Supports modernizing application development",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Comprehensive development and operations tools",
+        bulletPoint: "Comprehensive development and operations tools",
+        iconType: BulletPointIconType.SUCCESS,
       },
     ],
   },
   {
-    id: Product.OPENCLAW,
+    type: ProductType.OPENCLAW,
     title: "OpenClaw",
     image: OpenClawIcon,
     description: [
       {
-        iconType: "success",
-        value: "Personal AI assistant running on your cluster",
+        bulletPoint: "Personal AI assistant running on your cluster",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Bring your own LLM API keys (OpenAI, Anthropic, Google, etc.)",
+        bulletPoint:
+          "Bring your own LLM API keys (OpenAI, Anthropic, Google, etc.)",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Full workspace access — code, debug, and deploy",
+        bulletPoint: "Full workspace access — code, debug, and deploy",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "success",
-        value: "Kubernetes-native with managed lifecycle",
+        bulletPoint: "Kubernetes-native with managed lifecycle",
+        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: "warning",
-        value: "Requires at least one AI provider credential",
+        bulletPoint: "Requires at least one AI provider credential",
+        iconType: BulletPointIconType.WARNING,
       },
     ],
   },

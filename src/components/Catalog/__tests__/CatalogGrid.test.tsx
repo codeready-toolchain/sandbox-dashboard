@@ -3,14 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
-import { Product } from "../../../hooks/useProductURLs";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import type { SignupData } from "../../../types";
 import { UserStatus } from "../../../types";
+import { ProductType } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";
-import { productData } from "../productData";
+import { products } from "../productData";
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -91,21 +91,21 @@ describe("CatalogGrid", () => {
       </SandboxContext.Provider>,
     );
     const cards = screen.getAllByTestId("catalog-card");
-    expect(cards).toHaveLength(productData.length);
+    expect(cards).toHaveLength(products.length);
   });
 
   it("filters out disabled integrations", () => {
     render(
       <SandboxContext.Provider
         value={makeContext({
-          disabledIntegrations: [productData[0].id],
+          disabledIntegrations: [products[0].type],
         })}
       >
         <CatalogGrid />
       </SandboxContext.Provider>,
     );
     const cards = screen.getAllByTestId("catalog-card");
-    expect(cards).toHaveLength(productData.length - 1);
+    expect(cards).toHaveLength(products.length - 1);
   });
 
   it("does not show delete button when OpenClaw status is UNKNOWN", () => {
@@ -602,8 +602,8 @@ describe("CatalogGrid", () => {
       </SandboxContext.Provider>,
     );
 
-    const aapCard = productData.find((p) => p.id === Product.AAP);
-    if (!aapCard) throw new Error("AAP card not found in productData");
+    const aapCard = products.find((p) => p.type === ProductType.AAP);
+    if (!aapCard) throw new Error("AAP card not found in products");
 
     const tryItButtons = screen.getAllByText("Provision");
     const aapProvision = tryItButtons.find((btn) =>

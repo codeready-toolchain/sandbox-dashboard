@@ -2,16 +2,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
-import { Product } from "../../../hooks/useProductURLs";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { UserStatus } from "../../../types";
+import { ProductType, type Product } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { AnsibleCatalogCard } from "../AnsibleCatalogCard";
-import { productData } from "../productData";
+import { products } from "../productData";
 
-const aapProduct = productData.find((p) => p.id === Product.AAP)!;
+const aapProduct = products.find((p) => p.type === ProductType.AAP)!;
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -97,7 +97,7 @@ describe("AnsibleCatalogCard", () => {
 
     expect(ensureUserIsReady).toHaveBeenCalled();
     expect(handleAAPInstance).toHaveBeenCalledWith("test-ns");
-    expect(markProductAsTried).toHaveBeenCalledWith(Product.AAP);
+    expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
     expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
   });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Product } from "./useProductURLs";
+import type { Product, ProductType } from "../types/product";
 
 /**
  * Key used for the "tried-products" record in local storage.
@@ -13,24 +13,24 @@ const localStorageKey = "tried-products";
  * currently enabled product set so that disabled products are never reported
  * as tried.
  *
- * @param enabledProducts The set of products currently available in the
+ * @param enabledProducts The list of products currently available in the
  * catalog.
  */
-const useTriedProducts = (enabledProducts: Set<Product>) => {
+const useTriedProducts = (enabledProducts: Product[]) => {
   /**
    * Loads previously tried products from localStorage. Only runs on mount.
    */
-  const [triedProducts, setTriedProducts] = useState<Set<Product>>(() => {
+  const [triedProducts, setTriedProducts] = useState<Set<ProductType>>(() => {
     const triedProductsRaw = localStorage.getItem(localStorageKey);
 
     if (!triedProductsRaw || !triedProductsRaw.trim()) {
-      return new Set<Product>();
+      return new Set<ProductType>();
     }
 
     try {
-      return new Set<Product>(JSON.parse(triedProductsRaw));
+      return new Set<ProductType>(JSON.parse(triedProductsRaw));
     } catch {
-      return new Set<Product>();
+      return new Set<ProductType>();
     }
   });
 
@@ -38,10 +38,14 @@ const useTriedProducts = (enabledProducts: Set<Product>) => {
    * Subset of the tried products that are currently enabled. Recomputed when
    * either the tried set or the enabled set changes.
    */
-  const activeTriedProducts = useMemo<Set<Product>>(() => {
-    const finalSet = new Set<Product>();
+  const activeTriedProducts = useMemo<Set<ProductType>>(() => {
+    const enabledTypes = new Set(
+      enabledProducts.map((product: Product) => product.type),
+    );
+    const finalSet = new Set<ProductType>();
+
     for (const triedProduct of triedProducts) {
-      if (enabledProducts.has(triedProduct)) {
+      if (enabledTypes.has(triedProduct)) {
         finalSet.add(triedProduct);
       }
     }
@@ -65,15 +69,15 @@ const useTriedProducts = (enabledProducts: Set<Product>) => {
   /**
    * Marks the given product as tried.
    */
-  const markProductAsTried = useCallback<(productId: Product) => void>(
-    (productId: Product) => {
-      setTriedProducts((prev: Set<Product>) => {
-        if (prev.has(productId)) {
+  const markProductAsTried = useCallback<(product: Product) => void>(
+    (product: Product) => {
+      setTriedProducts((prev: Set<ProductType>) => {
+        if (prev.has(product.type)) {
           return prev;
         }
 
         const next = new Set(prev);
-        next.add(productId);
+        next.add(product.type);
 
         return next;
       });
@@ -84,8 +88,8 @@ const useTriedProducts = (enabledProducts: Set<Product>) => {
   /**
    * Returns whether an enabled product has been tried.
    */
-  const isProductTried = useCallback<(productId: Product) => boolean>(
-    (productId: Product): boolean => activeTriedProducts.has(productId),
+  const isProductTried = useCallback<(product: Product) => boolean>(
+    (product: Product): boolean => activeTriedProducts.has(product.type),
     [activeTriedProducts],
   );
 

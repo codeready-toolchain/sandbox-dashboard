@@ -19,25 +19,25 @@ import {
   CredentialAccordion,
   type CredentialAccordionRef,
 } from "./CredentialAccordion";
-import type { Product } from "../../hooks/useProductURLs";
+import type { Product } from "../../types/product";
 
 type OpenClawLaunchInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  productId: Product;
+  product: Product;
   openclawStatus: OpenClawStatus;
   openclawError: string | null;
   openclawUILink: string | undefined;
   onProvision: (
     credentials: import("../../utils/openclaw-providers").AddedCredential[],
   ) => Promise<boolean>;
-  onLaunch: (productId: Product) => void;
+  onLaunch: (product: Product) => void;
 };
 
 export function OpenClawLaunchInfoModal({
   isOpen,
   onClose,
-  productId,
+  product,
   openclawStatus,
   openclawError,
   openclawUILink,
@@ -60,7 +60,7 @@ export function OpenClawLaunchInfoModal({
   };
 
   const handleLaunch = () => {
-    onLaunch(productId);
+    onLaunch(product);
     handleClose();
   };
 
