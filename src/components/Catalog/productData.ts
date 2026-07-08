@@ -20,18 +20,14 @@ export const products: Product[] = [
     description: [
       {
         bulletPoint: "Comprehensive cloud-native application platform",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Consistently develop and deploy applications at scale",
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Streamline application development with CI/CD tools",
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint:
           "Manage containers, VMs, and serverless workloads across the hybrid cloud",
       },
@@ -44,23 +40,18 @@ export const products: Product[] = [
     urlTemplate: "{{rhodsMemberURL}}",
     description: [
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Scalable AI and ML platform",
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Optimized for AI workloads",
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Train, serve and monitor models",
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Supports predictive and generative AI",
       },
       {
-        iconType: BulletPointIconType.SUCCESS,
         bulletPoint: "Scales across the hybrid cloud",
       },
     ],
@@ -95,23 +86,18 @@ export const products: Product[] = [
     description: [
       {
         bulletPoint: "Cloud Development Environment",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Developer workspaces defined as code",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Kubernetes development made easy",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Near instant onboarding",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "VS Code and JetBrains IDEs",
-        iconType: BulletPointIconType.SUCCESS,
       },
     ],
   },
@@ -122,19 +108,15 @@ export const products: Product[] = [
     description: [
       {
         bulletPoint: "Scalable, centralized automation solution",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Available on-prem, cloud, and hybrid",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Manage and monitor workflows, content, and execution",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Enforce policies and consistent configurations",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "30-minute environment provisioning",
@@ -151,20 +133,16 @@ export const products: Product[] = [
     description: [
       {
         bulletPoint: "Migrate traditional VM workloads to OpenShift",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint:
           "Unified platform for VMs, containers, and serverless workloads",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Supports modernizing application development",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Comprehensive development and operations tools",
-        iconType: BulletPointIconType.SUCCESS,
       },
     ],
   },
@@ -175,20 +153,16 @@ export const products: Product[] = [
     description: [
       {
         bulletPoint: "Personal AI assistant running on your cluster",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint:
           "Bring your own LLM API keys (OpenAI, Anthropic, Google, etc.)",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Full workspace access — code, debug, and deploy",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Kubernetes-native with managed lifecycle",
-        iconType: BulletPointIconType.SUCCESS,
       },
       {
         bulletPoint: "Requires at least one AI provider credential",
