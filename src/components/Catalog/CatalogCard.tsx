@@ -17,25 +17,40 @@ import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external
 import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
 import "../common/Card.css";
 import "./CatalogCard.css";
-import type { DescriptionIconType, ProductDescription } from "./productData";
+import { ButtonLabel } from "./catalogCardTypes";
+import type { StatusLabel } from "./catalogCardTypes";
+import type { DescriptionIconType, ProductData } from "./productData";
 
-export type ButtonLabel = "Try it" | "Provision" | "Launch" | "Re-provision";
-export type DeleteButtonLabel = "Delete" | "Stop" | "Deleting";
-
+/**
+ * Defines the properties of the CatalogCard component.
+ */
 type CatalogCardProps = {
-  title: string;
-  image: string;
-  description: ProductDescription[];
-  link: string;
-  greenCorner: boolean;
-  onTryIt: () => void;
-  loading?: boolean;
-  showDelete?: boolean;
-  onDelete?: () => void;
-  buttonLabel?: ButtonLabel;
-  deleteButtonLabel?: DeleteButtonLabel;
-  statusLabel?: string;
-  statusColor?: "blue" | "green" | "orange" | "red" | "grey";
+  /** The product to be shown in the card. */
+  product: ProductData;
+  /** The status label to render in the card's header. */
+  statusLabel?: StatusLabel;
+  /**
+   * The label of the primary button. Usually used for launching or opening
+   * the product's page.
+   */
+  primaryButtonLabel: ButtonLabel;
+  /** Shows or hides the green corner on the top left part of the card. */
+  isGreenCornerVisible: boolean;
+  /** Controls whether the primary button is disabled. */
+  isPrimaryButtonDisabled: boolean;
+  /** Controls whether the spinner is visible in the primary button. */
+  isPrimaryButtonSpinnerVisible: boolean;
+  /**
+   * Controls whether the "external link" icon is visible in the primary
+   * button.
+   */
+  isPrimaryButtonExtIconVisible: boolean;
+  /** Controls whether the "delete" button is visible in the card. */
+  isDeleteButtonVisible: boolean;
+  /** Action to perform when the primary button is clicked. */
+  onClickPrimaryButton: () => void;
+  /** Action to perform when the "delete" button is clicked. */
+  onClickDeleteButton?: () => void;
 };
 
 function DescriptionIcon({ type }: { type: DescriptionIconType }) {
@@ -55,8 +70,13 @@ function DescriptionIcon({ type }: { type: DescriptionIconType }) {
   );
 }
 
-function GreenCorner({ show }: { show: boolean }) {
-  if (!show) {
+/**
+ * Renders a green corner on the card to mark it as "tried".
+ * @param param0 whether the mark should be visible or not.
+ * @returns the component.
+ */
+function GreenCorner({ isVisible }: { isVisible: boolean }) {
+  if (!isVisible) {
     return null;
   }
   return (
@@ -90,36 +110,29 @@ function GreenCorner({ show }: { show: boolean }) {
 }
 
 export function CatalogCard({
-  title,
-  image,
-  description,
-  link,
-  greenCorner,
-  onTryIt,
-  loading = false,
-  showDelete = false,
-  onDelete,
-  buttonLabel = "Try it",
-  deleteButtonLabel = "Delete",
+  product,
   statusLabel,
-  statusColor,
+  primaryButtonLabel,
+  isGreenCornerVisible,
+  isPrimaryButtonDisabled,
+  isPrimaryButtonSpinnerVisible,
+  isPrimaryButtonExtIconVisible,
+  isDeleteButtonVisible,
+  onClickPrimaryButton,
+  onClickDeleteButton,
 }: CatalogCardProps) {
-  const isDeleting = deleteButtonLabel === "Deleting";
-  const showExternalIcon =
-    buttonLabel === "Launch" || (buttonLabel === "Try it" && !!link);
-
   return (
     <Card isCompact data-testid="catalog-card" className="sandbox-card">
       <CardHeader className="sandbox-card-header">
-        <GreenCorner show={greenCorner} />
+        <GreenCorner isVisible={isGreenCornerVisible} />
         <Flex
           alignItems={{ default: "alignItemsCenter" }}
           gap={{ default: "gapSm" }}
         >
           <FlexItem>
             <img
-              src={image}
-              alt={title}
+              src={product.image}
+              alt={product.title}
               style={{ width: "48px", height: "48px" }}
             />
           </FlexItem>
@@ -127,13 +140,13 @@ export function CatalogCard({
             <Flex direction={{ default: "column" }} gap={{ default: "gapXs" }}>
               <FlexItem>
                 <Content component="h3" style={{ fontWeight: 700 }}>
-                  {title}
+                  {product.title}
                 </Content>
               </FlexItem>
-              {statusLabel && statusColor && (
+              {statusLabel && (
                 <FlexItem>
-                  <Label color={statusColor} isCompact>
-                    {statusLabel}
+                  <Label color={statusLabel.color} isCompact>
+                    {statusLabel.label}
                   </Label>
                 </FlexItem>
               )}
@@ -142,17 +155,17 @@ export function CatalogCard({
         </Flex>
       </CardHeader>
       <CardBody>
-        {description.map((point) => (
+        {product.description.map((desc) => (
           <Flex
-            key={point.value}
+            key={desc.value}
             gap={{ default: "gapSm" }}
             alignItems={{ default: "alignItemsFlexStart" }}
             style={{ paddingBottom: "8px", fontSize: "14px" }}
           >
             <FlexItem>
-              <DescriptionIcon type={point.iconType} />
+              <DescriptionIcon type={desc.iconType} />
             </FlexItem>
-            <FlexItem>{point.value}</FlexItem>
+            <FlexItem>{desc.value}</FlexItem>
           </Flex>
         ))}
       </CardBody>
@@ -164,33 +177,40 @@ export function CatalogCard({
           <FlexItem>
             <Button
               variant="secondary"
-              onClick={onTryIt}
-              isDisabled={loading}
-              icon={showExternalIcon ? <ExternalLinkAltIcon /> : undefined}
+              onClick={onClickPrimaryButton}
+              isDisabled={isPrimaryButtonDisabled}
+              icon={
+                isPrimaryButtonExtIconVisible ? (
+                  <ExternalLinkAltIcon />
+                ) : undefined
+              }
               iconPosition="end"
               data-testid="try-it-button"
             >
-              {loading ? (
-                <>
-                  <Spinner size="sm" /> Loading...
-                </>
-              ) : (
-                buttonLabel
-              )}
+              <Flex
+                alignItems={{ default: "alignItemsCenter" }}
+                gap={{ default: "gapSm" }}
+              >
+                {isPrimaryButtonSpinnerVisible ? (
+                  <>
+                    <Spinner size="md" /> {primaryButtonLabel}
+                  </>
+                ) : (
+                  primaryButtonLabel
+                )}
+              </Flex>
             </Button>
           </FlexItem>
-          {showDelete && onDelete && (
+          {isDeleteButtonVisible && onClickDeleteButton && (
             <FlexItem>
-              <Tooltip content={`${deleteButtonLabel} instance`}>
+              <Tooltip content="Delete instance">
                 <Button
                   variant="danger"
-                  onClick={onDelete}
-                  isDisabled={isDeleting}
-                  aria-label={`${deleteButtonLabel} instance`}
+                  onClick={onClickDeleteButton}
+                  aria-label="Delete instance"
                   data-testid="delete-instance-button"
                 >
                   Delete instance
-                  {isDeleting ? <Spinner size="sm" /> : null}
                 </Button>
               </Tooltip>
             </FlexItem>

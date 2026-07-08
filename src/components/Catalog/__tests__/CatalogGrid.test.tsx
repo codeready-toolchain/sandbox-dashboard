@@ -1,16 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CatalogGrid } from "../CatalogGrid";
-import { SandboxContext } from "../../../hooks/SandboxContext";
+import { act } from "react";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
+import { SandboxContext } from "../../../hooks/SandboxContext";
+import { Product } from "../../../hooks/useProductURLs";
+import { readyUserFixture } from "../../../mocks/fixtures";
+import type { SignupData } from "../../../types";
+import { UserStatus } from "../../../types";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
-import { readyUserFixture } from "../../../mocks/fixtures";
+import { CatalogGrid } from "../CatalogGrid";
 import { productData } from "../productData";
-import { UserStatus } from "../../../types";
-import type { SignupData } from "../../../types";
-import { Product } from "../../../hooks/useProductURLs";
-import { act } from "react";
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -42,6 +42,26 @@ function makeContext(
     disabledIntegrations: [],
     ...overrides,
   };
+}
+
+function getOpenShiftCardWithButton(): {
+  card: HTMLElement;
+  tryItButton: HTMLButtonElement;
+} {
+  const card = screen
+    .getAllByTestId("catalog-card")
+    .find(
+      (c) =>
+        c.textContent?.includes("OpenShift") &&
+        !c.textContent?.includes("OpenShift AI") &&
+        !c.textContent?.includes("OpenShift Virtualization"),
+    );
+  expect(card).toBeDefined();
+
+  const tryItButton = card!.querySelector("[data-testid='try-it-button']");
+  expect(tryItButton).not.toBeNull();
+
+  return { card: card!, tryItButton: tryItButton as HTMLButtonElement };
 }
 
 describe("CatalogGrid", () => {
@@ -96,15 +116,462 @@ describe("CatalogGrid", () => {
         <CatalogGrid />
       </SandboxContext.Provider>,
     );
-    const deleteButtons = screen.queryAllByTestId("catalog-card-delete");
-    const openclawDeleteBtn = deleteButtons.find((btn) =>
-      btn
-        .closest("[data-testid='catalog-card']")
-        ?.textContent?.includes(
-          productData.find((p) => p.id === Product.OPENCLAW)?.title ?? "",
-        ),
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+    expect(
+      openclawCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+  });
+
+  it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is DELETING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.DELETING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
     );
-    expect(openclawDeleteBtn).toBeUndefined();
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+
+    expect(
+      openclawCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton).toBeDefined();
+    expect(mainButton.textContent).toContain("Deleting...");
+    expect(mainButton).toBeDisabled();
+  });
+
+  it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is TERMINATING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.TERMINATING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+
+    expect(
+      openclawCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Deleting...");
+    expect(mainButton).toBeDisabled();
+  });
+
+  it("shows 'Provisioning...' on main button when OpenClaw status is PROVISIONING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.PROVISIONING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provisioning...");
+  });
+
+  it("shows 'Provision' on AAP card when ansibleStatus is NEW", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.NEW })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+
+    const mainButton = aapCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+    expect(mainButton.textContent).not.toContain("Provisioning");
+  });
+
+  it("shows 'Provisioning...' on AAP card when ansibleStatus is PROVISIONING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+
+    const mainButton = aapCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provisioning...");
+  });
+
+  it("shows 'Launch' on AAP card when ansibleStatus is READY", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.READY })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+
+    const mainButton = aapCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Launch");
+  });
+
+  it("shows 'Re-provision' on AAP card when ansibleStatus is IDLED", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.IDLED })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+
+    const mainButton = aapCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Re-provision");
+  });
+
+  it("hides delete button on AAP card when ansibleStatus is NEW", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.NEW })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+    expect(
+      aapCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+  });
+
+  it("hides delete button on AAP card when ansibleStatus is NOT_DEPLOYED", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.NOT_DEPLOYED })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+    expect(
+      aapCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+  });
+
+  it("shows delete button on AAP card when ansibleStatus is READY", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.READY })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+    expect(
+      aapCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).not.toBeNull();
+  });
+
+  it("shows delete button on AAP card when ansibleStatus is PROVISIONING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+    expect(
+      aapCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).not.toBeNull();
+  });
+
+  it("renders 'Ready' status label on OpenClaw card when status is READY", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.READY })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+    expect(openclawCard!.textContent).toContain("Ready");
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Launch");
+  });
+
+  it("renders 'Idled' status label on OpenClaw card when status is IDLED", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.IDLED })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+    expect(openclawCard!.textContent).toContain("Idled");
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Re-provision");
+  });
+
+  it("renders 'Failed' status label and 'Provision' button on OpenClaw card when status is FAILED", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.FAILED })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+    expect(openclawCard!.textContent).toContain("Failed");
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+    expect(mainButton.textContent).not.toContain("Provisioning");
+
+    expect(
+      openclawCard!.querySelector("[data-testid='delete-instance-button']"),
+    ).not.toBeNull();
+  });
+
+  it("renders 'Deleting' status label on OpenClaw card when status is DELETING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.DELETING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+    expect(openclawCard!.textContent).toContain("Deleting");
+  });
+
+  it("renders 'Ready' status label on AAP card when ansibleStatus is READY", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.READY })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+    expect(aapCard!.textContent).toContain("Ready");
+  });
+
+  it("renders 'Provisioning' status label on AAP card when ansibleStatus is PROVISIONING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const aapCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) =>
+        card.textContent?.includes("Ansible Automation Platform"),
+      );
+    expect(aapCard).toBeDefined();
+    expect(aapCard!.textContent).toContain("Provisioning");
+  });
+
+  it("shows default 'Try it' button on non-AAP/non-OpenClaw products regardless of statuses", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          ansibleStatus: AnsibleStatus.READY,
+          openclawStatus: OpenClawStatus.READY,
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { card: openshiftCard, tryItButton: mainButton } =
+      getOpenShiftCardWithButton();
+    expect(mainButton.textContent).toContain("Try it");
+
+    expect(
+      openshiftCard.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+
+    expect(openshiftCard.textContent).not.toContain("Ready");
+    expect(openshiftCard.textContent).not.toContain("Provisioning");
+  });
+
+  it("does not disable the main button when OpenClaw status is PROVISIONING", () => {
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ openclawStatus: OpenClawStatus.PROVISIONING })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const openclawCard = screen
+      .getAllByTestId("catalog-card")
+      .find((card) => card.textContent?.includes("OpenClaw"));
+    expect(openclawCard).toBeDefined();
+
+    const mainButton = openclawCard!.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton).not.toBeDisabled();
+  });
+
+  it("calls ensureUserIsReady and opens product URL for simple cards when user is ready", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    render(
+      <SandboxContext.Provider value={makeContext()}>
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(tryItButton);
+
+    expect(windowOpenSpy).toHaveBeenCalled();
+    windowOpenSpy.mockRestore();
+  });
+
+  it("does not open product URL for simple cards when verification is required", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({ verificationRequired: true, userReady: false })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(tryItButton);
+
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+    windowOpenSpy.mockRestore();
   });
 
   it("passes fresh namespace from refetch to handleAAPInstance after signup", async () => {
@@ -138,17 +605,17 @@ describe("CatalogGrid", () => {
     const aapCard = productData.find((p) => p.id === Product.AAP);
     if (!aapCard) throw new Error("AAP card not found in productData");
 
-    const tryItButtons = screen.getAllByText("Try it");
-    const aapTryIt = tryItButtons.find((btn) =>
+    const tryItButtons = screen.getAllByText("Provision");
+    const aapProvision = tryItButtons.find((btn) =>
       btn
         .closest("[data-testid='catalog-card']")
         ?.textContent?.includes(aapCard.title),
     );
-    expect(aapTryIt).toBeDefined();
+    expect(aapProvision).toBeDefined();
 
     await userEvent
       .setup({ advanceTimers: vi.advanceTimersByTime })
-      .click(aapTryIt!);
+      .click(aapProvision!);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000);
@@ -157,5 +624,136 @@ describe("CatalogGrid", () => {
     await waitFor(() => {
       expect(handleAAPInstance).toHaveBeenCalledWith(freshNamespace);
     });
+  });
+
+  it("deduplicates concurrent ensureUserIsReady calls via the useRef in-flight guard", async () => {
+    let resolveSignup!: () => void;
+    const signupPromise = new Promise<void>((resolve) => {
+      resolveSignup = resolve;
+    });
+
+    const signupUser = vi.fn().mockReturnValue(signupPromise);
+    const refetchUserData = vi.fn().mockResolvedValue({
+      ...readyUserFixture,
+      status: { ready: true, reason: "", verificationRequired: false },
+    });
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          userStatus: UserStatus.NEW,
+          userReady: false,
+          userFound: false,
+          userData: undefined,
+          signupUser,
+          refetchUserData,
+          disabledIntegrations: [],
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    await act(async () => {
+      fireEvent.click(tryItButton);
+      fireEvent.click(tryItButton);
+    });
+
+    resolveSignup();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets the in-flight guard after signup completes so subsequent calls work", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    const signupUser = vi.fn().mockResolvedValue(undefined);
+    const refetchUserData = vi.fn().mockResolvedValue({
+      ...readyUserFixture,
+      status: { ready: true, reason: "", verificationRequired: false },
+    });
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          userStatus: UserStatus.NEW,
+          userReady: false,
+          userFound: false,
+          userData: undefined,
+          signupUser,
+          refetchUserData,
+          disabledIntegrations: [],
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(1);
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(2);
+
+    windowOpenSpy.mockRestore();
+  });
+
+  it("resets the in-flight guard even when signup polling exhausts all attempts", async () => {
+    const signupUser = vi.fn().mockResolvedValue(undefined);
+    const refetchUserData = vi.fn().mockResolvedValue(null);
+
+    render(
+      <SandboxContext.Provider
+        value={makeContext({
+          userStatus: UserStatus.NEW,
+          userReady: false,
+          userFound: false,
+          userData: undefined,
+          signupUser,
+          refetchUserData,
+          disabledIntegrations: [],
+        })}
+      >
+        <CatalogGrid />
+      </SandboxContext.Provider>,
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(1);
+
+    await user.click(tryItButton);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70000);
+    });
+
+    expect(signupUser).toHaveBeenCalledTimes(2);
   });
 });

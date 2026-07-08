@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { getCookie, setCookie } from "../utils/cookie-utils";
 import type { Product } from "./useProductURLs";
 
@@ -66,7 +66,20 @@ const useGreenCorners = (productData: ProductLike[]) => {
     [persistToCookie],
   );
 
-  return { greenCorners: corners, setGreenCorners };
+  /**
+   * Marks the given product as tried, so that the green check mark can be
+   * shown in the corresponding card.
+   */
+  const markProductAsTried = useCallback(
+    (productId: Product) => {
+      setGreenCorners((prev) =>
+        prev.map((gc) => (gc.id === productId ? { ...gc, show: true } : gc)),
+      );
+    },
+    [setGreenCorners],
+  );
+
+  return { greenCorners: corners, setGreenCorners, markProductAsTried };
 };
 
 export default useGreenCorners;

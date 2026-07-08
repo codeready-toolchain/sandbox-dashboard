@@ -5,7 +5,6 @@ export { AccessCodeInputModal } from "./AccessCodeInputModal";
 export { WorkspaceResetModal } from "./WorkspaceResetModal";
 export { DeleteInstanceModal } from "./DeleteInstanceModal";
 export { OpenClawLaunchInfoModal } from "./OpenClawLaunchInfoModal";
-export { OpenClawDeleteInstanceModal } from "./OpenClawDeleteInstanceModal";
 export { CredentialAccordion } from "./CredentialAccordion";
 export { ProviderCredentialForm } from "./ProviderCredentialForm";
 export { CredentialList } from "./CredentialList";

@@ -1,71 +1,16 @@
 import { Grid, GridItem } from "@patternfly/react-core";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import useGreenCorners from "../../hooks/useGreenCorners";
 import useProductURLs, { Product } from "../../hooks/useProductURLs";
 import { UserStatus } from "../../types";
-import { AnsibleStatus } from "../../utils/aap-utils";
-import { OpenClawStatus } from "../../utils/openclaw-utils";
-import {
-  AnsibleDeleteInstanceModal,
-  AnsibleLaunchInfoModal,
-  OpenClawDeleteInstanceModal,
-  OpenClawLaunchInfoModal,
-  PhoneVerificationModal,
-} from "../Modals";
-import {
-  CatalogCard,
-  type ButtonLabel,
-  type DeleteButtonLabel,
-} from "./CatalogCard";
-import { productData } from "./productData";
-
-function getOpenClawButtonLabel(status: OpenClawStatus): ButtonLabel {
-  switch (status) {
-    case OpenClawStatus.READY:
-      return "Launch";
-    case OpenClawStatus.IDLED:
-      return "Re-provision";
-    case OpenClawStatus.PROVISIONING:
-    case OpenClawStatus.TERMINATING:
-    case OpenClawStatus.DELETING:
-      return "Provision";
-    case OpenClawStatus.FAILED:
-    case OpenClawStatus.UNKNOWN:
-    case OpenClawStatus.NEW:
-    default:
-      return "Provision";
-  }
-}
-
-function getOpenClawDeleteLabel(status: OpenClawStatus): DeleteButtonLabel {
-  if (status === OpenClawStatus.DELETING) return "Deleting";
-  if (status === OpenClawStatus.TERMINATING) return "Stop";
-  return "Delete";
-}
-
-function getOpenClawStatusLabel(status: OpenClawStatus): {
-  label: string;
-  color: "blue" | "green" | "orange" | "red" | "grey";
-} | null {
-  switch (status) {
-    case OpenClawStatus.PROVISIONING:
-      return { label: "Provisioning", color: "blue" };
-    case OpenClawStatus.READY:
-      return { label: "Ready", color: "green" };
-    case OpenClawStatus.IDLED:
-      return { label: "Idled", color: "orange" };
-    case OpenClawStatus.TERMINATING:
-      return { label: "Terminating", color: "orange" };
-    case OpenClawStatus.DELETING:
-      return { label: "Deleting", color: "red" };
-    case OpenClawStatus.FAILED:
-      return { label: "Failed", color: "red" };
-    default:
-      return null;
-  }
-}
+import { PhoneVerificationModal } from "../Modals";
+import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
+import { CatalogCard } from "./CatalogCard";
+import { ButtonLabel, type EnsureUserIsReadyResult } from "./catalogCardTypes";
+import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
+import { productData, type ProductData } from "./productData";
 
 export function CatalogGrid() {
   const {
@@ -75,57 +20,28 @@ export function CatalogGrid() {
     userData,
     signupUser,
     refetchUserData,
-    handleAAPInstance,
-    refetchAAP,
-    ansibleUILink,
-    ansibleUIUser,
-    ansibleUIPassword,
-    ansibleStatus,
-    ansibleError,
-    openclawStatus,
-    openclawError,
-    openclawUILink,
-    handleOpenClawInstance,
-    deleteOpenClaw,
     disabledIntegrations,
   } = useSandboxContext();
 
+  /**
+   * Filters the disabled products so that they do not get shown in the
+   * catalog.
+   */
   const enabledProducts = useMemo(
     () =>
       productData.filter((p) => !(disabledIntegrations ?? []).includes(p.id)),
     [disabledIntegrations],
   );
-  const { greenCorners, setGreenCorners } = useGreenCorners(enabledProducts);
+  const { greenCorners, markProductAsTried } = useGreenCorners(enabledProducts);
   const productURLs = useProductURLs();
 
-  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
-  const [ansibleInfoModalOpen, setAnsibleInfoModalOpen] = useState(false);
-  const [ansibleDeleteModalOpen, setAnsibleDeleteModalOpen] = useState(false);
-  const [openclawInfoModalOpen, setOpenclawInfoModalOpen] = useState(false);
-  const [openclawDeleteModalOpen, setOpenclawDeleteModalOpen] = useState(false);
-  const [openclawDeleting, setOpenclawDeleting] = useState(false);
-  const [loadingProduct, setLoadingProduct] = useState<Product | null>(null);
+  const [isPhoneModalOpen, setPhoneModalOpen] = useState<boolean>(false);
+  const userSignupCreationInFlight = useRef(false);
 
-  const markAsTried = useCallback(
-    (productId: Product) => {
-      setGreenCorners((prev) =>
-        prev.map((gc) => (gc.id === productId ? { ...gc, show: true } : gc)),
-      );
-    },
-    [setGreenCorners],
-  );
-
-  const openProductURL = useCallback(
-    (productId: Product) => {
-      const url = productURLs.find((pu) => pu.id === productId)?.url;
-      if (url) {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-      markAsTried(productId);
-    },
-    [productURLs, markAsTried],
-  );
-
+  /**
+   * Polls for the user signup until the back end returns a known status for
+   * the resource.
+   */
   const pollUntilStatusKnown = useCallback(async (): Promise<{
     status: UserStatus;
     namespace?: string;
@@ -143,16 +59,26 @@ export function CatalogGrid() {
     return { status: UserStatus.PENDING_APPROVAL, namespace };
   }, [refetchUserData]);
 
-  const handleTryIt = useCallback(
-    async (productId: Product) => {
+  /**
+   * Sign's up the user and it might trigger the phone verification flow if
+   * it is so required. Useful function so that the dependents know that it is
+   * safe to do further actions on the user data.
+   */
+  const ensureUserIsReady =
+    useCallback(async (): Promise<EnsureUserIsReadyResult> => {
       if (userStatus === UserStatus.NEW || userStatus === UserStatus.UNKNOWN) {
-        setLoadingProduct(productId);
+        if (userSignupCreationInFlight.current) {
+          return { ready: false };
+        }
+
+        userSignupCreationInFlight.current = true;
         try {
           await signupUser();
 
           let resolved: { status: UserStatus; namespace?: string } = {
             status: UserStatus.UNKNOWN,
           };
+
           const maxAttempts = 30;
           for (let i = 0; i < maxAttempts; i++) {
             await new Promise((r) => setTimeout(r, SHORT_INTERVAL));
@@ -166,133 +92,80 @@ export function CatalogGrid() {
 
           if (resolved.status === UserStatus.VERIFY) {
             setPhoneModalOpen(true);
-          } else if (resolved.status === UserStatus.READY) {
-            if (productId === Product.AAP) {
-              await handleAAPInstance(resolved.namespace || "");
-              setAnsibleInfoModalOpen(true);
-            } else if (productId === Product.OPENCLAW) {
-              setOpenclawInfoModalOpen(true);
-            } else {
-              openProductURL(productId);
-            }
+            return { ready: false };
+          }
+
+          if (resolved.status === UserStatus.READY) {
+            return { ready: true, namespace: resolved.namespace || "" };
           }
         } finally {
-          setLoadingProduct(null);
+          userSignupCreationInFlight.current = false;
         }
-        return;
+
+        return { ready: false };
       }
 
       if (verificationRequired) {
         setPhoneModalOpen(true);
-        return;
+        return { ready: false };
       }
 
       if (userReady) {
-        if (productId === Product.AAP) {
-          setLoadingProduct(productId);
-          try {
-            await handleAAPInstance(userData?.defaultUserNamespace || "");
-          } finally {
-            setLoadingProduct(null);
-          }
-          setAnsibleInfoModalOpen(true);
-          markAsTried(productId);
-          return;
-        }
-
-        if (productId === Product.OPENCLAW) {
-          if (openclawStatus === OpenClawStatus.READY && openclawUILink) {
-            window.open(openclawUILink, "_blank", "noopener,noreferrer");
-            markAsTried(productId);
-          } else if (openclawStatus === OpenClawStatus.IDLED) {
-            setLoadingProduct(productId);
-            try {
-              await handleOpenClawInstance(
-                userData?.defaultUserNamespace || "",
-              );
-            } finally {
-              setLoadingProduct(null);
-            }
-          } else if (
-            openclawStatus === OpenClawStatus.PROVISIONING ||
-            openclawStatus === OpenClawStatus.TERMINATING
-          ) {
-            setOpenclawInfoModalOpen(true);
-          } else {
-            setOpenclawInfoModalOpen(true);
-          }
-          return;
-        }
-
-        openProductURL(productId);
+        return { ready: true, namespace: userData?.defaultUserNamespace || "" };
       }
-    },
-    [
+
+      return { ready: false };
+    }, [
       userStatus,
       verificationRequired,
       userReady,
       userData?.defaultUserNamespace,
       signupUser,
       pollUntilStatusKnown,
-      handleAAPInstance,
-      handleOpenClawInstance,
-      openProductURL,
-      markAsTried,
-      openclawStatus,
-      openclawUILink,
-    ],
-  );
+    ]);
 
+  /**
+   * Closes the phone verification model and updates the user signup's data.
+   */
   const handlePhoneVerified = useCallback(async () => {
     setPhoneModalOpen(false);
     await refetchUserData();
   }, [refetchUserData]);
 
-  const handleAAPDeleted = useCallback(async () => {
-    setAnsibleDeleteModalOpen(false);
-    if (userData?.defaultUserNamespace) {
-      await refetchAAP(userData.defaultUserNamespace);
-    }
-  }, [refetchAAP, userData]);
-
-  const handleOpenClawProvision = useCallback(
-    async (
-      credentials: import("../../utils/openclaw-providers").AddedCredential[],
-    ): Promise<boolean> => {
-      if (!userData?.defaultUserNamespace) return false;
-      const success = await handleOpenClawInstance(
-        userData.defaultUserNamespace,
-        credentials,
-        false,
-      );
-      if (success) {
-        markAsTried(Product.OPENCLAW);
+  /**
+   * Gets the URL for the given product and opens it in a new tab. It also
+   * marks the product as "tried" so that a green mark can be applied to the
+   * card.
+   */
+  const openProductURL = useCallback(
+    (productId: Product) => {
+      const url = productURLs.find((pu) => pu.id === productId)?.url;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        markProductAsTried(productId);
       }
-      return success;
     },
-    [handleOpenClawInstance, userData, markAsTried],
+    [productURLs, markProductAsTried],
   );
 
-  const handleOpenClawDelete = useCallback(async () => {
-    if (!userData?.defaultUserNamespace) return;
-    setOpenclawDeleting(true);
-    try {
-      await deleteOpenClaw(userData.defaultUserNamespace);
-    } finally {
-      setOpenclawDeleting(false);
-      setOpenclawDeleteModalOpen(false);
-    }
-  }, [deleteOpenClaw, userData?.defaultUserNamespace]);
+  /**
+   * Handles opening the product's URL for the cards that do not hold any
+   * state, and only require opening a new tab with the product's URL.
+   */
+  const handleOnClickPrimaryButtonSimpleCards = useCallback(
+    async (product: ProductData) => {
+      const isUserReady = await ensureUserIsReady();
+      if (!isUserReady.ready) {
+        return;
+      }
 
-  const showAAPDelete =
-    ansibleStatus !== AnsibleStatus.NEW &&
-    ansibleStatus !== AnsibleStatus.NOT_DEPLOYED;
+      openProductURL(product.id);
+    },
+    [ensureUserIsReady, openProductURL],
+  );
 
-  const showOpenClawDelete =
-    openclawStatus !== OpenClawStatus.NEW &&
-    openclawStatus !== OpenClawStatus.DELETING &&
-    openclawStatus !== OpenClawStatus.UNKNOWN;
-
+  // We treat not having the "disabledIntegrations" field set as all of them
+  // being disabled.
   if (disabledIntegrations === undefined) {
     return null;
   }
@@ -301,108 +174,58 @@ export function CatalogGrid() {
     <>
       <Grid hasGutter>
         {enabledProducts.map((product) => {
-          const isAAP = product.id === Product.AAP;
-          const isOpenClaw = product.id === Product.OPENCLAW;
+          const isGreenCornerVisible =
+            greenCorners?.find((gc) => gc.id === product.id)?.show || false;
 
-          let buttonLabel: "Try it" | "Provision" | "Launch" | "Re-provision" =
-            "Try it";
-          let deleteButtonLabel: "Delete" | "Stop" | "Deleting" = "Delete";
-          let statusLabel: string | undefined;
-          let statusColor:
-            | "blue"
-            | "green"
-            | "orange"
-            | "red"
-            | "grey"
-            | undefined;
-          let showDelete = false;
-          let onDelete: (() => void) | undefined;
-
-          if (isAAP) {
-            showDelete = showAAPDelete;
-            onDelete = () => setAnsibleDeleteModalOpen(true);
-          } else if (isOpenClaw) {
-            buttonLabel = getOpenClawButtonLabel(openclawStatus);
-            deleteButtonLabel = getOpenClawDeleteLabel(openclawStatus);
-            const statusInfo = getOpenClawStatusLabel(openclawStatus);
-            if (statusInfo) {
-              statusLabel = statusInfo.label;
-              statusColor = statusInfo.color;
-            }
-            showDelete = showOpenClawDelete;
-            onDelete = () => setOpenclawDeleteModalOpen(true);
+          switch (product.id) {
+            case Product.AAP:
+              return (
+                <GridItem key={product.id} span={4}>
+                  <AnsibleCatalogCard
+                    product={product}
+                    isGreenCornerVisible={isGreenCornerVisible}
+                    ensureUserIsReady={ensureUserIsReady}
+                    markProductAsTried={markProductAsTried}
+                  />
+                </GridItem>
+              );
+            case Product.OPENCLAW:
+              return (
+                <GridItem key={product.id} span={4}>
+                  <OpenClawCatalogCard
+                    product={product}
+                    isGreenCornerVisible={isGreenCornerVisible}
+                    ensureUserIsReady={ensureUserIsReady}
+                    markProductAsTried={markProductAsTried}
+                  />
+                </GridItem>
+              );
+            default:
+              return (
+                <GridItem key={product.id} span={4}>
+                  <CatalogCard
+                    product={product}
+                    primaryButtonLabel={ButtonLabel.TRY_IT}
+                    isGreenCornerVisible={isGreenCornerVisible}
+                    isPrimaryButtonDisabled={false}
+                    isPrimaryButtonSpinnerVisible={false}
+                    isPrimaryButtonExtIconVisible
+                    isDeleteButtonVisible={false}
+                    onClickPrimaryButton={() =>
+                      handleOnClickPrimaryButtonSimpleCards(product)
+                    }
+                  />
+                </GridItem>
+              );
           }
-
-          return (
-            <GridItem key={product.id} span={4}>
-              <CatalogCard
-                title={product.title}
-                image={product.image}
-                description={product.description}
-                link={productURLs.find((pu) => pu.id === product.id)?.url || ""}
-                greenCorner={
-                  greenCorners?.find((gc) => gc.id === product.id)?.show ||
-                  false
-                }
-                onTryIt={() => handleTryIt(product.id)}
-                loading={loadingProduct === product.id}
-                showDelete={showDelete}
-                onDelete={onDelete}
-                buttonLabel={buttonLabel}
-                deleteButtonLabel={deleteButtonLabel}
-                statusLabel={statusLabel}
-                statusColor={statusColor}
-              />
-            </GridItem>
-          );
         })}
       </Grid>
 
       <PhoneVerificationModal
-        isOpen={phoneModalOpen}
+        isOpen={isPhoneModalOpen}
         onClose={() => setPhoneModalOpen(false)}
         onVerified={handlePhoneVerified}
       />
-
-      <AnsibleLaunchInfoModal
-        isOpen={ansibleInfoModalOpen}
-        onClose={() => setAnsibleInfoModalOpen(false)}
-        ansibleUILink={ansibleUILink}
-        ansibleUIUser={ansibleUIUser}
-        ansibleUIPassword={ansibleUIPassword}
-        ansibleStatus={ansibleStatus}
-        ansibleError={ansibleError}
-      />
-
-      {userData?.proxyURL && userData?.defaultUserNamespace && (
-        <>
-          <AnsibleDeleteInstanceModal
-            isOpen={ansibleDeleteModalOpen}
-            onClose={() => setAnsibleDeleteModalOpen(false)}
-            onDeleted={handleAAPDeleted}
-            proxyURL={userData.proxyURL}
-            userNamespace={userData.defaultUserNamespace}
-          />
-
-          <OpenClawLaunchInfoModal
-            isOpen={openclawInfoModalOpen}
-            onClose={() => setOpenclawInfoModalOpen(false)}
-            productId={Product.OPENCLAW}
-            openclawStatus={openclawStatus}
-            openclawError={openclawError}
-            openclawUILink={openclawUILink}
-            onProvision={handleOpenClawProvision}
-            onLaunch={markAsTried}
-          />
-
-          <OpenClawDeleteInstanceModal
-            isOpen={openclawDeleteModalOpen}
-            onClose={() => setOpenclawDeleteModalOpen(false)}
-            onDelete={handleOpenClawDelete}
-            deleting={openclawDeleting}
-          />
-        </>
-      )}
     </>
   );
 }
