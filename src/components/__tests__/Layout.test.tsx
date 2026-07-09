@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { Layout } from "../Layout/Layout";
-import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
+import {
+  AuthenticatedContext,
+  type AuthenticatedContextValue,
+} from "../../auth/AuthenticatedContext";
 import {
   SandboxContext,
   type SandboxContextType,
@@ -14,14 +17,12 @@ import { UserStatus } from "../../types";
 
 const mockLogout = vi.fn();
 
-const authValue: AuthContextValue = {
-  authenticated: true,
+const authValue: AuthenticatedContextValue = {
   token: "test-token",
   givenName: "John",
   familyName: "Doe",
   email: "john@example.com",
   username: "johndoe",
-  getToken: async () => "test-token",
   logout: mockLogout,
 };
 
@@ -62,7 +63,7 @@ function renderLayout(
   sandboxOverrides: Partial<SandboxContextType> = {},
 ) {
   return render(
-    <AuthContext.Provider value={authValue}>
+    <AuthenticatedContext.Provider value={authValue}>
       <SandboxContext.Provider value={makeSandboxContext(sandboxOverrides)}>
         <MemoryRouter initialEntries={[route]}>
           <Routes>
@@ -76,7 +77,7 @@ function renderLayout(
           </Routes>
         </MemoryRouter>
       </SandboxContext.Provider>
-    </AuthContext.Provider>,
+    </AuthenticatedContext.Provider>,
   );
 }
 

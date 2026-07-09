@@ -3,20 +3,30 @@ import "@patternfly/react-core/dist/styles/base.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import initializeKeycloak from "./auth/initializeKeycloak";
 import { Environment, getConfig } from "./config/config";
+import { AuthenticatedContext } from "./auth/AuthenticatedContext";
 
 async function bootstrap() {
+  const configuration = getConfig();
+
+  // Start the mocked back end if we are in development mode.
   if (
-    getConfig().environment === Environment.DEVELOPMENT ||
-    getConfig().environment === Environment.DEVELOPMENT_KEYCLOAK
+    configuration.environment === Environment.DEVELOPMENT ||
+    configuration.environment === Environment.DEVELOPMENT_KEYCLOAK
   ) {
     const { worker } = await import("./mocks/browser");
     await worker.start({ onUnhandledRequest: "bypass" });
   }
 
+  // Initialize Keycloak and trigger the SSO flow.
+  const authContextValue = await initializeKeycloak(configuration);
+
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <App />
+      <AuthenticatedContext.Provider value={authContextValue}>
+        <App />
+      </AuthenticatedContext.Provider>
     </StrictMode>,
   );
 }
