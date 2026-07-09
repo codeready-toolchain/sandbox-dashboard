@@ -3,6 +3,7 @@ import React from "react";
 import { setTokenGetter } from "./api/authFetch";
 import { App } from "./App";
 import { server } from "./mocks/server";
+import { AuthenticatedContext } from "./auth/AuthenticatedContext";
 
 vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
   Footer: (props: React.HTMLAttributes<HTMLDivElement>) =>
@@ -38,7 +39,20 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 test("renders without crashing in dev bypass mode", async () => {
-  render(<App />);
+  const fakeAuthenticatedContextValue = {
+    token: "dev-fake-token",
+    givenName: "Developer",
+    familyName: "Sandbox",
+    email: "dev@example.com",
+    username: "dev-user",
+    logout: () => {},
+  };
+
+  render(
+    <AuthenticatedContext.Provider value={fakeAuthenticatedContextValue}>
+      <App />
+    </AuthenticatedContext.Provider>,
+  );
 
   // "Developer Sandbox" appears in both the masthead brand and user menu toggle
   const matches = screen.getAllByText("Developer Sandbox");
