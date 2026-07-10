@@ -1,36 +1,54 @@
+import { ApiError } from "../error/ApiError";
 import type {
   DeploymentData,
   PersistentVolumeClaimData,
   SecretItem,
   StatefulSetData,
 } from "../types";
-import { errorMessage } from "../utils/common";
 import { authFetch } from "./authFetch";
 
+/**
+ * Builds a Kubernetes resource URL, optionally appending a label selector
+ * query parameter.
+ * @param basePath the base API path for the resource collection.
+ * @param labelSelector the raw label selector to filter by (will be URL-encoded).
+ * @returns the complete URL with or without the `?labelSelector=` suffix.
+ */
+function resourceUrl(basePath: string, labelSelector?: string): string {
+  return labelSelector
+    ? `${basePath}?labelSelector=${encodeURIComponent(labelSelector)}`
+    : basePath;
+}
+
 function pvcUrl(namespace: string, labelSelector?: string): string {
-  let url = `/api/v1/namespaces/${namespace}/persistentvolumeclaims`;
-  if (labelSelector) {
-    url += `?labelSelector=${labelSelector}`;
-  }
-  return url;
+  return resourceUrl(
+    `/api/v1/namespaces/${namespace}/persistentvolumeclaims`,
+    labelSelector,
+  );
 }
 
 function deploymentUrl(namespace: string, labelSelector?: string): string {
-  let url = `/apis/apps/v1/namespaces/${namespace}/deployments`;
-  if (labelSelector) {
-    url += `?labelSelector=${labelSelector}`;
-  }
-  return url;
+  return resourceUrl(
+    `/apis/apps/v1/namespaces/${namespace}/deployments`,
+    labelSelector,
+  );
 }
 
 function statefulSetUrl(namespace: string, labelSelector?: string): string {
-  let url = `/apis/apps/v1/namespaces/${namespace}/statefulsets`;
-  if (labelSelector) {
-    url += `?labelSelector=${labelSelector}`;
-  }
-  return url;
+  return resourceUrl(
+    `/apis/apps/v1/namespaces/${namespace}/statefulsets`,
+    labelSelector,
+  );
 }
 
+/**
+ * Deletes the secrets and persistent volume claims.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param k8sObjects the Kubernetes objects to delete.
+ * @param userNamespace the namespace to delete the resources from.
+ * @throws {ApiError} if the API calls to delete the persistent volume claims
+ * or the secrets fail.
+ */
 export async function deleteSecretsAndPVCs(
   proxyURL: string,
   k8sObjects: StatefulSetData | DeploymentData | void,
@@ -48,8 +66,10 @@ export async function deleteSecretsAndPVCs(
             method: "DELETE",
           });
           if (!response.ok && response.status !== 404) {
-            const error = await response.json();
-            throw new Error(errorMessage(error));
+            throw await ApiError.fromResponse(
+              "deleteSecretsAndPVCs failed: unable to delete persistent volume claims",
+              response,
+            );
           }
         }
 
@@ -59,8 +79,10 @@ export async function deleteSecretsAndPVCs(
             method: "DELETE",
           });
           if (!response.ok && response.status !== 404) {
-            const error = await response.json();
-            throw new Error(errorMessage(error));
+            throw await ApiError.fromResponse(
+              "deleteSecretsAndPVCs failed: unable to delete secrets",
+              response,
+            );
           }
         }
       }
@@ -68,6 +90,14 @@ export async function deleteSecretsAndPVCs(
   }
 }
 
+/**
+ * Deletes the persistent volume claims for the given stateful set data.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param k8sObjects the Kubernetes objects to delete.
+ * @param userNamespace the namespace to delete the resources from.
+ * @throws {ApiError} if the API calls to delete the persistent volume claims
+ * fail.
+ */
 export async function deletePVCsForSTS(
   proxyURL: string,
   k8sObjects: StatefulSetData | void,
@@ -82,7 +112,7 @@ export async function deletePVCsForSTS(
         const pvcs = await getPersistentVolumeClaims(
           proxyURL,
           userNamespace,
-          `app.kubernetes.io%2Fname%3D${volumeClaim.metadata.name}`,
+          `app.kubernetes.io/name=${volumeClaim.metadata.name}`,
         );
 
         if (pvcs && pvcs.items.length > 0) {
@@ -92,8 +122,10 @@ export async function deletePVCsForSTS(
               method: "DELETE",
             });
             if (!response.ok && response.status !== 404) {
-              const error = await response.json();
-              throw new Error(errorMessage(error));
+              throw await ApiError.fromResponse(
+                "deletePVCsForSTS failed",
+                response,
+              );
             }
           }
         }
@@ -102,6 +134,13 @@ export async function deletePVCsForSTS(
   }
 }
 
+/**
+ * Fetches a secret.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param namespace the namespace to fetch the secret from.
+ * @param secretName the name of the secret to fetch.
+ * @throws {ApiError} if the API call fails.
+ */
 export async function getSecret(
   proxyURL: string,
   namespace: string,
@@ -113,59 +152,79 @@ export async function getSecret(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("getSecret failed", response);
   }
   return response.json();
 }
 
+/**
+ * Fetches the persistence volume claims.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param namespace the namespace to fetch the persistence volume claims from.
+ * @param labelSelector the label selector to apply to the query, if any.
+ * @throws {ApiError} if the API call fails.
+ */
 export async function getPersistentVolumeClaims(
   proxyURL: string,
   namespace: string,
-  labels?: string,
+  labelSelector?: string,
 ): Promise<PersistentVolumeClaimData | undefined> {
-  const url = pvcUrl(namespace, labels);
+  const url = pvcUrl(namespace, labelSelector);
   const response = await authFetch(`${proxyURL}${url}`, {
     method: "GET",
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse(
+      "getPersistentVolumeClaims failed",
+      response,
+    );
   }
   return response.json();
 }
 
+/**
+ * Fetches the deployments.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param namespace the namespace to fetch the deployments from.
+ * @param labelSelector the label selector to apply to the query, if any.
+ * @throws {ApiError} if the API call fails.
+ */
 export async function getDeployments(
   proxyURL: string,
   namespace: string,
-  labels?: string,
+  labelSelector?: string,
 ): Promise<DeploymentData | undefined> {
-  const url = deploymentUrl(namespace, labels);
+  const url = deploymentUrl(namespace, labelSelector);
   const response = await authFetch(`${proxyURL}${url}`, {
     method: "GET",
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("getDeployments failed", response);
   }
   return response.json();
 }
 
+/**
+ * Fetches the stateful sets.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param namespace the namespace to fetch the deployments from.
+ * @param labelSelector the label selector to apply to the query, if any.
+ * @throws {ApiError} if the API call fails.
+ */
 export async function getStatefulSets(
   proxyURL: string,
   namespace: string,
-  labels?: string,
+  labelSelector?: string,
 ): Promise<StatefulSetData | undefined> {
-  const url = statefulSetUrl(namespace, labels);
+  const url = statefulSetUrl(namespace, labelSelector);
   const response = await authFetch(`${proxyURL}${url}`, {
     method: "GET",
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("getStatefulSets failed", response);
   }
   return response.json();
 }

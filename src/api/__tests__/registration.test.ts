@@ -1,8 +1,10 @@
 import { http, HttpResponse } from "msw";
+import { ApiError } from "../../error/ApiError";
 import { server } from "../../mocks/server";
 import { setTokenGetter } from "../authFetch";
 import {
   getSignupData,
+  getRecaptchaToken,
   initiatePhoneVerification,
   completePhoneVerification,
   verifyActivationCode,
@@ -53,16 +55,107 @@ describe("getSignupData", () => {
   it("should throw error on other unsuccessful responses", async () => {
     server.use(
       http.get(`${REG_URL}/api/v1/signup`, () => {
-        return new HttpResponse(null, {
-          status: 500,
-          statusText: "Server Error",
-        });
+        return HttpResponse.json(
+          { message: "internal failure" },
+          { status: 500 },
+        );
       }),
     );
 
-    await expect(getSignupData()).rejects.toThrow(
-      "Unexpected status code: 500 Server Error",
-    );
+    const error = await getSignupData().catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.statusCode).toBe(500);
+    expect(error.body).toContain("internal failure");
+  });
+});
+
+describe("getRecaptchaToken", () => {
+  const g = globalThis as Record<string, unknown>;
+  const originalGrecaptcha = g.grecaptcha;
+
+  afterEach(() => {
+    g.grecaptcha = originalGrecaptcha;
+  });
+
+  it("resolves with the token when execute succeeds", async () => {
+    g.grecaptcha = {
+      enterprise: {
+        ready: (cb: () => void) => cb(),
+        execute: vi.fn().mockResolvedValue("test-token-value"),
+      },
+    };
+
+    await expect(getRecaptchaToken()).resolves.toBe("test-token-value");
+  });
+
+  it("rejects when execute throws", async () => {
+    g.grecaptcha = {
+      enterprise: {
+        ready: (cb: () => void) => cb(),
+        execute: vi.fn().mockRejectedValue(new Error("execute failed")),
+      },
+    };
+
+    await expect(getRecaptchaToken()).rejects.toThrow("Recaptcha failure.");
+  });
+
+  it("rejects when grecaptcha.enterprise is not available", async () => {
+    g.grecaptcha = {};
+
+    await expect(getRecaptchaToken()).rejects.toThrow("Recaptcha failure.");
+  });
+
+  it("rejects with timeout when execute hangs beyond the deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      g.grecaptcha = {
+        enterprise: {
+          ready: (cb: () => void) => cb(),
+          execute: () => new Promise(() => {}),
+        },
+      };
+
+      const promise = getRecaptchaToken();
+      const caught = promise.catch((e: unknown) => e);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      const error = await caught;
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Recaptcha timeout.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not resolve after timeout has fired even if execute eventually completes", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveExecute!: (v: string) => void;
+      g.grecaptcha = {
+        enterprise: {
+          ready: (cb: () => void) => cb(),
+          execute: () =>
+            new Promise<string>((r) => {
+              resolveExecute = r;
+            }),
+        },
+      };
+
+      const promise = getRecaptchaToken();
+      const caught = promise.catch((e: unknown) => e);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      const error = await caught;
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Recaptcha timeout.");
+
+      resolveExecute("late-token");
+      await vi.advanceTimersByTimeAsync(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -76,22 +169,10 @@ describe("initiatePhoneVerification", () => {
 
     await expect(
       initiatePhoneVerification("+1", "1234567890"),
-    ).resolves.not.toThrow();
+    ).resolves.toBeUndefined();
   });
 
-  it("should throw error for invalid country code", async () => {
-    await expect(
-      initiatePhoneVerification("abc", "1234567890"),
-    ).rejects.toThrow("Invalid country code.");
-  });
-
-  it("should throw error for invalid phone number", async () => {
-    await expect(initiatePhoneVerification("+1", "abc")).rejects.toThrow(
-      "Invalid phone number.",
-    );
-  });
-
-  it("should throw user-friendly error for invalid phone number from backend", async () => {
+  it("should throw on unsuccessful response from backend", async () => {
     server.use(
       http.put(`${REG_URL}/api/v1/signup/verification`, () => {
         return HttpResponse.json(
@@ -101,24 +182,12 @@ describe("initiatePhoneVerification", () => {
       }),
     );
 
-    await expect(initiatePhoneVerification("+1", "1234567890")).rejects.toThrow(
-      "Invalid phone number. Please verify the country code and number format, then try again.",
+    const error = await initiatePhoneVerification("+1", "1234567890").catch(
+      (e) => e,
     );
-  });
-
-  it("should throw error for already used phone number", async () => {
-    server.use(
-      http.put(`${REG_URL}/api/v1/signup/verification`, () => {
-        return HttpResponse.json(
-          { message: "phone number already in use" },
-          { status: 400 },
-        );
-      }),
-    );
-
-    await expect(initiatePhoneVerification("+1", "1234567890")).rejects.toThrow(
-      "This phone number is already in use. Please use a different number.",
-    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.statusCode).toBe(400);
+    expect(error.body).toContain("Invalid 'To' Phone Number");
   });
 });
 
@@ -143,9 +212,10 @@ describe("completePhoneVerification", () => {
       }),
     );
 
-    await expect(completePhoneVerification("badcode")).rejects.toThrow(
-      "Invalid verification code",
-    );
+    const error = await completePhoneVerification("badcode").catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.statusCode).toBe(400);
+    expect(error.body).toContain("Invalid verification code");
   });
 });
 
@@ -170,9 +240,10 @@ describe("verifyActivationCode", () => {
       }),
     );
 
-    await expect(verifyActivationCode("badcode")).rejects.toThrow(
-      "Invalid activation code",
-    );
+    const error = await verifyActivationCode("badcode").catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.statusCode).toBe(400);
+    expect(error.body).toContain("Invalid activation code");
   });
 });
 
@@ -255,9 +326,6 @@ describe("getSegmentWriteKey", () => {
 });
 
 describe("resetWorkspaces", () => {
-  const expectedGenericError =
-    "Unable to reset your workspaces. Please, try again later, and if your issue persists, contact support at devsandbox@redhat.com";
-
   it("should succeed on 200 response", async () => {
     server.use(
       http.post(`${REG_URL}/api/v1/reset-namespaces`, () => {
@@ -268,17 +336,17 @@ describe("resetWorkspaces", () => {
     await expect(resetWorkspaces()).resolves.not.toThrow();
   });
 
-  it("returns a generic error when there is a network error", async () => {
+  it("throws on network error", async () => {
     server.use(
       http.post(`${REG_URL}/api/v1/reset-namespaces`, () => {
         return HttpResponse.error();
       }),
     );
 
-    await expect(resetWorkspaces()).rejects.toThrow(expectedGenericError);
+    await expect(resetWorkspaces()).rejects.toThrow();
   });
 
-  it("returns the response error details when present", async () => {
+  it("throws on non-ok response", async () => {
     server.use(
       http.post(`${REG_URL}/api/v1/reset-namespaces`, () => {
         return HttpResponse.json(
@@ -288,18 +356,9 @@ describe("resetWorkspaces", () => {
       }),
     );
 
-    await expect(resetWorkspaces()).rejects.toThrow(
-      "the back end failed because of x, y and z",
-    );
-  });
-
-  it("returns a generic error when the response error details are not present", async () => {
-    server.use(
-      http.post(`${REG_URL}/api/v1/reset-namespaces`, () => {
-        return HttpResponse.json({}, { status: 500 });
-      }),
-    );
-
-    await expect(resetWorkspaces()).rejects.toThrow(expectedGenericError);
+    const error = await resetWorkspaces().catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.statusCode).toBe(500);
+    expect(error.body).toContain("the back end failed because of x, y and z");
   });
 });

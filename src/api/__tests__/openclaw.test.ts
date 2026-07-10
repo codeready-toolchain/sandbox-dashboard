@@ -6,6 +6,7 @@ import {
   deleteSpaceRequest,
   getOpenClaw,
   createOpenClaw,
+  deleteOpenClawCR,
   cleanupWorkspaceEnvironment,
 } from "../openclaw";
 import type {
@@ -160,6 +161,91 @@ describe("getOpenClaw", () => {
       http.get(CLAW_URL, () => new HttpResponse(null, { status: 404 })),
     );
     expect(await getOpenClaw(PROXY_URL, NS)).toBeUndefined();
+  });
+});
+
+describe("deleteOpenClawCR", () => {
+  const CLAW_URL = `${PROXY_URL}/apis/claw.sandbox.redhat.com/v1alpha1/namespaces/${NS}/claws/claw`;
+
+  it("deletes the CR and its secrets successfully", async () => {
+    server.use(
+      http.get(CLAW_URL, () =>
+        HttpResponse.json({
+          spec: {
+            credentials: [
+              { secretRef: [{ name: "llm-key" }] },
+              { secretRef: [{ name: "other-key" }] },
+            ],
+          },
+        }),
+      ),
+      http.delete(CLAW_URL, () => new HttpResponse(null, { status: 200 })),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/llm-key`,
+        () => new HttpResponse(null, { status: 200 }),
+      ),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/other-key`,
+        () => new HttpResponse(null, { status: 200 }),
+      ),
+    );
+
+    await expect(deleteOpenClawCR(PROXY_URL, NS)).resolves.toBeUndefined();
+  });
+
+  it("ignores 404 for both CR and secrets", async () => {
+    server.use(
+      http.get(CLAW_URL, () =>
+        HttpResponse.json({
+          spec: {
+            credentials: [{ secretRef: [{ name: "llm-key" }] }],
+          },
+        }),
+      ),
+      http.delete(CLAW_URL, () => new HttpResponse(null, { status: 404 })),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/llm-key`,
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+    );
+
+    await expect(deleteOpenClawCR(PROXY_URL, NS)).resolves.toBeUndefined();
+  });
+
+  it("resolves when there are no secrets to delete", async () => {
+    server.use(
+      http.get(CLAW_URL, () => HttpResponse.json({ spec: {} })),
+      http.delete(CLAW_URL, () => new HttpResponse(null, { status: 200 })),
+    );
+
+    await expect(deleteOpenClawCR(PROXY_URL, NS)).resolves.toBeUndefined();
+  });
+
+  it("throws AggregateError when secret deletions fail", async () => {
+    server.use(
+      http.get(CLAW_URL, () =>
+        HttpResponse.json({
+          spec: {
+            credentials: [
+              { secretRef: [{ name: "llm-key" }] },
+              { secretRef: [{ name: "ok-key" }] },
+            ],
+          },
+        }),
+      ),
+      http.delete(CLAW_URL, () => new HttpResponse(null, { status: 200 })),
+      http.delete(`${PROXY_URL}/api/v1/namespaces/${NS}/secrets/llm-key`, () =>
+        HttpResponse.json({ message: "Internal error" }, { status: 500 }),
+      ),
+      http.delete(
+        `${PROXY_URL}/api/v1/namespaces/${NS}/secrets/ok-key`,
+        () => new HttpResponse(null, { status: 200 }),
+      ),
+    );
+
+    await expect(deleteOpenClawCR(PROXY_URL, NS)).rejects.toThrow(
+      AggregateError,
+    );
   });
 });
 

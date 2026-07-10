@@ -1,37 +1,39 @@
-import { useRef, useState } from "react";
 import {
-  Modal,
-  ModalBody,
-  ModalHeader,
-  ModalFooter,
+  Alert,
   Button,
   Content,
-  Alert,
-  Spinner,
   Flex,
   FlexItem,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
   Tooltip,
 } from "@patternfly/react-core";
 import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
+import { useRef, useState } from "react";
+import type { Product } from "../../types/product";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
 import {
   CredentialAccordion,
   type CredentialAccordionRef,
 } from "./CredentialAccordion";
-import type { Product } from "../../types/product";
+import { ErrorModal } from "./ErrorModal";
 
 type OpenClawLaunchInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
   product: Product;
   openclawStatus: OpenClawStatus;
-  openclawError: string | null;
   openclawUILink: string | undefined;
+  openClawProvisioningErrorDetails: string | null;
   onProvision: (
     credentials: import("../../utils/openclaw-providers").AddedCredential[],
   ) => Promise<boolean>;
   onLaunch: (product: Product) => void;
+  onProvisioningErrorDismissed: () => void;
 };
 
 export function OpenClawLaunchInfoModal({
@@ -39,10 +41,11 @@ export function OpenClawLaunchInfoModal({
   onClose,
   product,
   openclawStatus,
-  openclawError,
   openclawUILink,
+  openClawProvisioningErrorDetails,
   onProvision,
   onLaunch,
+  onProvisioningErrorDismissed,
 }: OpenClawLaunchInfoModalProps) {
   const accordionRef = useRef<CredentialAccordionRef>(null);
   const [credentialCount, setCredentialCount] = useState(0);
@@ -78,6 +81,24 @@ export function OpenClawLaunchInfoModal({
       setProvisioning(false);
     }
   };
+
+  // Show an error modal if any error has occurred during provisioning.
+  if (openClawProvisioningErrorDetails) {
+    return (
+      <ErrorModal
+        headerTitle="Provision OpenClaw instance"
+        productName="OpenClaw"
+        alertTitle="Unable to provision your OpenClaw instance"
+        alertText="An error occurred while provisioning your OpenClaw instance."
+        copyableTechnicalDetails={openClawProvisioningErrorDetails}
+        isErrorModalOpen
+        onErrorModalClose={() => {
+          onProvisioningErrorDismissed();
+          handleClose();
+        }}
+      />
+    );
+  }
 
   if (openclawStatus === OpenClawStatus.READY) {
     return (
@@ -195,15 +216,6 @@ export function OpenClawLaunchInfoModal({
             You can close this modal in the meantime, and follow the status of
             your instance on the OpenClaw sandbox card.
           </Alert>
-          {openclawError && (
-            <Alert
-              variant="danger"
-              isInline
-              isPlain
-              title={openclawError}
-              style={{ marginTop: "16px" }}
-            />
-          )}
         </ModalBody>
         <ModalFooter>
           <Button variant="link" onClick={handleClose}>
@@ -233,15 +245,6 @@ export function OpenClawLaunchInfoModal({
           ref={accordionRef}
           onCredentialCountChange={setCredentialCount}
         />
-        {openclawError && (
-          <Alert
-            variant="danger"
-            isInline
-            isPlain
-            title={openclawError}
-            style={{ marginTop: "16px" }}
-          />
-        )}
       </ModalBody>
       <ModalFooter>
         <Tooltip

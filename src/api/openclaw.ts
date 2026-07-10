@@ -1,8 +1,10 @@
+import { ApiError } from "../error/ApiError";
 import type {
   OpenClawItem,
   OpenClawWorkspace,
   SpaceRequestItem,
 } from "../types";
+import logger from "../utils/logger";
 import type {
   AddedCredential,
   ProviderConfig,
@@ -24,7 +26,6 @@ import {
   type OpenClawCredentialInput,
   type OpenClawCustomProviderInput,
 } from "../utils/openclaw-utils";
-import { errorMessage } from "../utils/common";
 import { authFetch } from "./authFetch";
 
 const CLAW_NAME = "claw";
@@ -142,6 +143,13 @@ function resolveWebSearchProvider(
   return hasGoogleApiKey ? "gemini" : "duckduckgo";
 }
 
+/**
+ * Upserts a given secret.
+ * @param basePath the base path of the URL.
+ * @param name the name of the secret.
+ * @param body the body of the request.
+ * @throws {ApiError} if the requests to create or update the secret fail.
+ */
 async function createOrUpdateSecret(
   basePath: string,
   name: string,
@@ -160,8 +168,10 @@ async function createOrUpdateSecret(
       method: "GET",
     });
     if (!getResponse.ok) {
-      const error = await getResponse.json();
-      throw new Error(errorMessage(error));
+      throw await ApiError.fromResponse(
+        "createOrUpdateSecret failed: unable to fetch secret",
+        getResponse,
+      );
     }
     const existing = await getResponse.json();
     const parsed = JSON.parse(body);
@@ -176,17 +186,29 @@ async function createOrUpdateSecret(
       headers: { "Content-Type": "application/json" },
     });
     if (!updateResponse.ok) {
-      const error = await updateResponse.json();
-      throw new Error(errorMessage(error));
+      throw await ApiError.fromResponse(
+        "createOrUpdateSecret failed: unable to update",
+        updateResponse,
+      );
     }
     return;
   }
 
-  const error = await response.json();
-  throw new Error(errorMessage(error));
+  throw await ApiError.fromResponse("createOrUpdateSecret", response);
 }
 
-async function createIfAbsent(url: string, body: string): Promise<void> {
+/**
+ * Creates an object and counts 409 responses as valid.
+ * @param url the URL to send the request to.
+ * @param body the body of the request.
+ * @param label a descriptive resource label for error messages.
+ * @throws {ApiError} if the request fails.
+ */
+async function createIfAbsent(
+  url: string,
+  body: string,
+  label: string,
+): Promise<void> {
   const response = await authFetch(url, {
     method: "POST",
     body,
@@ -195,19 +217,65 @@ async function createIfAbsent(url: string, body: string): Promise<void> {
 
   if (response.ok || response.status === 409) return;
 
-  const error = await response.json();
-  throw new Error(errorMessage(error));
+  throw await ApiError.fromResponse(
+    `createIfAbsent failed: ${label}`,
+    response,
+  );
 }
 
-async function deleteIfPresent(url: string): Promise<void> {
+/**
+ * Logs each rejected result and throws an AggregateError when any exist.
+ * @param rejected the filtered rejected results.
+ * @param context a label describing the operation (used in log and error messages).
+ * @throws {AggregateError} if `rejected` is non-empty.
+ */
+function logAndAggregate(
+  rejected: PromiseRejectedResult[],
+  context: string,
+): void {
+  if (rejected.length === 0) return;
+
+  for (const f of rejected) {
+    const reason = f.reason;
+    if (reason instanceof ApiError) {
+      logger.error(`${context}: failed (status ${reason.statusCode})`, {
+        statusCode: reason.statusCode,
+        body: reason.body,
+      });
+    } else {
+      logger.error(`${context}: failed`, reason);
+    }
+  }
+  throw new AggregateError(
+    rejected.map((f) => f.reason),
+    `${context}: ${rejected.length} failure(s)`,
+  );
+}
+
+/**
+ * Deletes a resource and treats 404 responses as successful no-ops.
+ * @param url the URL of the resource to delete.
+ * @param label a descriptive resource label for error messages.
+ * @throws {ApiError} if the delete request fails with a non-404 status.
+ */
+async function deleteIfPresent(url: string, label: string): Promise<void> {
   const response = await authFetch(url, { method: "DELETE" });
 
   if (response.ok || response.status === 404) return;
 
-  const error = await response.json();
-  throw new Error(errorMessage(error));
+  throw await ApiError.fromResponse(
+    `deleteIfPresent failed: ${label}`,
+    response,
+  );
 }
 
+/**
+ * Fetches the SpaceRequest for the given namespace.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @returns the SpaceRequest item, or undefined if it does not exist.
+ * @throws {ApiError} if the request fails with a non-404 status.
+ */
 export async function getSpaceRequest(
   proxyURL: string,
   namespace: string,
@@ -217,12 +285,17 @@ export async function getSpaceRequest(
 
   if (!response.ok) {
     if (response.status === 404) return undefined;
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("getSpaceRequest failed", response);
   }
   return response.json();
 }
 
+/**
+ * Creates a SpaceRequest in the given namespace. Treats 409 as a no-op.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @throws {ApiError} if the request fails with a non-409 status.
+ */
 export async function createSpaceRequest(
   proxyURL: string,
   namespace: string,
@@ -236,11 +309,16 @@ export async function createSpaceRequest(
   });
 
   if (!response.ok && response.status !== 409) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("createSpaceRequest", response);
   }
 }
 
+/**
+ * Deletes the SpaceRequest in the given namespace. Treats 404 as a no-op.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @throws {ApiError} if the request fails with a non-404 status.
+ */
 export async function deleteSpaceRequest(
   proxyURL: string,
   namespace: string,
@@ -249,11 +327,17 @@ export async function deleteSpaceRequest(
   const response = await authFetch(`${proxyURL}${url}`, { method: "DELETE" });
 
   if (!response.ok && response.status !== 404) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("deleteSpaceRequest", response);
   }
 }
 
+/**
+ * Fetches the OpenClaw CR for the given namespace.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @returns the OpenClaw item, or undefined if it does not exist.
+ * @throws {ApiError} if the request fails with a non-404 status.
+ */
 export async function getOpenClaw(
   proxyURL: string,
   namespace: string,
@@ -263,12 +347,22 @@ export async function getOpenClaw(
 
   if (!response.ok) {
     if (response.status === 404) return undefined;
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("getOpenClaw", response);
   }
   return response.json();
 }
 
+/**
+ * Creates an OpenClaw instance with the provided credentials and configuration.
+ * Rolls back created secrets on failure.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @param credentials the LLM provider credentials to configure.
+ * @param disableDevicePairing whether to disable device pairing.
+ * @param workspace optional workspace configuration for k8s access.
+ * @param skills optional skill definitions to attach to the instance.
+ * @throws {ApiError} if the OpenClaw CR creation fails with a non-409 status.
+ */
 export async function createOpenClaw(
   proxyURL: string,
   namespace: string,
@@ -335,8 +429,7 @@ export async function createOpenClaw(
     });
 
     if (!clawResponse.ok && clawResponse.status !== 409) {
-      const error = await clawResponse.json();
-      throw new Error(errorMessage(error));
+      throw await ApiError.fromResponse("createOpenClaw", clawResponse);
     }
   } catch (err) {
     for (const name of createdSecrets) {
@@ -350,6 +443,12 @@ export async function createOpenClaw(
   }
 }
 
+/**
+ * Patches the OpenClaw CR to un-idle the instance.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @throws {ApiError} if the patch request fails.
+ */
 export async function unIdleOpenClaw(
   proxyURL: string,
   namespace: string,
@@ -362,11 +461,19 @@ export async function unIdleOpenClaw(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("unIdleOpenClaw", response);
   }
 }
 
+/**
+ * Deletes the OpenClaw CR and its associated secrets. Secret deletions are
+ * performed in parallel using best-effort semantics: all secrets are attempted
+ * regardless of individual failures, and 404 responses are treated as no-ops.
+ * @param proxyURL the base proxy URL.
+ * @param namespace the target namespace.
+ * @throws {ApiError} if deleting the CR itself fails with a non-404 status.
+ * @throws {AggregateError} if one or more secret deletions fail.
+ */
 export async function deleteOpenClawCR(
   proxyURL: string,
   namespace: string,
@@ -387,23 +494,32 @@ export async function deleteOpenClawCR(
   });
 
   if (!clawResponse.ok && clawResponse.status !== 404) {
-    const error = await clawResponse.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse("deleteOpenClawCR", clawResponse);
   }
 
-  for (const name of secretNames) {
-    const secretUrl = `/api/v1/namespaces/${namespace}/secrets/${name}`;
-    const secretResponse = await authFetch(`${proxyURL}${secretUrl}`, {
-      method: "DELETE",
-    });
+  const results = await Promise.allSettled(
+    [...secretNames].map((name) =>
+      deleteIfPresent(
+        `${proxyURL}/api/v1/namespaces/${namespace}/secrets/${name}`,
+        `secret ${name}`,
+      ),
+    ),
+  );
 
-    if (!secretResponse.ok && secretResponse.status !== 404) {
-      const error = await secretResponse.json();
-      throw new Error(errorMessage(error));
-    }
-  }
+  logAndAggregate(
+    results.filter((r): r is PromiseRejectedResult => r.status === "rejected"),
+    "deleteOpenClawCR: secret deletion",
+  );
 }
 
+/**
+ * Creates the workspace environment resources (service account, role bindings,
+ * network policy) required for OpenClaw to operate in the dev namespace.
+ * @param proxyURL the base proxy URL.
+ * @param devNamespace the development namespace to configure.
+ * @param clawNamespace the namespace where OpenClaw runs.
+ * @throws {ApiError} if any resource creation fails.
+ */
 export async function setupWorkspaceEnvironment(
   proxyURL: string,
   devNamespace: string,
@@ -413,15 +529,41 @@ export async function setupWorkspaceEnvironment(
   const rbUrl = `${proxyURL}/apis/rbac.authorization.k8s.io/v1/namespaces/${devNamespace}/rolebindings`;
   const npUrl = `${proxyURL}/apis/networking.k8s.io/v1/namespaces/${devNamespace}/networkpolicies`;
 
-  await createIfAbsent(saUrl, newServiceAccountObject(devNamespace));
+  await createIfAbsent(
+    saUrl,
+    newServiceAccountObject(devNamespace),
+    `service account ${SA_NAME}`,
+  );
 
   await Promise.all([
-    createIfAbsent(rbUrl, newEditRoleBindingObject(devNamespace)),
-    createIfAbsent(rbUrl, newRbacEditRoleBindingObject(devNamespace)),
-    createIfAbsent(npUrl, newNetworkPolicyObject(devNamespace, clawNamespace)),
+    createIfAbsent(
+      rbUrl,
+      newEditRoleBindingObject(devNamespace),
+      `role binding ${ROLEBINDING_EDIT_NAME}`,
+    ),
+    createIfAbsent(
+      rbUrl,
+      newRbacEditRoleBindingObject(devNamespace),
+      `role binding ${ROLEBINDING_RBAC_EDIT_NAME}`,
+    ),
+    createIfAbsent(
+      npUrl,
+      newNetworkPolicyObject(devNamespace, clawNamespace),
+      `network policy ${NETWORK_POLICY_NAME}`,
+    ),
   ]);
 }
 
+/**
+ * Generates a workspace kubeconfig and stores it as a secret in the claw namespace.
+ * Fetches a CA certificate (best-effort) and requests a short-lived token for the
+ * service account before building the kubeconfig.
+ * @param proxyURL the base proxy URL.
+ * @param devNamespace the development namespace containing the service account.
+ * @param clawNamespace the namespace where the kubeconfig secret is stored.
+ * @param apiEndpoint the Kubernetes API server endpoint for the kubeconfig.
+ * @throws {ApiError} if the token request or secret creation fails.
+ */
 export async function createWorkspaceKubeconfig(
   proxyURL: string,
   devNamespace: string,
@@ -451,8 +593,10 @@ export async function createWorkspaceKubeconfig(
   });
 
   if (!tokenResponse.ok) {
-    const error = await tokenResponse.json();
-    throw new Error(errorMessage(error));
+    throw await ApiError.fromResponse(
+      "createWorkspaceKubeconfig: token request failed",
+      tokenResponse,
+    );
   }
 
   const tokenData = await tokenResponse.json();
@@ -486,6 +630,13 @@ export async function createWorkspaceKubeconfig(
   );
 }
 
+/**
+ * Removes workspace environment resources (network policy, role bindings,
+ * service account) from the dev namespace.
+ * @param proxyURL the base proxy URL.
+ * @param devNamespace the development namespace to clean up.
+ * @throws {AggregateError} if one or more deletions fail.
+ */
 export async function cleanupWorkspaceEnvironment(
   proxyURL: string,
   devNamespace: string,
@@ -493,29 +644,24 @@ export async function cleanupWorkspaceEnvironment(
   const results = await Promise.allSettled([
     deleteIfPresent(
       `${proxyURL}/apis/networking.k8s.io/v1/namespaces/${devNamespace}/networkpolicies/${NETWORK_POLICY_NAME}`,
+      `network policy ${NETWORK_POLICY_NAME}`,
     ),
     deleteIfPresent(
       `${proxyURL}/apis/rbac.authorization.k8s.io/v1/namespaces/${devNamespace}/rolebindings/${ROLEBINDING_RBAC_EDIT_NAME}`,
+      `role binding ${ROLEBINDING_RBAC_EDIT_NAME}`,
     ),
     deleteIfPresent(
       `${proxyURL}/apis/rbac.authorization.k8s.io/v1/namespaces/${devNamespace}/rolebindings/${ROLEBINDING_EDIT_NAME}`,
+      `role binding ${ROLEBINDING_EDIT_NAME}`,
     ),
     deleteIfPresent(
       `${proxyURL}/api/v1/namespaces/${devNamespace}/serviceaccounts/${SA_NAME}`,
+      `service account ${SA_NAME}`,
     ),
   ]);
 
-  const failures = results.filter(
-    (r): r is PromiseRejectedResult => r.status === "rejected",
+  logAndAggregate(
+    results.filter((r): r is PromiseRejectedResult => r.status === "rejected"),
+    `Cleanup of namespace ${devNamespace}`,
   );
-
-  if (failures.length > 0) {
-    for (const f of failures) {
-      console.error(f.reason);
-    }
-    throw new AggregateError(
-      failures.map((f) => f.reason),
-      `Cleanup of namespace ${devNamespace} had ${failures.length} failure(s)`,
-    );
-  }
 }

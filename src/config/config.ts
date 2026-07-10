@@ -4,12 +4,14 @@
  * - A development environment where every call is mocked.
  * - A development environment which talks to a local Keycloak instance.
  * - A development environment which sends the requests directly to stage.
+ * - A stage environment.
  * - A production environment.
  */
 export enum Environment {
   DEVELOPMENT,
   DEVELOPMENT_KEYCLOAK,
   DEVELOPMENT_STAGE,
+  STAGE,
   PRODUCTION,
 }
 
@@ -54,6 +56,7 @@ export type AppConfig =
       environment: Environment.DEVELOPMENT_STAGE;
       auth: KeycloakConfigDevStage;
     })
+  | (AppConfigBase & { environment: Environment.STAGE; auth?: undefined })
   | (AppConfigBase & { environment: Environment.PRODUCTION; auth?: undefined });
 
 /**
@@ -151,6 +154,13 @@ export function getConfig(): AppConfig {
         },
       };
     }
+
+    case "stage":
+      return {
+        environment: Environment.STAGE,
+        registrationServiceURL,
+        recaptchaSiteKey,
+      };
 
     case "prod":
       return {

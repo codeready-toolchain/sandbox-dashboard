@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { UserStatus } from "../../../types";
 import { ProductType, type Product } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
@@ -32,10 +33,14 @@ function makeContext(
     ansibleUIUser: undefined,
     ansibleUIPassword: "",
     ansibleUILink: undefined,
-    ansibleError: null,
+    ansibleProvisioningErrorDetails: null,
     ansibleStatus: AnsibleStatus.NEW,
     openclawData: undefined,
-    openclawError: null,
+    openClawDeletionErrorDetails: null,
+    resetOpenClawDeletionErrorDetails: vi.fn(),
+    openClawProvisioningErrorDetails: null,
+    resetOpenClawProvisioningErrorDetails: vi.fn(),
+    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn(),
@@ -60,14 +65,16 @@ function renderCard(
   const defaultMarkTried = markProductAsTried ?? vi.fn();
 
   render(
-    <SandboxContext.Provider value={ctx}>
-      <OpenClawCatalogCard
-        product={openclawProduct}
-        isGreenCornerVisible={false}
-        ensureUserIsReady={defaultEnsureReady}
-        markProductAsTried={defaultMarkTried}
-      />
-    </SandboxContext.Provider>,
+    <NotificationProvider>
+      <SandboxContext.Provider value={ctx}>
+        <OpenClawCatalogCard
+          product={openclawProduct}
+          isGreenCornerVisible={false}
+          ensureUserIsReady={defaultEnsureReady}
+          markProductAsTried={defaultMarkTried}
+        />
+      </SandboxContext.Provider>
+    </NotificationProvider>,
   );
 
   return {
@@ -78,7 +85,7 @@ function renderCard(
 }
 
 describe("OpenClawCatalogCard", () => {
-  it("opens link and marks as tried when status is READY and link exists", async () => {
+  it("opens info modal (not direct link) when status is READY and link exists", async () => {
     const windowOpenSpy = vi
       .spyOn(window, "open")
       .mockImplementation(() => null);
@@ -95,12 +102,9 @@ describe("OpenClawCatalogCard", () => {
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(windowOpenSpy).toHaveBeenCalledWith(
-      "https://openclaw.example.com",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(markProductAsTried).toHaveBeenCalledWith(openclawProduct);
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+    expect(markProductAsTried).not.toHaveBeenCalled();
+    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
 
     windowOpenSpy.mockRestore();
   });

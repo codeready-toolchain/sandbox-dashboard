@@ -1,27 +1,85 @@
-import { useRef, useState, type FormEvent } from "react";
 import {
-  Modal,
-  ModalBody,
-  ModalHeader,
-  ModalFooter,
+  Alert,
   Button,
+  Content,
   Form,
   FormGroup,
-  TextInput,
-  Alert,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
   Spinner,
-  Content,
+  TextInput,
 } from "@patternfly/react-core";
+import { useRef, useState, type FormEvent } from "react";
 import {
-  initiatePhoneVerification,
   completePhoneVerification,
+  initiatePhoneVerification,
 } from "../../api/registration";
+import { SUPPORT_EMAIL } from "../../const";
+import { ApiError } from "../../error/ApiError";
+import { mapApiErrorMessage } from "../../error/mapApiErrorMessage";
+import logger from "../../utils/logger";
 import {
   isValidCountryCode,
-  isValidPhoneNumber,
   isValidOTP,
+  isValidPhoneNumber,
 } from "../../utils/phone-utils";
-import { errorMessage } from "../../utils/common";
+
+const PHONE_FALLBACK = `Unable to verify your phone number. Please contact ${SUPPORT_EMAIL}`;
+
+const PHONE_SUBMIT_ERROR_RULES = [
+  {
+    match: "Invalid 'To' Phone Number",
+    message:
+      "Invalid phone number. Please verify the country code and number format, then try again.",
+  },
+  {
+    match: "'To' number cannot be a Short Code:",
+    message:
+      "Invalid phone number. Please verify the country code and number format, then try again.",
+  },
+  {
+    match: "Message cannot be sent with the current combination of 'To'",
+    message:
+      "Invalid phone number. Please verify the country code and number format, then try again.",
+  },
+  {
+    match: "is not a valid mobile number",
+    message:
+      "Invalid phone number. Please verify the country code and number format, then try again.",
+  },
+  {
+    match: "phone number already in use",
+    message:
+      "This phone number is already in use. Please use a different number.",
+  },
+] as const;
+
+const CODE_SUBMIT_ERROR_RULES = [
+  {
+    match: "the provided code is invalid",
+    message:
+      "The verification code you entered is incorrect. Please try again.",
+  },
+  {
+    match: "verification code expired",
+    message: "Your verification code has expired. Please request a new one.",
+  },
+  {
+    match: "phone number already in use",
+    message: "This phone number is already in use by another account.",
+  },
+  {
+    match: "too many verification attempts",
+    message: "Too many verification attempts. Please try again later.",
+  },
+  {
+    match: "verification is not available at this time",
+    message:
+      "Verification is not available at this time. Please try again later.",
+  },
+] as const;
 
 type PhoneVerificationModalProps = {
   isOpen: boolean;
@@ -80,13 +138,24 @@ export function PhoneVerificationModal({
       await initiatePhoneVerification(countryCode, phoneNumber);
       setStep("code");
     } catch (err) {
-      setError(errorMessage(err));
+      if (err instanceof ApiError) {
+        setError(
+          mapApiErrorMessage(err, PHONE_SUBMIT_ERROR_RULES, PHONE_FALLBACK),
+        );
+      } else {
+        logger.error("Unexpected error when verifying the phone number", err);
+        setError(PHONE_FALLBACK);
+      }
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
+  /**
+   * Handles the OTP code submitting flow.
+   * @param e the triggered event.
+   */
   const handleCodeSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (inFlightRef.current) {
@@ -107,7 +176,17 @@ export function PhoneVerificationModal({
       resetState();
       onVerified();
     } catch (err) {
-      setError(errorMessage(err));
+      if (err instanceof ApiError) {
+        setError(
+          mapApiErrorMessage(err, CODE_SUBMIT_ERROR_RULES, PHONE_FALLBACK),
+        );
+      } else {
+        logger.error(
+          "Unexpected error when completing the phone verification process",
+          err,
+        );
+        setError(PHONE_FALLBACK);
+      }
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { UserStatus } from "../../../types";
 import { ProductType, type Product } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
@@ -32,10 +33,14 @@ function makeContext(
     ansibleUIUser: "admin",
     ansibleUIPassword: "secret123",
     ansibleUILink: "https://aap.example.com",
-    ansibleError: null,
+    ansibleProvisioningErrorDetails: null,
     ansibleStatus: AnsibleStatus.READY,
     openclawData: undefined,
-    openclawError: null,
+    openClawDeletionErrorDetails: null,
+    resetOpenClawDeletionErrorDetails: vi.fn(),
+    openClawProvisioningErrorDetails: null,
+    resetOpenClawProvisioningErrorDetails: vi.fn(),
+    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn(),
@@ -60,14 +65,16 @@ function renderCard(
   const defaultMarkTried = markProductAsTried ?? vi.fn();
 
   render(
-    <SandboxContext.Provider value={ctx}>
-      <AnsibleCatalogCard
-        product={aapProduct}
-        isGreenCornerVisible={false}
-        ensureUserIsReady={defaultEnsureReady}
-        markProductAsTried={defaultMarkTried}
-      />
-    </SandboxContext.Provider>,
+    <NotificationProvider>
+      <SandboxContext.Provider value={ctx}>
+        <AnsibleCatalogCard
+          product={aapProduct}
+          isGreenCornerVisible={false}
+          ensureUserIsReady={defaultEnsureReady}
+          markProductAsTried={defaultMarkTried}
+        />
+      </SandboxContext.Provider>
+    </NotificationProvider>,
   );
 
   return {

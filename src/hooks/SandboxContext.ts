@@ -25,12 +25,32 @@ export interface SandboxContextType {
   ansibleUIUser: string | undefined;
   ansibleUIPassword: string;
   ansibleUILink: string | undefined;
-  ansibleError: string | null;
+  /**
+   * Contains the raw condition message for when the provisioning the AAP
+   * instance fails.
+   */
+  ansibleProvisioningErrorDetails: string | null;
   ansibleStatus: AnsibleStatus;
   openclawData: OpenClawItem | undefined;
-  openclawError: string | null;
+  /**
+   * Contains the raw error message when deleting the OPenClaw instance fails.
+   */
+  openClawDeletionErrorDetails: string | null;
+  /**
+   * Resets the OpenClaw deletion error details.
+   */
+  resetOpenClawDeletionErrorDetails: () => void;
+  /**
+   * Contains the raw error message when provisioning the OpenClaw instance
+   * fails.
+   */
+  openClawProvisioningErrorDetails: string | null;
+  /** Resets the OpenClaw provisioning error details. */
+  resetOpenClawProvisioningErrorDetails: () => void;
   openclawStatus: OpenClawStatus;
   openclawUILink: string | undefined;
+  /** Resets the AAP provisioning error details. */
+  resetAnsibleProvisioningErrorDetails: () => void;
   handleOpenClawInstance: (
     userNamespace: string,
     credentials?: AddedCredential[],

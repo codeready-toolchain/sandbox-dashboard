@@ -1,23 +1,30 @@
 import { Environment, getConfig } from "../config/config";
-import type { CommonResponse, SignupData, UIConfig } from "../types";
-import { isValidCountryCode, isValidPhoneNumber } from "../utils/phone-utils";
+import { ApiError } from "../error/ApiError";
+import type { SignupData, UIConfig } from "../types";
+import logger from "../utils/logger";
 import { authFetch } from "./authFetch";
 
 function getBaseURL(): string {
   return `${getConfig().registrationServiceURL}/api/v1`;
 }
 
+/**
+ * Fetches the user's signup data.
+ * @returns the signup data or `undefined` if we get a "not found" error.
+ * @throws {ApiError} if any errors occur.
+ */
 export async function getSignupData(): Promise<SignupData | undefined> {
   const response = await authFetch(`${getBaseURL()}/signup`, {
     method: "GET",
   });
   if (!response.ok) {
     if (response.status === 404) {
+      // It is fine for the user to not exist in our systems, since that means
+      // that there is not a user signup yet.
       return undefined;
     }
-    throw new Error(
-      `Unexpected status code: ${response.status} ${response.statusText}`,
-    );
+
+    throw await ApiError.fromResponse("getSignupData failed", response);
   }
   return response.json();
 }
@@ -28,29 +35,38 @@ export async function getRecaptchaToken(): Promise<string> {
     let timeout = false;
     const captchaTimeout = setTimeout(() => {
       timeout = true;
+      logger.error("Recaptcha timed out");
       reject(new Error("Recaptcha timeout."));
     }, 10000);
     if (grecaptcha?.enterprise) {
       grecaptcha.enterprise.ready(async () => {
         if (!timeout) {
-          clearTimeout(captchaTimeout);
           try {
-            resolve(
-              await grecaptcha.enterprise.execute(apiKey, {
-                action: "SIGNUP",
-              }),
-            );
-          } catch {
+            const token = await grecaptcha.enterprise.execute(apiKey, {
+              action: "SIGNUP",
+            });
+            clearTimeout(captchaTimeout);
+            resolve(token);
+          } catch (error) {
+            clearTimeout(captchaTimeout);
+            logger.error("Unable to resolve the recaptcha", error);
             reject(new Error("Recaptcha failure."));
           }
         }
       });
     } else {
+      clearTimeout(captchaTimeout);
+      logger.error("Not using recaptcha enterprise");
       reject(new Error("Recaptcha failure."));
     }
   });
 }
 
+/**
+ * Creates a user signup for the user in the back end.
+ * @throws {Error} for a recaptcha error.
+ * @throws {ApiError} if the creation of the signup fails.
+ */
 export async function signup(): Promise<void> {
   const env = getConfig().environment;
   const headers: Record<string, string> = {};
@@ -65,24 +81,28 @@ export async function signup(): Promise<void> {
     }
   }
 
-  await authFetch(`${getBaseURL()}/signup`, {
+  const response = await authFetch(`${getBaseURL()}/signup`, {
     method: "POST",
     headers,
     body: null,
   });
+
+  if (!response.ok) {
+    throw await ApiError.fromResponse("signup failed", response);
+  }
 }
 
+/**
+ * Initiates the phone verification flow.
+ * @param countryCode the country code of the phone number.
+ * @param phoneNumber the phone number itself.
+ * @throws {ApiError} if any error occurs, including country code or phone
+ * number input errors.
+ */
 export async function initiatePhoneVerification(
   countryCode: string,
   phoneNumber: string,
 ): Promise<void> {
-  if (!isValidCountryCode(countryCode)) {
-    throw new Error("Invalid country code.");
-  }
-  if (!isValidPhoneNumber(phoneNumber)) {
-    throw new Error("Invalid phone number.");
-  }
-
   const response = await authFetch(`${getBaseURL()}/signup/verification`, {
     method: "PUT",
     body: JSON.stringify({
@@ -92,28 +112,17 @@ export async function initiatePhoneVerification(
   });
 
   if (!response.ok) {
-    const error: CommonResponse = await response.json();
-    if (
-      error?.message.includes("Invalid 'To' Phone Number") ||
-      error?.message.includes("'To' number cannot be a Short Code:") ||
-      error?.message.includes(
-        "Message cannot be sent with the current combination of 'To'",
-      ) ||
-      error?.message.includes("is not a valid mobile number")
-    ) {
-      throw new Error(
-        "Invalid phone number. Please verify the country code and number format, then try again.",
-      );
-    } else if (error?.message.includes("phone number already in use")) {
-      throw new Error(
-        "This phone number is already in use. Please use a different number.",
-      );
-    } else {
-      throw new Error(error?.message);
-    }
+    throw await ApiError.fromResponse(
+      "initiatePhoneVerification failed",
+      response,
+    );
   }
 }
 
+/**
+ * Completes the phone verification process.
+ * @param code the code the user entered.
+ */
 export async function completePhoneVerification(code: string): Promise<void> {
   const response = await authFetch(
     `${getBaseURL()}/signup/verification/${code}`,
@@ -121,11 +130,17 @@ export async function completePhoneVerification(code: string): Promise<void> {
   );
 
   if (!response.ok) {
-    const error: CommonResponse = await response.json();
-    throw new Error(error?.message);
+    throw await ApiError.fromResponse(
+      "completePhoneVerification failed",
+      response,
+    );
   }
 }
 
+/**
+ * Verifies the activation code for groups or special events.
+ * @param code the code provided by the user.
+ */
 export async function verifyActivationCode(code: string): Promise<void> {
   const response = await authFetch(
     `${getBaseURL()}/signup/verification/activation-code`,
@@ -136,8 +151,7 @@ export async function verifyActivationCode(code: string): Promise<void> {
   );
 
   if (!response.ok) {
-    const error: CommonResponse = await response.json();
-    throw new Error(error?.message);
+    throw await ApiError.fromResponse("verifyActivationCode failed", response);
   }
 }
 
@@ -155,6 +169,10 @@ export async function getSegmentWriteKey(): Promise<string> {
   return writeKey.trim();
 }
 
+/**
+ * Fetches the UI configuration from the back end.
+ * @returns the populated UI configuration or an empty one in case of error.
+ */
 export async function getUIConfig(): Promise<UIConfig> {
   try {
     const response = await authFetch(`${getBaseURL()}/uiconfig`, {
@@ -162,6 +180,14 @@ export async function getUIConfig(): Promise<UIConfig> {
     });
 
     if (!response.ok) {
+      // We purposely do not throw the error to take advantage of the error
+      // structure's safe body unmarshalling and logging mechanisms, instead
+      // of having a manual log and the safe unmarshalling dance.
+      await ApiError.fromResponse(
+        "Unexpected error when fetching the UI configuration",
+        response,
+      );
+
       return {};
     }
 
@@ -171,27 +197,17 @@ export async function getUIConfig(): Promise<UIConfig> {
   }
 }
 
+/**
+ * Resets the user's workspaces by requesting the backend to delete and
+ * recreate the namespaces.
+ * @throws {ApiError} if the reset request fails.
+ */
 export async function resetWorkspaces(): Promise<void> {
-  const genericError =
-    "Unable to reset your workspaces. Please, try again later, and if your issue persists, contact support at devsandbox@redhat.com";
-
-  let response: Response;
-  try {
-    response = await authFetch(`${getBaseURL()}/reset-namespaces`, {
-      method: "POST",
-    });
-  } catch {
-    throw new Error(genericError);
-  }
+  const response = await authFetch(`${getBaseURL()}/reset-namespaces`, {
+    method: "POST",
+  });
 
   if (!response.ok) {
-    let details: string | undefined;
-    try {
-      const body: CommonResponse = await response.json();
-      details = body?.details;
-    } catch {
-      // JSON parsing failed
-    }
-    throw new Error(details || genericError);
+    throw await ApiError.fromResponse("resetWorkspaces failed", response);
   }
 }

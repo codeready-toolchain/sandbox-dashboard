@@ -4,6 +4,7 @@ import { act } from "react";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import type { SignupData } from "../../../types";
 import { UserStatus } from "../../../types";
 import { ProductType } from "../../../types/product";
@@ -31,10 +32,14 @@ function makeContext(
     ansibleUIUser: undefined,
     ansibleUIPassword: "",
     ansibleUILink: undefined,
-    ansibleError: null,
+    ansibleProvisioningErrorDetails: null,
     ansibleStatus: AnsibleStatus.NEW,
     openclawData: undefined,
-    openclawError: null,
+    openClawDeletionErrorDetails: null,
+    resetOpenClawDeletionErrorDetails: vi.fn(),
+    openClawProvisioningErrorDetails: null,
+    resetOpenClawProvisioningErrorDetails: vi.fn(),
+    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn(),
@@ -42,6 +47,16 @@ function makeContext(
     disabledIntegrations: [],
     ...overrides,
   };
+}
+
+function renderGrid(ctx: SandboxContextType) {
+  return render(
+    <NotificationProvider>
+      <SandboxContext.Provider value={ctx}>
+        <CatalogGrid />
+      </SandboxContext.Provider>
+    </NotificationProvider>,
+  );
 }
 
 function getOpenShiftCardWithButton(): {
@@ -74,48 +89,29 @@ describe("CatalogGrid", () => {
   });
 
   it("renders nothing while disabledIntegrations is undefined", () => {
-    const { container } = render(
-      <SandboxContext.Provider
-        value={makeContext({ disabledIntegrations: undefined })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
-    expect(container.innerHTML).toBe("");
+    renderGrid(makeContext({ disabledIntegrations: undefined }));
+    expect(screen.queryAllByTestId("catalog-card")).toHaveLength(0);
+    expect(screen.queryByTestId("sandbox-catalog-grid")).toBeNull();
   });
 
   it("renders all product cards when no integrations are disabled", () => {
-    render(
-      <SandboxContext.Provider value={makeContext()}>
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext());
     const cards = screen.getAllByTestId("catalog-card");
     expect(cards).toHaveLength(products.length);
   });
 
   it("filters out disabled integrations", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({
-          disabledIntegrations: [products[0].type],
-        })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
+    renderGrid(
+      makeContext({
+        disabledIntegrations: [products[0].type],
+      }),
     );
     const cards = screen.getAllByTestId("catalog-card");
     expect(cards).toHaveLength(products.length - 1);
   });
 
   it("does not show delete button when OpenClaw status is UNKNOWN", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.UNKNOWN })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.UNKNOWN }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -127,13 +123,7 @@ describe("CatalogGrid", () => {
   });
 
   it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is DELETING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.DELETING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.DELETING }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -153,13 +143,7 @@ describe("CatalogGrid", () => {
   });
 
   it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is TERMINATING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.TERMINATING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.TERMINATING }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -178,13 +162,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows 'Provisioning...' on main button when OpenClaw status is PROVISIONING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.PROVISIONING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.PROVISIONING }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -198,13 +176,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows 'Provision' on AAP card when ansibleStatus is NEW", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.NEW })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.NEW }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -221,13 +193,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows 'Provisioning...' on AAP card when ansibleStatus is PROVISIONING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -243,13 +209,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows 'Launch' on AAP card when ansibleStatus is READY", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.READY })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.READY }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -265,13 +225,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows 'Re-provision' on AAP card when ansibleStatus is IDLED", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.IDLED })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.IDLED }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -287,13 +241,7 @@ describe("CatalogGrid", () => {
   });
 
   it("hides delete button on AAP card when ansibleStatus is NEW", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.NEW })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.NEW }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -307,13 +255,7 @@ describe("CatalogGrid", () => {
   });
 
   it("hides delete button on AAP card when ansibleStatus is NOT_DEPLOYED", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.NOT_DEPLOYED })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.NOT_DEPLOYED }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -327,13 +269,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows delete button on AAP card when ansibleStatus is READY", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.READY })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.READY }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -347,13 +283,7 @@ describe("CatalogGrid", () => {
   });
 
   it("shows delete button on AAP card when ansibleStatus is PROVISIONING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -367,13 +297,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders 'Ready' status label on OpenClaw card when status is READY", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.READY })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.READY }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -388,13 +312,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders 'Idled' status label on OpenClaw card when status is IDLED", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.IDLED })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.IDLED }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -409,13 +327,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders 'Failed' status label and 'Provision' button on OpenClaw card when status is FAILED", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.FAILED })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.FAILED }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -435,13 +347,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders 'Deleting' status label on OpenClaw card when status is DELETING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.DELETING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.DELETING }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -451,13 +357,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders 'Ready' status label on AAP card when ansibleStatus is READY", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.READY })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.READY }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -469,13 +369,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders 'Provisioning' status label on AAP card when ansibleStatus is PROVISIONING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING }));
 
     const aapCard = screen
       .getAllByTestId("catalog-card")
@@ -487,15 +381,11 @@ describe("CatalogGrid", () => {
   });
 
   it("shows default 'Try it' button on non-AAP/non-OpenClaw products regardless of statuses", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({
-          ansibleStatus: AnsibleStatus.READY,
-          openclawStatus: OpenClawStatus.READY,
-        })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
+    renderGrid(
+      makeContext({
+        ansibleStatus: AnsibleStatus.READY,
+        openclawStatus: OpenClawStatus.READY,
+      }),
     );
 
     const { card: openshiftCard, tryItButton: mainButton } =
@@ -511,13 +401,7 @@ describe("CatalogGrid", () => {
   });
 
   it("does not disable the main button when OpenClaw status is PROVISIONING", () => {
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ openclawStatus: OpenClawStatus.PROVISIONING })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.PROVISIONING }));
 
     const openclawCard = screen
       .getAllByTestId("catalog-card")
@@ -535,11 +419,7 @@ describe("CatalogGrid", () => {
       .spyOn(window, "open")
       .mockImplementation(() => null);
 
-    render(
-      <SandboxContext.Provider value={makeContext()}>
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext());
 
     const { tryItButton } = getOpenShiftCardWithButton();
 
@@ -556,13 +436,7 @@ describe("CatalogGrid", () => {
       .spyOn(window, "open")
       .mockImplementation(() => null);
 
-    render(
-      <SandboxContext.Provider
-        value={makeContext({ verificationRequired: true, userReady: false })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
-    );
+    renderGrid(makeContext({ verificationRequired: true, userReady: false }));
 
     const { tryItButton } = getOpenShiftCardWithButton();
 
@@ -585,21 +459,17 @@ describe("CatalogGrid", () => {
     const refetchUserData = vi.fn().mockResolvedValue(freshUserData);
     const signupUser = vi.fn().mockResolvedValue(undefined);
 
-    const ctx = makeContext({
-      userStatus: UserStatus.NEW,
-      userReady: false,
-      userFound: false,
-      userData: undefined,
-      signupUser,
-      refetchUserData,
-      handleAAPInstance,
-      disabledIntegrations: [],
-    });
-
-    render(
-      <SandboxContext.Provider value={ctx}>
-        <CatalogGrid />
-      </SandboxContext.Provider>,
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        refetchUserData,
+        handleAAPInstance,
+        disabledIntegrations: [],
+      }),
     );
 
     const aapCard = products.find((p) => p.type === ProductType.AAP);
@@ -638,20 +508,16 @@ describe("CatalogGrid", () => {
       status: { ready: true, reason: "", verificationRequired: false },
     });
 
-    render(
-      <SandboxContext.Provider
-        value={makeContext({
-          userStatus: UserStatus.NEW,
-          userReady: false,
-          userFound: false,
-          userData: undefined,
-          signupUser,
-          refetchUserData,
-          disabledIntegrations: [],
-        })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        refetchUserData,
+        disabledIntegrations: [],
+      }),
     );
 
     const { tryItButton } = getOpenShiftCardWithButton();
@@ -681,20 +547,16 @@ describe("CatalogGrid", () => {
       status: { ready: true, reason: "", verificationRequired: false },
     });
 
-    render(
-      <SandboxContext.Provider
-        value={makeContext({
-          userStatus: UserStatus.NEW,
-          userReady: false,
-          userFound: false,
-          userData: undefined,
-          signupUser,
-          refetchUserData,
-          disabledIntegrations: [],
-        })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        refetchUserData,
+        disabledIntegrations: [],
+      }),
     );
 
     const { tryItButton } = getOpenShiftCardWithButton();
@@ -718,24 +580,122 @@ describe("CatalogGrid", () => {
     windowOpenSpy.mockRestore();
   });
 
+  it("shows alert and returns not-ready when polling rejects after signup", async () => {
+    const signupUser = vi.fn().mockResolvedValue(undefined);
+    const refetchUserData = vi
+      .fn()
+      .mockRejectedValue(new Error("Network failure"));
+
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        refetchUserData,
+        disabledIntegrations: [],
+      }),
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tryItButton);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "We were unable to confirm your Developer Sandbox account status, please try again later.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    windowOpenSpy.mockRestore();
+  });
+
+  it("shows generic alert when signupUser throws a non-UserFacingError", async () => {
+    const signupUser = vi
+      .fn()
+      .mockRejectedValue(new TypeError("unexpected failure"));
+
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        disabledIntegrations: [],
+      }),
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tryItButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "We were unable to set up your Developer Sandbox account in our systems, please try again later.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows user-facing alert when signupUser throws a UserFacingError", async () => {
+    const { UserFacingError } = await import("../../../error/UserFacingError");
+    const signupUser = vi
+      .fn()
+      .mockRejectedValue(
+        new UserFacingError("Custom title", "Custom description"),
+      );
+
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        disabledIntegrations: [],
+      }),
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(tryItButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Custom description")).toBeInTheDocument();
+    });
+  });
+
   it("resets the in-flight guard even when signup polling exhausts all attempts", async () => {
     const signupUser = vi.fn().mockResolvedValue(undefined);
     const refetchUserData = vi.fn().mockResolvedValue(null);
 
-    render(
-      <SandboxContext.Provider
-        value={makeContext({
-          userStatus: UserStatus.NEW,
-          userReady: false,
-          userFound: false,
-          userData: undefined,
-          signupUser,
-          refetchUserData,
-          disabledIntegrations: [],
-        })}
-      >
-        <CatalogGrid />
-      </SandboxContext.Provider>,
+    renderGrid(
+      makeContext({
+        userStatus: UserStatus.NEW,
+        userReady: false,
+        userFound: false,
+        userData: undefined,
+        signupUser,
+        refetchUserData,
+        disabledIntegrations: [],
+      }),
     );
 
     const { tryItButton } = getOpenShiftCardWithButton();
