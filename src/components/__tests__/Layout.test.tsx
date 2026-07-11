@@ -10,7 +10,6 @@ import {
   SandboxContext,
   type SandboxContextType,
 } from "../../hooks/SandboxContext";
-import { OpenClawStatus } from "../../utils/openclaw-utils";
 import { readyUserFixture } from "../../mocks/fixtures";
 import { UserStatus } from "../../types";
 
@@ -38,15 +37,6 @@ function makeSandboxContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    openclawData: undefined,
-    openClawDeletionErrorDetails: null,
-    resetOpenClawDeletionErrorDetails: vi.fn(),
-    openClawProvisioningErrorDetails: null,
-    resetOpenClawProvisioningErrorDetails: vi.fn(),
-    openclawStatus: OpenClawStatus.NEW,
-    openclawUILink: undefined,
-    handleOpenClawInstance: vi.fn(),
-    deleteOpenClaw: vi.fn(),
     disabledIntegrations: [],
     ...overrides,
   };

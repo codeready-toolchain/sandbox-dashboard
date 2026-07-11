@@ -9,7 +9,6 @@ import {
   type Product,
   type URLTemplateVars,
 } from "../../types/product";
-import { OpenClawStatus } from "../../utils/openclaw-utils";
 import type { SandboxContextType } from "../SandboxContext";
 import { SandboxContext } from "../SandboxContext";
 import useProductURLResolver from "../useProductURLResolver";
@@ -27,15 +26,6 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn().mockResolvedValue(undefined),
     signupUser: vi.fn(),
-    openclawData: undefined,
-    openClawDeletionErrorDetails: null,
-    resetOpenClawDeletionErrorDetails: vi.fn(),
-    openClawProvisioningErrorDetails: null,
-    resetOpenClawProvisioningErrorDetails: vi.fn(),
-    openclawStatus: OpenClawStatus.UNKNOWN,
-    openclawUILink: undefined,
-    handleOpenClawInstance: vi.fn().mockResolvedValue(false),
-    deleteOpenClaw: vi.fn().mockResolvedValue(undefined),
     disabledIntegrations: [],
     ...overrides,
   };

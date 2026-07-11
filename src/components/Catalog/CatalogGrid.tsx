@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
 import { UserFacingError } from "../../error/UserFacingError";
 import { AnsibleProvider } from "../../hooks/AnsibleProvider";
+import { OpenClawProvider } from "../../hooks/OpenClawProvider";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import useProductURLResolver from "../../hooks/useProductURLResolver";
 import useTriedProducts from "../../hooks/useTriedProducts";
@@ -254,12 +255,14 @@ export function CatalogGrid() {
                   key={product.type}
                   className="sandbox-catalog-card-wrapper"
                 >
-                  <OpenClawCatalogCard
-                    product={product}
-                    isGreenCornerVisible={isProductTried(product)}
-                    ensureUserIsReady={ensureUserIsReady}
-                    markProductAsTried={markProductAsTried}
-                  />
+                  <OpenClawProvider>
+                    <OpenClawCatalogCard
+                      product={product}
+                      isGreenCornerVisible={isProductTried(product)}
+                      ensureUserIsReady={ensureUserIsReady}
+                      markProductAsTried={markProductAsTried}
+                    />
+                  </OpenClawProvider>
                 </div>
               );
             default:

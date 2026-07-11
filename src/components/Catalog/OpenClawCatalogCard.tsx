@@ -1,6 +1,7 @@
 import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
+import { useOpenClawContext } from "../../hooks/OpenClawContext";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
@@ -91,6 +92,7 @@ export function OpenClawCatalogCard({
   ensureUserIsReady,
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
+  const { userData } = useSandboxContext();
   const {
     deleteOpenClaw,
     handleOpenClawInstance,
@@ -100,8 +102,7 @@ export function OpenClawCatalogCard({
     openClawProvisioningErrorDetails,
     resetOpenClawDeletionErrorDetails,
     resetOpenClawProvisioningErrorDetails,
-    userData,
-  } = useSandboxContext();
+  } = useOpenClawContext();
 
   const { addAlert, addAlertFromError } = useNotifications();
 
