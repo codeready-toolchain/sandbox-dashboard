@@ -1,5 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
+import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
@@ -9,11 +11,12 @@ import { ProductType, type Product } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { OpenClawCatalogCard } from "../OpenClawCatalogCard";
+import { makeOpenClawContext } from "./openClawTestHelpers";
 import { products } from "../productData";
 
 const openclawProduct = products.find((p) => p.type === ProductType.OPENCLAW)!;
 
-function makeContext(
+function makeSandboxContext(
   overrides: Partial<SandboxContextType> = {},
 ): SandboxContextType {
   return {
@@ -26,26 +29,19 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    openclawData: undefined,
-    openClawDeletionErrorDetails: null,
-    resetOpenClawDeletionErrorDetails: vi.fn(),
-    openClawProvisioningErrorDetails: null,
-    resetOpenClawProvisioningErrorDetails: vi.fn(),
-    openclawStatus: OpenClawStatus.NEW,
-    openclawUILink: undefined,
-    handleOpenClawInstance: vi.fn(),
-    deleteOpenClaw: vi.fn(),
     disabledIntegrations: [],
     ...overrides,
   };
 }
 
 function renderCard(
-  contextOverrides: Partial<SandboxContextType> = {},
+  openClawOverrides: Partial<OpenClawContextType> = {},
   ensureUserIsReady?: () => Promise<EnsureUserIsReadyResult>,
   markProductAsTried?: (product: Product) => void,
+  sandboxOverrides: Partial<SandboxContextType> = {},
 ) {
-  const ctx = makeContext(contextOverrides);
+  const sandboxCtx = makeSandboxContext(sandboxOverrides);
+  const openClawCtx = makeOpenClawContext(openClawOverrides);
   const defaultEnsureReady =
     ensureUserIsReady ??
     vi.fn().mockResolvedValue({
@@ -56,19 +52,22 @@ function renderCard(
 
   render(
     <NotificationProvider>
-      <SandboxContext.Provider value={ctx}>
-        <OpenClawCatalogCard
-          product={openclawProduct}
-          isGreenCornerVisible={false}
-          ensureUserIsReady={defaultEnsureReady}
-          markProductAsTried={defaultMarkTried}
-        />
+      <SandboxContext.Provider value={sandboxCtx}>
+        <OpenClawContext.Provider value={openClawCtx}>
+          <OpenClawCatalogCard
+            product={openclawProduct}
+            isGreenCornerVisible={false}
+            ensureUserIsReady={defaultEnsureReady}
+            markProductAsTried={defaultMarkTried}
+          />
+        </OpenClawContext.Provider>
       </SandboxContext.Provider>
     </NotificationProvider>,
   );
 
   return {
-    ctx,
+    sandboxCtx,
+    openClawCtx,
     ensureUserIsReady: defaultEnsureReady,
     markProductAsTried: defaultMarkTried,
   };
@@ -248,8 +247,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("does not render modals when userData is missing proxyURL", () => {
-    renderCard({
-      openclawStatus: OpenClawStatus.READY,
+    renderCard({ openclawStatus: OpenClawStatus.READY }, undefined, undefined, {
       userData: { ...readyUserFixture, proxyURL: "" },
     });
 
