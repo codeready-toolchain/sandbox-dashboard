@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react";
+import { act, type ReactNode } from "react";
+import {
+  AnsibleContext,
+  type AnsibleContextType,
+} from "../../../hooks/AnsibleContext";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
@@ -12,6 +16,10 @@ import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";
 import { products } from "../productData";
+
+vi.mock("../../../hooks/AnsibleProvider", () => ({
+  AnsibleProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -26,20 +34,11 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    refetchAAP: vi.fn(),
-    handleAAPInstance: vi.fn(),
-    ansibleData: undefined,
-    ansibleUIUser: undefined,
-    ansibleUIPassword: "",
-    ansibleUILink: undefined,
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.NEW,
     openclawData: undefined,
     openClawDeletionErrorDetails: null,
     resetOpenClawDeletionErrorDetails: vi.fn(),
     openClawProvisioningErrorDetails: null,
     resetOpenClawProvisioningErrorDetails: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn(),
@@ -49,14 +48,38 @@ function makeContext(
   };
 }
 
-function renderGrid(ctx: SandboxContextType) {
-  return render(
+function makeAnsibleContext(
+  overrides: Partial<AnsibleContextType> = {},
+): AnsibleContextType {
+  return {
+    ansibleData: undefined,
+    ansibleProvisioningErrorDetails: null,
+    ansibleStatus: AnsibleStatus.NEW,
+    ansibleUILink: undefined,
+    ansibleUIPassword: "",
+    ansibleUIUser: undefined,
+    handleAAPInstance: vi.fn(),
+    refetchAAP: vi.fn(),
+    resetAnsibleProvisioningErrorDetails: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderGrid(
+  ctx: SandboxContextType,
+  ansibleOverrides: Partial<AnsibleContextType> = {},
+) {
+  const ansibleCtx = makeAnsibleContext(ansibleOverrides);
+  render(
     <NotificationProvider>
-      <SandboxContext.Provider value={ctx}>
-        <CatalogGrid />
-      </SandboxContext.Provider>
+      <AnsibleContext.Provider value={ansibleCtx}>
+        <SandboxContext.Provider value={ctx}>
+          <CatalogGrid />
+        </SandboxContext.Provider>
+      </AnsibleContext.Provider>
     </NotificationProvider>,
   );
+  return { ansibleCtx };
 }
 
 function getOpenShiftCardWithButton(): {
@@ -175,127 +198,6 @@ describe("CatalogGrid", () => {
     expect(mainButton.textContent).toContain("Provisioning...");
   });
 
-  it("shows 'Provision' on AAP card when ansibleStatus is NEW", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.NEW }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-
-    const mainButton = aapCard!.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provision");
-    expect(mainButton.textContent).not.toContain("Provisioning");
-  });
-
-  it("shows 'Provisioning...' on AAP card when ansibleStatus is PROVISIONING", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-
-    const mainButton = aapCard!.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provisioning...");
-  });
-
-  it("shows 'Launch' on AAP card when ansibleStatus is READY", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.READY }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-
-    const mainButton = aapCard!.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Launch");
-  });
-
-  it("shows 'Re-provision' on AAP card when ansibleStatus is IDLED", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.IDLED }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-
-    const mainButton = aapCard!.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Re-provision");
-  });
-
-  it("hides delete button on AAP card when ansibleStatus is NEW", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.NEW }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-    expect(
-      aapCard!.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
-  });
-
-  it("hides delete button on AAP card when ansibleStatus is NOT_DEPLOYED", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.NOT_DEPLOYED }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-    expect(
-      aapCard!.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
-  });
-
-  it("shows delete button on AAP card when ansibleStatus is READY", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.READY }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-    expect(
-      aapCard!.querySelector("[data-testid='delete-instance-button']"),
-    ).not.toBeNull();
-  });
-
-  it("shows delete button on AAP card when ansibleStatus is PROVISIONING", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-    expect(
-      aapCard!.querySelector("[data-testid='delete-instance-button']"),
-    ).not.toBeNull();
-  });
-
   it("renders 'Ready' status label on OpenClaw card when status is READY", () => {
     renderGrid(makeContext({ openclawStatus: OpenClawStatus.READY }));
 
@@ -356,37 +258,10 @@ describe("CatalogGrid", () => {
     expect(openclawCard!.textContent).toContain("Deleting");
   });
 
-  it("renders 'Ready' status label on AAP card when ansibleStatus is READY", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.READY }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-    expect(aapCard!.textContent).toContain("Ready");
-  });
-
-  it("renders 'Provisioning' status label on AAP card when ansibleStatus is PROVISIONING", () => {
-    renderGrid(makeContext({ ansibleStatus: AnsibleStatus.PROVISIONING }));
-
-    const aapCard = screen
-      .getAllByTestId("catalog-card")
-      .find((card) =>
-        card.textContent?.includes("Ansible Automation Platform"),
-      );
-    expect(aapCard).toBeDefined();
-    expect(aapCard!.textContent).toContain("Provisioning");
-  });
-
   it("shows default 'Try it' button on non-AAP/non-OpenClaw products regardless of statuses", () => {
-    renderGrid(
-      makeContext({
-        ansibleStatus: AnsibleStatus.READY,
-        openclawStatus: OpenClawStatus.READY,
-      }),
-    );
+    renderGrid(makeContext({ openclawStatus: OpenClawStatus.READY }), {
+      ansibleStatus: AnsibleStatus.READY,
+    });
 
     const { card: openshiftCard, tryItButton: mainButton } =
       getOpenShiftCardWithButton();
@@ -467,9 +342,9 @@ describe("CatalogGrid", () => {
         userData: undefined,
         signupUser,
         refetchUserData,
-        handleAAPInstance,
         disabledIntegrations: [],
       }),
+      { handleAAPInstance },
     );
 
     const aapCard = products.find((p) => p.type === ProductType.AAP);

@@ -1,13 +1,7 @@
 import { createContext, useContext } from "react";
-import {
-  type AAPData,
-  type OpenClawItem,
-  type SignupData,
-  UserStatus,
-} from "../types";
-import type { AnsibleStatus } from "../utils/aap-utils";
-import type { OpenClawStatus } from "../utils/openclaw-utils";
+import { type OpenClawItem, type SignupData, UserStatus } from "../types";
 import type { AddedCredential } from "../utils/openclaw-providers";
+import type { OpenClawStatus } from "../utils/openclaw-utils";
 
 export interface SandboxContextType {
   userStatus: UserStatus;
@@ -19,18 +13,6 @@ export interface SandboxContextType {
   loading: boolean;
   refetchUserData: () => Promise<SignupData | undefined>;
   signupUser: () => void;
-  refetchAAP: (userNamespace: string) => void;
-  handleAAPInstance: (userNamespace: string) => void;
-  ansibleData: AAPData | undefined;
-  ansibleUIUser: string | undefined;
-  ansibleUIPassword: string;
-  ansibleUILink: string | undefined;
-  /**
-   * Contains the raw condition message for when the provisioning the AAP
-   * instance fails.
-   */
-  ansibleProvisioningErrorDetails: string | null;
-  ansibleStatus: AnsibleStatus;
   openclawData: OpenClawItem | undefined;
   /**
    * Contains the raw error message when deleting the OPenClaw instance fails.
@@ -49,8 +31,6 @@ export interface SandboxContextType {
   resetOpenClawProvisioningErrorDetails: () => void;
   openclawStatus: OpenClawStatus;
   openclawUILink: string | undefined;
-  /** Resets the AAP provisioning error details. */
-  resetAnsibleProvisioningErrorDetails: () => void;
   handleOpenClawInstance: (
     userNamespace: string,
     credentials?: AddedCredential[],

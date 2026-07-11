@@ -1,7 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import type { SandboxContextType } from "../SandboxContext";
-import { SandboxContext } from "../SandboxContext";
+import { products } from "../../components/Catalog/productData";
 import { readyUserFixture } from "../../mocks/fixtures";
 import type { SignupData } from "../../types";
 import { UserStatus } from "../../types";
@@ -10,10 +9,10 @@ import {
   type Product,
   type URLTemplateVars,
 } from "../../types/product";
-import { AnsibleStatus } from "../../utils/aap-utils";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
+import type { SandboxContextType } from "../SandboxContext";
+import { SandboxContext } from "../SandboxContext";
 import useProductURLResolver from "../useProductURLResolver";
-import { products } from "../../components/Catalog/productData";
 
 function makeContext(
   overrides: Partial<SandboxContextType> = {},
@@ -28,20 +27,11 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn().mockResolvedValue(undefined),
     signupUser: vi.fn(),
-    refetchAAP: vi.fn(),
-    handleAAPInstance: vi.fn(),
-    ansibleData: undefined,
-    ansibleUIUser: undefined,
-    ansibleUIPassword: "",
-    ansibleUILink: undefined,
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.NOT_DEPLOYED,
     openclawData: undefined,
     openClawDeletionErrorDetails: null,
     resetOpenClawDeletionErrorDetails: vi.fn(),
     openClawProvisioningErrorDetails: null,
     resetOpenClawProvisioningErrorDetails: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.UNKNOWN,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn().mockResolvedValue(false),
