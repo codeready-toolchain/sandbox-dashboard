@@ -1,21 +1,22 @@
-import "./CatalogGrid.css";
+import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { SHORT_INTERVAL } from "../../const";
+import { UserFacingError } from "../../error/UserFacingError";
+import { AnsibleProvider } from "../../hooks/AnsibleProvider";
 import { useSandboxContext } from "../../hooks/SandboxContext";
 import useProductURLResolver from "../../hooks/useProductURLResolver";
 import useTriedProducts from "../../hooks/useTriedProducts";
+import { useNotifications } from "../../notifications/useNotifications";
 import { UserStatus } from "../../types";
 import { ProductType, type Product } from "../../types/product";
+import logger from "../../utils/logger";
 import { PhoneVerificationModal } from "../Modals";
 import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, type EnsureUserIsReadyResult } from "./catalogCardTypes";
+import "./CatalogGrid.css";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
 import { products } from "./productData";
-import { UserFacingError } from "../../error/UserFacingError";
-import { useNotifications } from "../../notifications/useNotifications";
-import logger from "../../utils/logger";
-import { AlertVariant } from "@patternfly/react-core";
 
 export function CatalogGrid() {
   const {
@@ -237,12 +238,14 @@ export function CatalogGrid() {
                   key={product.type}
                   className="sandbox-catalog-card-wrapper"
                 >
-                  <AnsibleCatalogCard
-                    product={product}
-                    isGreenCornerVisible={isProductTried(product)}
-                    ensureUserIsReady={ensureUserIsReady}
-                    markProductAsTried={markProductAsTried}
-                  />
+                  <AnsibleProvider>
+                    <AnsibleCatalogCard
+                      product={product}
+                      isGreenCornerVisible={isProductTried(product)}
+                      ensureUserIsReady={ensureUserIsReady}
+                      markProductAsTried={markProductAsTried}
+                    />
+                  </AnsibleProvider>
                 </div>
               );
             case ProductType.OPENCLAW:

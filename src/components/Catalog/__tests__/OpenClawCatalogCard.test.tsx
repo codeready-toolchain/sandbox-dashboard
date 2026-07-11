@@ -6,7 +6,6 @@ import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { UserStatus } from "../../../types";
 import { ProductType, type Product } from "../../../types/product";
-import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { OpenClawCatalogCard } from "../OpenClawCatalogCard";
@@ -27,20 +26,11 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    refetchAAP: vi.fn(),
-    handleAAPInstance: vi.fn(),
-    ansibleData: undefined,
-    ansibleUIUser: undefined,
-    ansibleUIPassword: "",
-    ansibleUILink: undefined,
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.NEW,
     openclawData: undefined,
     openClawDeletionErrorDetails: null,
     resetOpenClawDeletionErrorDetails: vi.fn(),
     openClawProvisioningErrorDetails: null,
     resetOpenClawProvisioningErrorDetails: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn(),

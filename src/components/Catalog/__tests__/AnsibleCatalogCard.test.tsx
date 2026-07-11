@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import {
+  AnsibleContext,
+  type AnsibleContextType,
+} from "../../../hooks/AnsibleContext";
 import type { SandboxContextType } from "../../../hooks/SandboxContext";
 import { SandboxContext } from "../../../hooks/SandboxContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
@@ -8,13 +12,13 @@ import { UserStatus } from "../../../types";
 import { ProductType, type Product } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
-import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { AnsibleCatalogCard } from "../AnsibleCatalogCard";
+import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { products } from "../productData";
 
 const aapProduct = products.find((p) => p.type === ProductType.AAP)!;
 
-function makeContext(
+function makeSandboxContext(
   overrides: Partial<SandboxContextType> = {},
 ): SandboxContextType {
   return {
@@ -27,20 +31,11 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    refetchAAP: vi.fn(),
-    handleAAPInstance: vi.fn(),
-    ansibleData: undefined,
-    ansibleUIUser: "admin",
-    ansibleUIPassword: "secret123",
-    ansibleUILink: "https://aap.example.com",
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.READY,
     openclawData: undefined,
     openClawDeletionErrorDetails: null,
     resetOpenClawDeletionErrorDetails: vi.fn(),
     openClawProvisioningErrorDetails: null,
     resetOpenClawProvisioningErrorDetails: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
     handleOpenClawInstance: vi.fn(),
@@ -50,12 +45,31 @@ function makeContext(
   };
 }
 
+function makeAnsibleContext(
+  overrides: Partial<AnsibleContextType> = {},
+): AnsibleContextType {
+  return {
+    ansibleData: undefined,
+    ansibleProvisioningErrorDetails: null,
+    ansibleStatus: AnsibleStatus.NEW,
+    ansibleUILink: undefined,
+    ansibleUIPassword: "",
+    ansibleUIUser: undefined,
+    handleAAPInstance: vi.fn(),
+    refetchAAP: vi.fn(),
+    resetAnsibleProvisioningErrorDetails: vi.fn(),
+    ...overrides,
+  };
+}
+
 function renderCard(
-  contextOverrides: Partial<SandboxContextType> = {},
+  sandboxOverrides: Partial<SandboxContextType> = {},
+  ansibleOverrides: Partial<AnsibleContextType> = {},
   ensureUserIsReady?: () => Promise<EnsureUserIsReadyResult>,
   markProductAsTried?: (product: Product) => void,
 ) {
-  const ctx = makeContext(contextOverrides);
+  const sandboxCtx = makeSandboxContext(sandboxOverrides);
+  const ansibleCtx = makeAnsibleContext(ansibleOverrides);
   const defaultEnsureReady =
     ensureUserIsReady ??
     vi.fn().mockResolvedValue({
@@ -66,19 +80,22 @@ function renderCard(
 
   render(
     <NotificationProvider>
-      <SandboxContext.Provider value={ctx}>
-        <AnsibleCatalogCard
-          product={aapProduct}
-          isGreenCornerVisible={false}
-          ensureUserIsReady={defaultEnsureReady}
-          markProductAsTried={defaultMarkTried}
-        />
+      <SandboxContext.Provider value={sandboxCtx}>
+        <AnsibleContext.Provider value={ansibleCtx}>
+          <AnsibleCatalogCard
+            product={aapProduct}
+            isGreenCornerVisible={false}
+            ensureUserIsReady={defaultEnsureReady}
+            markProductAsTried={defaultMarkTried}
+          />
+        </AnsibleContext.Provider>
       </SandboxContext.Provider>
     </NotificationProvider>,
   );
 
   return {
-    ctx,
+    sandboxCtx,
+    ansibleCtx,
     ensureUserIsReady: defaultEnsureReady,
     markProductAsTried: defaultMarkTried,
   };
@@ -94,6 +111,7 @@ describe("AnsibleCatalogCard", () => {
     });
 
     renderCard(
+      {},
       { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
       ensureUserIsReady,
       markProductAsTried,
@@ -114,6 +132,7 @@ describe("AnsibleCatalogCard", () => {
     const ensureUserIsReady = vi.fn().mockResolvedValue({ ready: false });
 
     renderCard(
+      {},
       { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
       ensureUserIsReady,
       markProductAsTried,
@@ -128,7 +147,7 @@ describe("AnsibleCatalogCard", () => {
   });
 
   it("opens the delete confirmation modal when delete button is clicked", async () => {
-    renderCard({ ansibleStatus: AnsibleStatus.READY });
+    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
 
     const deleteButton = screen.getByTestId("delete-instance-button");
     await userEvent.click(deleteButton);
@@ -137,10 +156,10 @@ describe("AnsibleCatalogCard", () => {
   });
 
   it("does not render delete button or modal when userData is missing proxyURL", () => {
-    renderCard({
-      ansibleStatus: AnsibleStatus.READY,
-      userData: { ...readyUserFixture, proxyURL: "" },
-    });
+    renderCard(
+      { userData: { ...readyUserFixture, proxyURL: "" } },
+      { ansibleStatus: AnsibleStatus.READY },
+    );
 
     expect(
       screen.queryByTestId("delete-instance-button"),
@@ -157,6 +176,7 @@ describe("AnsibleCatalogCard", () => {
     });
 
     renderCard(
+      {},
       {
         ansibleStatus: AnsibleStatus.READY,
         ansibleUIUser: "my-admin",
@@ -186,5 +206,76 @@ describe("AnsibleCatalogCard", () => {
       "ansible-password-field",
     ) as HTMLInputElement;
     expect(passwordField.value).toBe("my-password");
+  });
+
+  it("shows 'Provision' button when ansibleStatus is NEW", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.NEW });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+    expect(mainButton.textContent).not.toContain("Provisioning");
+  });
+
+  it("shows 'Provisioning...' button when ansibleStatus is PROVISIONING", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.PROVISIONING });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provisioning...");
+  });
+
+  it("shows 'Launch' button when ansibleStatus is READY", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Launch");
+  });
+
+  it("shows 'Re-provision' button when ansibleStatus is IDLED", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.IDLED });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Re-provision");
+  });
+
+  it("hides delete button when ansibleStatus is NEW", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.NEW });
+
+    expect(
+      screen.queryByTestId("delete-instance-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides delete button when ansibleStatus is NOT_DEPLOYED", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.NOT_DEPLOYED });
+
+    expect(
+      screen.queryByTestId("delete-instance-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows delete button when ansibleStatus is READY", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+
+    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+  });
+
+  it("shows delete button when ansibleStatus is PROVISIONING", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.PROVISIONING });
+
+    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+  });
+
+  it("renders 'Ready' status label when ansibleStatus is READY", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Ready");
+  });
+
+  it("renders 'Provisioning' status label when ansibleStatus is PROVISIONING", () => {
+    renderCard({}, { ansibleStatus: AnsibleStatus.PROVISIONING });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Provisioning");
   });
 });
