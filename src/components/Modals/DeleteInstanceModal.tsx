@@ -1,10 +1,10 @@
 import {
-  Modal,
-  ModalBody,
-  ModalHeader,
-  ModalFooter,
   Button,
   Content,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
 } from "@patternfly/react-core";
 import WarningTriangleIcon from "@patternfly/react-icons/dist/esm/icons/warning-triangle-icon";
 

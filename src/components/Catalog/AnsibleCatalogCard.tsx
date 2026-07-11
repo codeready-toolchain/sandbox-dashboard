@@ -1,7 +1,11 @@
+import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
+import { UserFacingError } from "../../error/UserFacingError";
 import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
 import { AnsibleStatus } from "../../utils/aap-utils";
+import logger from "../../utils/logger";
 import { AnsibleDeleteInstanceModal, AnsibleLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
 import type { EnsureUserIsReadyResult } from "./catalogCardTypes";
@@ -78,15 +82,18 @@ export function AnsibleCatalogCard({
   markProductAsTried,
 }: AnsibleCatalogCardProps) {
   const {
-    ansibleError,
+    ansibleProvisioningErrorDetails,
     ansibleStatus,
     ansibleUILink,
     ansibleUIPassword,
     ansibleUIUser,
+    resetAnsibleProvisioningErrorDetails,
     handleAAPInstance,
     refetchAAP,
     userData,
   } = useSandboxContext();
+
+  const { addAlert, addAlertFromError } = useNotifications();
 
   const [isAnsibleInfoModalOpen, setAnsibleInfoModalOpen] =
     useState<boolean>(false);
@@ -110,25 +117,50 @@ export function AnsibleCatalogCard({
    * Ansible instance.
    */
   const handleOnClickPrimaryButton = useCallback(async () => {
-    const isUserReady = await ensureUserIsReady();
-    if (!isUserReady.ready) {
-      return;
-    }
-
     if (ansibleProvisionInFlight.current) {
       return;
     }
 
     ansibleProvisionInFlight.current = true;
     try {
-      await handleAAPInstance(isUserReady.namespace || "");
+      const isUserReady = await ensureUserIsReady();
+      if (!isUserReady.ready || !isUserReady.namespace) {
+        return;
+      }
+
+      if (!isUserReady.namespace) {
+        return;
+      }
+
+      await handleAAPInstance(isUserReady.namespace);
 
       setAnsibleInfoModalOpen(true);
       markProductAsTried(product);
+    } catch (error) {
+      if (error instanceof UserFacingError) {
+        addAlertFromError(error);
+      } else {
+        logger.error(
+          "Unexpected exception occurred when handling AAP instance:",
+          error,
+        );
+        addAlert(
+          AlertVariant.danger,
+          "Ansible Automation Platform operation failed",
+          "An unexpected error occurred while handling your AAP instance. Please try again later.",
+        );
+      }
     } finally {
       ansibleProvisionInFlight.current = false;
     }
-  }, [ensureUserIsReady, handleAAPInstance, markProductAsTried, product]);
+  }, [
+    addAlert,
+    addAlertFromError,
+    ensureUserIsReady,
+    handleAAPInstance,
+    markProductAsTried,
+    product,
+  ]);
 
   /**
    * Closes the deletion modal and triggers a refetch of the Ansible's
@@ -146,6 +178,11 @@ export function AnsibleCatalogCard({
       if (userData?.defaultUserNamespace) {
         await refetchAAP(userData.defaultUserNamespace);
       }
+    } catch (error) {
+      logger.error(
+        "Failed to refetch AAP data after instance deletion:",
+        error,
+      );
     } finally {
       ansibleDeleteInFlight.current = false;
     }
@@ -171,8 +208,11 @@ export function AnsibleCatalogCard({
         ansibleUILink={ansibleUILink}
         ansibleUIUser={ansibleUIUser}
         ansibleUIPassword={ansibleUIPassword}
+        ansibleProvisioningErrorDetails={ansibleProvisioningErrorDetails}
         ansibleStatus={ansibleStatus}
-        ansibleError={ansibleError}
+        resetAnsibleProvisioningErrorDetails={
+          resetAnsibleProvisioningErrorDetails
+        }
       />
       {userData?.proxyURL && userData?.defaultUserNamespace && (
         <AnsibleDeleteInstanceModal

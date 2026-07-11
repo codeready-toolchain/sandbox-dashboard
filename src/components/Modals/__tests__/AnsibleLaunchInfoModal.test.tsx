@@ -5,6 +5,8 @@ import { AnsibleStatus } from "../../../utils/aap-utils";
 
 const mockOnClose = vi.fn();
 
+const mockResetError = vi.fn();
+
 const defaultProps = {
   isOpen: true,
   onClose: mockOnClose,
@@ -12,7 +14,8 @@ const defaultProps = {
   ansibleUIUser: "admin",
   ansibleUIPassword: "secret-password",
   ansibleStatus: AnsibleStatus.READY,
-  ansibleError: null,
+  ansibleProvisioningErrorDetails: null,
+  resetAnsibleProvisioningErrorDetails: mockResetError,
 };
 
 describe("AnsibleLaunchInfoModal", () => {
@@ -98,14 +101,32 @@ describe("AnsibleLaunchInfoModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows error when ansibleError is set", () => {
+  it("shows error when ansibleProvisioningErrorDetails is set", () => {
     render(
       <AnsibleLaunchInfoModal
         {...defaultProps}
-        ansibleError="Something went wrong"
+        ansibleProvisioningErrorDetails="Something went wrong"
       />,
     );
-    expect(screen.getByTestId("ansible-error")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("ansible-automation-platform-error"),
+    ).toBeInTheDocument();
+  });
+
+  it("calls resetAnsibleProvisioningErrorDetails and onClose when the error modal is dismissed", async () => {
+    const user = userEvent.setup();
+    render(
+      <AnsibleLaunchInfoModal
+        {...defaultProps}
+        ansibleProvisioningErrorDetails="Something went wrong"
+      />,
+    );
+
+    const closeButton = screen.getByRole("button", { name: "Close" });
+    await user.click(closeButton);
+
+    expect(mockResetError).toHaveBeenCalledTimes(1);
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
   it("shows Close button only when not ready", () => {

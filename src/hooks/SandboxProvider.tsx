@@ -16,7 +16,7 @@ import { getAAP, createAAP, unIdleAAP } from "../api/aap";
 import { getSecret } from "../api/kube";
 import * as openclawApi from "../api/openclaw";
 import { useRecaptcha } from "./useRecaptcha";
-import { LONG_INTERVAL, SHORT_INTERVAL } from "../const";
+import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { signupDataToStatus } from "../utils/register-utils";
 import { AnsibleStatus, decode, getReadyCondition } from "../utils/aap-utils";
 import {
@@ -32,7 +32,14 @@ import {
 } from "../utils/openclaw-workspace-content";
 import type { AddedCredential } from "../utils/openclaw-providers";
 import { errorMessage } from "../utils/common";
+import { withRetry } from "../utils/retry";
 import { SandboxContext } from "./SandboxContext";
+import { UserFacingError } from "../error/UserFacingError";
+import { ApiError } from "../error/ApiError";
+import { CriticalError } from "../error/CriticalError";
+import { DeletionError } from "../error/DeletionError";
+import { CriticalErrorPage } from "../components/CriticalErrorPage";
+import logger from "../utils/logger";
 
 export function SandboxProvider({ children }: { children: ReactNode }) {
   const config = getConfig();
@@ -48,6 +55,9 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   const [userFound, setUserFound] = useState(false);
   const [userData, setData] = useState<SignupData | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [criticalError, setCriticalError] = useState<CriticalError | null>(
+    null,
+  );
 
   const [ansibleData, setAnsibleData] = useState<AAPData | undefined>();
   const [ansibleUILink, setAnsibleUILink] = useState<string | undefined>();
@@ -56,7 +66,8 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   const [ansibleStatus, setAnsibleStatus] = useState<AnsibleStatus>(
     AnsibleStatus.NEW,
   );
-  const [ansibleError, setAnsibleError] = useState<string | null>(null);
+  const [ansibleProvisioningErrorDetails, setAnsibleProvisioningErrorDetails] =
+    useState<string | null>(null);
 
   const [clawNamespace, setClawNamespace] = useState<string | undefined>();
   const pendingCredentials = useRef<AddedCredential[] | undefined>(undefined);
@@ -69,7 +80,12 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     OpenClawStatus.NEW,
   );
   const [openclawUILink, setOpenclawUILink] = useState<string | undefined>();
-  const [openclawError, setOpenclawError] = useState<string | null>(null);
+  const [openClawDeletionErrorDetails, setOpenClawDeletionErrorDetails] =
+    useState<string | null>(null);
+  const [
+    openClawProvisioningErrorDetails,
+    setOpenClawProvisioningErrorDetails,
+  ] = useState<string | null>(null);
 
   const userDataRef = useRef<SignupData | undefined>(undefined);
   const proxyURLRef = useRef<string | undefined>(undefined);
@@ -97,6 +113,68 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   const pendingApproval = status === UserStatus.PENDING_APPROVAL;
   const userReady = status === UserStatus.READY;
 
+  /**
+   * Resets the OpenClaw deletion's error details and re-fetches the current
+   * state of the OpenClaw instance so that the UI recovers from the failed
+   * deletion attempt.
+   */
+  function resetOpenClawDeletionErrorDetails(): void {
+    setOpenClawDeletionErrorDetails(null);
+
+    if (userData?.defaultUserNamespace) {
+      getOpenClawData(userData.defaultUserNamespace);
+    }
+  }
+
+  /**
+   * Resents AAP provisioning's error details.
+   */
+  function resetAnsibleProvisioningErrorDetails(): void {
+    setAnsibleProvisioningErrorDetails(null);
+  }
+
+  /**
+   * Resolves an OpenClaw error into a detail string and logs non-ApiError cases.
+   * ApiError bodies are used directly (they are already logged by
+   * `ApiError.fromResponse`). Error instances are logged and their message is
+   * incorporated into the detail string. Unknown errors are logged with the
+   * fallback prefix returned as-is.
+   * @param err the caught error.
+   * @param fallbackPrefix a human-readable prefix describing the failed
+   *   operation, used when the error is not an Error instance.
+   * @returns a detail string suitable for `setOpenClawProvisioningErrorDetails`.
+   */
+  function resolveOpenClawError(err: unknown, fallbackPrefix: string): string {
+    if (err instanceof ApiError) {
+      return err.body;
+    }
+    if (err instanceof Error) {
+      logger.error(fallbackPrefix, err);
+      return `${fallbackPrefix}: ${err.message}`;
+    }
+    logger.error(fallbackPrefix, err);
+    return fallbackPrefix;
+  }
+
+  /**
+   * Resets the OpenClaw provisioning error details and re-fetches the current
+   * state so the catalog card can return to the correct "Provision" state
+   * without requiring a page reload.
+   */
+  function resetOpenClawProvisioningErrorDetails(): void {
+    setOpenClawProvisioningErrorDetails(null);
+
+    const ns = userDataRef.current?.defaultUserNamespace;
+    if (ns) {
+      getOpenClawData(ns);
+    }
+  }
+
+  /**
+   * Fetches the user's signup data, critical for the application to work.
+   * @param isRefetch signals if it is a refetching operation.
+   * @returns the {@link SignupData} of the user.
+   */
   const fetchData = async (
     isRefetch = false,
   ): Promise<SignupData | undefined> => {
@@ -106,14 +184,28 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
 
     let result;
     try {
-      result = await getSignupData();
+      result = isRefetch
+        ? await getSignupData()
+        : await withRetry(() => getSignupData(), 3, 2000);
+
       if (JSON.stringify(userDataRef.current) !== JSON.stringify(result)) {
         userDataRef.current = result;
         setData(result);
       }
       setUserFound(!!result);
     } catch (err) {
-      console.error("Error fetching user data:", err);
+      if (!isRefetch) {
+        logger.error("Critical: unable to fetch user data after retries:", err);
+        setCriticalError(
+          new CriticalError(
+            `We're unable to load your account information. Please try again later, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+            err,
+          ),
+        );
+        return undefined;
+      }
+      logger.error("Error fetching user data:", err);
+      userDataRef.current = undefined;
       setData(undefined);
       setUserFound(false);
     } finally {
@@ -123,36 +215,76 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     return result;
   };
 
+  /**
+   * Creates a user signup in the back end.
+   */
   const signupUser = async () => {
     setLoading(true);
     try {
       await signup();
     } catch (err) {
-      console.error("Error during signup", err);
+      if (err instanceof ApiError) {
+        throw new UserFacingError(
+          "Unable to sign you up",
+          "We were unable to sign your account up in our systems. Please try again later.",
+          err,
+        );
+      } else if (
+        err instanceof Error &&
+        err.message.toLowerCase().includes("recaptcha")
+      ) {
+        logger.error("Recaptcha failure during signup:", err);
+        throw new UserFacingError(
+          "Recaptcha failure",
+          "We were unable to successfully verify that you're human with Recaptcha due to an internal error. Please try again later.",
+          err,
+        );
+      } else {
+        logger.error("Unexpected error during signup:", err);
+        throw new UserFacingError(
+          "Unable to sign you up",
+          "An unexpected error occurred while setting up your account. Please try again later.",
+          err,
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const getAAPData = async (userNamespace: string) => {
-    try {
-      const proxyURL = proxyURLRef.current;
-      if (!proxyURL) return;
+  /**
+   * Gets the Ansible Automation Platform resource from Kubernetes.
+   * @param userNamespace the namespace to fetch teh resource for.
+   * @throws {ApiError} if the API calls to fetch the AAP resource or the
+   * secret containing the admin details fail.
+   */
+  const getAAPData = async (
+    userNamespace: string,
+  ): Promise<{ status: AnsibleStatus; data: AAPData | undefined }> => {
+    const proxyURL = proxyURLRef.current;
+    if (!proxyURL)
+      return { status: ansibleStatusRef.current, data: ansibleDataRef.current };
 
-      const data = await getAAP(proxyURL, userNamespace);
-      setAnsibleData(data);
-      const st = getReadyCondition(data, (e) =>
-        setAnsibleError(errorMessage(e)),
-      );
-      setAnsibleStatus(st);
-      if (data && data.items?.length > 0 && data.items[0]?.status) {
-        if (data.items[0].status.URL) {
-          setAnsibleUILink(data.items[0].status.URL);
-        }
-        if (data.items[0].status.adminUser) {
-          setAnsibleUIUser(data.items[0].status.adminUser);
-        }
-        if (data.items[0].status.adminPasswordSecret) {
+    const data = await getAAP(proxyURL, userNamespace);
+    setAnsibleData(data);
+    let failed = false;
+    const st = getReadyCondition(data, (e) => {
+      failed = true;
+      setAnsibleProvisioningErrorDetails(errorMessage(e));
+    });
+    if (!failed) {
+      resetAnsibleProvisioningErrorDetails();
+    }
+    setAnsibleStatus(st);
+    if (data && data.items?.length > 0 && data.items[0]?.status) {
+      if (data.items[0].status.URL) {
+        setAnsibleUILink(data.items[0].status.URL);
+      }
+      if (data.items[0].status.adminUser) {
+        setAnsibleUIUser(data.items[0].status.adminUser);
+      }
+      if (data.items[0].status.adminPasswordSecret) {
+        try {
           const adminSecret = await getSecret(
             proxyURL,
             userNamespace,
@@ -161,17 +293,43 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
           if (adminSecret?.data) {
             setAnsibleUIPassword(decode(adminSecret.data.password));
           }
+        } catch (secretError) {
+          logger.error("Failed to fetch AAP admin secret", secretError);
         }
       }
-    } catch (e) {
-      setAnsibleError(errorMessage(e));
     }
+    return { status: st, data };
   };
 
+  /**
+   * Provisions or "unidles" the Ansible Automation Platform instance
+   * depending on its current status.
+   * @param userNamespace the namespace to perform the actions in.
+   * @throws {UserFacingError} if fetching, "unidling" or creating the
+   * instance fails.
+   */
   const handleAAPInstance = async (userNamespace: string) => {
-    await getAAPData(userNamespace);
+    let currentStatus: AnsibleStatus;
+    let currentData: AAPData | undefined;
 
-    const currentStatus = ansibleStatusRef.current;
+    try {
+      const result = await getAAPData(userNamespace);
+      currentStatus = result.status;
+      currentData = result.data;
+    } catch (apiError) {
+      if (apiError instanceof ApiError && apiError.statusCode === 404) {
+        currentStatus = AnsibleStatus.NEW;
+        currentData = undefined;
+        setAnsibleStatus(AnsibleStatus.NEW);
+        setAnsibleData(undefined);
+      } else {
+        throw new UserFacingError(
+          "Unable to get your Ansible Automation Platform instance's information",
+          "We were unable to obtain the status of your Ansible Automation Platform instance. Please try again later.",
+          apiError,
+        );
+      }
+    }
     if (
       currentStatus === AnsibleStatus.PROVISIONING ||
       currentStatus === AnsibleStatus.READY
@@ -182,7 +340,6 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     const proxyURL = proxyURLRef.current;
     if (!proxyURL) return;
 
-    const currentData = ansibleDataRef.current;
     if (
       currentStatus === AnsibleStatus.IDLED &&
       currentData &&
@@ -190,23 +347,58 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     ) {
       try {
         await unIdleAAP(proxyURL, userNamespace);
-      } catch (e) {
-        console.error(e);
+      } catch (apiError) {
+        throw new UserFacingError(
+          "Unable to provision your Ansible Automation Platform instance",
+          "We were unable to reprovision your Ansible Automation Platform instance. Please try again later.",
+          apiError,
+        );
       }
       return;
     }
+
     try {
       await createAAP(proxyURL, userNamespace);
-    } catch (e) {
-      console.error(e);
+    } catch (apiError) {
+      throw new UserFacingError(
+        "Unable to provision your Ansible Automation Platform instance",
+        "We were unable to provision your Ansible Automation Platform instance. Please try again later.",
+        apiError,
+      );
     }
   };
 
+  /**
+   * Polls the current state of the OpenClaw instance and drives the
+   * provisioning state machine forward.
+   *
+   * This function is invoked on an interval (`SHORT_INTERVAL`) whenever the
+   * instance is in a transitional state (provisioning, terminating, or
+   * deleting). It performs the following steps:
+   *
+   * 1. Fetches the SpaceRequest to determine whether the backing namespace
+   *    exists and is ready.
+   * 2. If a deletion is in progress and the SpaceRequest is gone, resets state
+   *    to NEW.
+   * 3. If credentials are pending and no SpaceRequest exists yet, creates one.
+   * 4. Once the SpaceRequest's target namespace is available, fetches the
+   *    OpenClaw CR to determine instance readiness.
+   * 5. If the CR does not yet exist but credentials are pending, sets up the
+   *    workspace environment and creates the CR.
+   * 6. Derives the display status from the CR's conditions and exposes the
+   *    instance URL when ready.
+   *
+   * Errors are surfaced through `setOpenClawProvisioningErrorDetails` and
+   * shown in the provisioning modal rather than via toast notifications,
+   * since repeated polling errors would otherwise spam the user.
+   *
+   * @param userNamespace the user's home namespace used to locate the
+   *   SpaceRequest and workspace resources.
+   */
   const getOpenClawData = async (userNamespace: string) => {
     const proxyURL = proxyURLRef.current;
     if (!proxyURL) return;
 
-    setOpenclawError(null);
     try {
       const sr = await openclawApi.getSpaceRequest(proxyURL, userNamespace);
 
@@ -217,7 +409,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
           setOpenclawData(undefined);
           setOpenclawStatus(OpenClawStatus.NEW);
           setOpenclawUILink(undefined);
-          setOpenclawError(null);
+          setOpenClawProvisioningErrorDetails(null);
           return;
         }
 
@@ -227,8 +419,13 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
             await openclawApi.createSpaceRequest(proxyURL, userNamespace);
             setOpenclawStatus(OpenClawStatus.PROVISIONING);
           } catch (e) {
+            setOpenClawProvisioningErrorDetails(
+              resolveOpenClawError(
+                e,
+                "Unable to provision OpenClaw: the space request creation failed",
+              ),
+            );
             pendingCredentials.current = undefined;
-            setOpenclawError(errorMessage(e));
             setOpenclawStatus(OpenClawStatus.NEW);
           } finally {
             creatingSpaceRequest.current = false;
@@ -293,7 +490,12 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
           pendingDisableDevicePairing.current = false;
           setOpenclawStatus(OpenClawStatus.PROVISIONING);
         } catch (e) {
-          setOpenclawError(errorMessage(e));
+          setOpenClawProvisioningErrorDetails(
+            resolveOpenClawError(
+              e,
+              "Unable to provision OpenClaw: the instance creation failed",
+            ),
+          );
           setOpenclawStatus(OpenClawStatus.UNKNOWN);
           try {
             await openclawApi.cleanupWorkspaceEnvironment(
@@ -309,7 +511,15 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const st = getOpenClawReadyCondition(data, setOpenclawError);
+      let conditionFailed = false;
+      const st = getOpenClawReadyCondition(data, (conditionMessage) => {
+        logger.error("OpenClaw CR reported failure:", conditionMessage);
+        conditionFailed = true;
+        setOpenClawProvisioningErrorDetails(errorMessage(conditionMessage));
+      });
+      if (!conditionFailed) {
+        setOpenClawProvisioningErrorDetails(null);
+      }
       setOpenclawStatus(st);
       if (data?.status?.url) {
         try {
@@ -330,10 +540,28 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         setOpenclawStatus(OpenClawStatus.PROVISIONING);
       }
     } catch (e) {
-      setOpenclawError(errorMessage(e));
+      const detail = resolveOpenClawError(
+        e,
+        "Unable to fetch OpenClaw instance status",
+      );
+      if (deletingOpenClaw.current) {
+        setOpenClawDeletionErrorDetails(detail);
+      } else {
+        setOpenClawProvisioningErrorDetails(detail);
+      }
     }
   };
 
+  /**
+   * Unidles the already provisioned instance if it exists, and if not, it
+   * creates it.
+   * @param userNamespace the user namespace in which to create the instance.
+   * @param credentials the credentials for the OpenClaw.
+   * @param disableDevicePairing whether the device pairing is disabled or
+   * not.
+   * @throws {UserFacingError} if an error occurred during the fetching,
+   * "unidling" or provisioning of the instance.
+   */
   const handleOpenClawInstance = async (
     userNamespace: string,
     credentials?: AddedCredential[],
@@ -342,7 +570,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     const proxyURL = proxyURLRef.current;
     if (!proxyURL) return false;
 
-    // Fetch current state first
+    // Fetch current state first.
     let currentStatus = openclawStatus;
     let resolvedNamespace = clawNamespace;
 
@@ -358,8 +586,16 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       } else {
         currentStatus = OpenClawStatus.NEW;
       }
-    } catch {
-      // Use existing state
+    } catch (apiError) {
+      if (apiError instanceof ApiError && apiError.statusCode === 404) {
+        currentStatus = OpenClawStatus.NEW;
+      } else {
+        throw new UserFacingError(
+          "Unable to get your OpenClaw instance's information",
+          "We were unable to obtain the status of your OpenClaw instance. Please try again later.",
+          apiError,
+        );
+      }
     }
 
     if (
@@ -386,10 +622,12 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         await openclawApi.unIdleOpenClaw(proxyURL, resolvedNamespace);
         setOpenclawStatus(OpenClawStatus.PROVISIONING);
         return true;
-      } catch (e) {
-        console.error(e);
-        setOpenclawError(errorMessage(e));
-        return false;
+      } catch (apiError) {
+        throw new UserFacingError(
+          "Unable to reprovision your OpenClaw instance",
+          "We were unable to reprovision your OpenClaw instance. Please try again later.",
+          apiError,
+        );
       }
     }
 
@@ -401,23 +639,34 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       await openclawApi.createSpaceRequest(proxyURL, userNamespace);
       setOpenclawStatus(OpenClawStatus.PROVISIONING);
       return true;
-    } catch (e) {
+    } catch (apiError) {
       pendingCredentials.current = undefined;
-      setOpenclawError(errorMessage(e));
-      console.error(e);
-      return false;
+      throw new UserFacingError(
+        "Unable to provision your OpenClaw instance",
+        "We were unable to provision your OpenClaw instance. Please try again later.",
+        apiError,
+      );
     }
   };
 
+  /**
+   * Deletes the OpenClaw instance and all its related resources.
+   * @param userNamespace the user namespace to delete OpenClaw from.
+   * @throws {UserFacingError} if the deletion of any of the resources fail.
+   */
   const deleteOpenClaw = async (userNamespace: string) => {
     const proxyURL = proxyURLRef.current;
     if (!proxyURL) return;
 
+    const previousUILink = openclawUILink;
+
     deletingOpenClaw.current = true;
     setOpenclawStatus(OpenClawStatus.DELETING);
     setOpenclawUILink(undefined);
-    setOpenclawError(null);
+    setOpenClawDeletionErrorDetails(null);
 
+    // Delete the OpenClaw resource and all of its related resources. Any
+    // errors are caught by "allSettled".
     const results = await Promise.allSettled([
       clawNamespace
         ? openclawApi.deleteOpenClawCR(proxyURL, clawNamespace)
@@ -426,17 +675,19 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       openclawApi.cleanupWorkspaceEnvironment(proxyURL, userNamespace),
     ]);
 
-    const failures = results.filter(
-      (r): r is PromiseRejectedResult => r.status === "rejected",
+    // Prepare an error structure to make it easy to copy for the users in
+    // case they seek support.
+    const deletionError = DeletionError.fromSettledResults(
+      "OpenClaw",
+      ["Delete CR", "Delete SpaceRequest", "Cleanup workspace"],
+      results,
     );
 
-    if (failures.length > 0) {
-      for (const f of failures) {
-        console.error(f.reason);
-      }
+    if (deletionError) {
       deletingOpenClaw.current = false;
       setOpenclawStatus(OpenClawStatus.FAILED);
-      setOpenclawError(errorMessage(failures[0].reason));
+      setOpenclawUILink(previousUILink);
+      setOpenClawDeletionErrorDetails(deletionError.toString());
       return;
     }
 
@@ -480,7 +731,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
             : [],
         );
       } catch (err) {
-        console.error("Error fetching UI config:", err);
+        logger.error("Error fetching UI config:", err);
         setDisabledIntegrations([]);
       }
     };
@@ -506,10 +757,23 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (userData?.defaultUserNamespace) {
       const ns = userData.defaultUserNamespace;
-      const handle = setInterval(getAAPData, SHORT_INTERVAL, ns);
+      const handle = setInterval(
+        async () => {
+          try {
+            await getAAPData(ns);
+          } catch (err) {
+            if (!(err instanceof ApiError)) {
+              logger.error("Unexpected error polling AAP data:", err);
+            }
+          }
+        },
+        SHORT_INTERVAL,
+        ns,
+      );
       return () => clearInterval(handle);
     }
     return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData?.defaultUserNamespace, userData?.proxyURL]);
 
   // Initial OpenClaw fetch
@@ -519,6 +783,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         await getOpenClawData(userData.defaultUserNamespace!);
       })();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData?.defaultUserNamespace, userData?.proxyURL]);
 
   // Poll OpenClaw status during provisioning/terminating/deleting
@@ -534,10 +799,17 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       return () => clearInterval(handle);
     }
     return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData?.defaultUserNamespace, userData?.proxyURL, openclawStatus]);
 
   // segmentWriteKey will be consumed in Phase 5
   void segmentWriteKey;
+
+  // Render an error page on critical errors instead of having a broken and
+  // unresponsive user interface.
+  if (criticalError) {
+    return <CriticalErrorPage error={criticalError} />;
+  }
 
   return (
     <SandboxContext.Provider
@@ -557,12 +829,16 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         ansibleUIUser,
         ansibleUIPassword,
         ansibleUILink,
-        ansibleError,
+        ansibleProvisioningErrorDetails,
         ansibleStatus,
         openclawData,
-        openclawError,
         openclawStatus,
         openclawUILink,
+        openClawDeletionErrorDetails,
+        openClawProvisioningErrorDetails,
+        resetAnsibleProvisioningErrorDetails,
+        resetOpenClawDeletionErrorDetails,
+        resetOpenClawProvisioningErrorDetails,
         handleOpenClawInstance,
         deleteOpenClaw,
         segmentTrackClick: undefined,

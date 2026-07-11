@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceResetModal } from "../WorkspaceResetModal";
+import { ApiError } from "../../../error/ApiError";
 import * as registrationApi from "../../../api/registration";
 
 vi.mock("../../../api/registration", () => ({
@@ -75,6 +76,22 @@ describe("WorkspaceResetModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("workspace-reset-error")).toBeInTheDocument();
     });
+  });
+
+  it("shows copyable technical details on ApiError reset failure", async () => {
+    vi.mocked(registrationApi.resetWorkspaces).mockRejectedValue(
+      new ApiError("reset failed", 500, "internal server error"),
+    );
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByTestId("workspace-reset-button"));
+    await user.click(screen.getByTestId("workspace-reset-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-reset-error")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Copy technical details")).toBeInTheDocument();
   });
 
   it("calls onClose when Cancel is clicked", async () => {

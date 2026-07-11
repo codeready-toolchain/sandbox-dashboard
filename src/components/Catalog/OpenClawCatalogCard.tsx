@@ -1,12 +1,17 @@
+import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
+import { UserFacingError } from "../../error/UserFacingError";
 import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useNotifications } from "../../notifications/useNotifications";
+import type { Product } from "../../types/product";
+import logger from "../../utils/logger";
 import type { AddedCredential } from "../../utils/openclaw-providers";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
-import { DeleteInstanceModal, OpenClawLaunchInfoModal } from "../Modals";
+import { OpenClawLaunchInfoModal } from "../Modals";
+import { OpenClawDeleteInstanceModal } from "../Modals/OpenClawDeletInstanceModal";
 import { CatalogCard } from "./CatalogCard";
-import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 import type { EnsureUserIsReadyResult } from "./catalogCardTypes";
-import type { Product } from "../../types/product";
+import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 
 /**
  * Obtains the main button's label.
@@ -89,11 +94,18 @@ export function OpenClawCatalogCard({
   const {
     deleteOpenClaw,
     handleOpenClawInstance,
-    openclawError,
     openclawStatus,
     openclawUILink,
+    openClawDeletionErrorDetails,
+    openClawProvisioningErrorDetails,
+    resetOpenClawDeletionErrorDetails,
+    resetOpenClawProvisioningErrorDetails,
     userData,
   } = useSandboxContext();
+
+  const { addAlert, addAlertFromError } = useNotifications();
+
+  const defaultUserNamespace = userData?.defaultUserNamespace;
 
   const [isOpenClawInfoModalOpen, setOpenClawInfoModalOpen] =
     useState<boolean>(false);
@@ -114,7 +126,27 @@ export function OpenClawCatalogCard({
     openclawStatus !== OpenClawStatus.DELETING &&
     openclawStatus !== OpenClawStatus.TERMINATING &&
     openclawStatus !== OpenClawStatus.UNKNOWN &&
-    Boolean(userData?.proxyURL && userData?.defaultUserNamespace);
+    Boolean(userData?.proxyURL && defaultUserNamespace);
+
+  /**
+   * Routes caught errors to the appropriate notification mechanism: user-facing
+   * errors are shown via their own alert, while unexpected exceptions are
+   * logged and surfaced as a generic danger notification.
+   * @param error the caught exception.
+   * @param fallbackTitle the alert title used for non-user-facing errors.
+   * @param fallbackMessage the alert description used for non-user-facing errors.
+   */
+  const handleOpenClawApiError = useCallback(
+    (error: unknown, fallbackTitle: string, fallbackMessage: string): void => {
+      if (error instanceof UserFacingError) {
+        addAlertFromError(error);
+      } else {
+        logger.error(fallbackTitle, error);
+        addAlert(AlertVariant.danger, fallbackTitle, fallbackMessage);
+      }
+    },
+    [addAlert, addAlertFromError],
+  );
 
   /**
    * Once the user signup is ready, it handles opening the OpenClaw instance's
@@ -129,21 +161,22 @@ export function OpenClawCatalogCard({
 
     switch (openclawStatus) {
       case OpenClawStatus.READY:
-        if (openclawUILink) {
-          window.open(openclawUILink, "_blank", "noopener,noreferrer");
-          markProductAsTried(product);
-        } else {
-          setOpenClawInfoModalOpen(true);
-        }
+        setOpenClawInfoModalOpen(true);
         return;
       case OpenClawStatus.IDLED:
-        if (openClawUnidleInFlight.current) {
+        if (!defaultUserNamespace || openClawUnidleInFlight.current) {
           return;
         }
 
         openClawUnidleInFlight.current = true;
         try {
-          await handleOpenClawInstance(userData?.defaultUserNamespace || "");
+          await handleOpenClawInstance(defaultUserNamespace);
+        } catch (error) {
+          handleOpenClawApiError(
+            error,
+            "OpenClaw operation failed",
+            "An unexpected error occurred while handling your OpenClaw instance. Please try again later.",
+          );
         } finally {
           openClawUnidleInFlight.current = false;
         }
@@ -157,12 +190,10 @@ export function OpenClawCatalogCard({
     }
   }, [
     ensureUserIsReady,
+    handleOpenClawApiError,
     handleOpenClawInstance,
-    markProductAsTried,
     openclawStatus,
-    openclawUILink,
-    product,
-    userData?.defaultUserNamespace,
+    defaultUserNamespace,
   ]);
 
   /**
@@ -171,7 +202,7 @@ export function OpenClawCatalogCard({
    */
   const handleOpenClawProvision = useCallback(
     async (credentials: AddedCredential[]): Promise<boolean> => {
-      if (!userData?.defaultUserNamespace) {
+      if (!defaultUserNamespace) {
         return false;
       }
 
@@ -182,7 +213,7 @@ export function OpenClawCatalogCard({
       openClawProvisionInFlight.current = true;
       try {
         const success = await handleOpenClawInstance(
-          userData.defaultUserNamespace,
+          defaultUserNamespace,
           credentials,
           false,
         );
@@ -192,11 +223,24 @@ export function OpenClawCatalogCard({
         }
 
         return success;
+      } catch (error) {
+        handleOpenClawApiError(
+          error,
+          "OpenClaw provisioning failed",
+          "An unexpected error occurred while provisioning your OpenClaw instance. Please try again later.",
+        );
+        return false;
       } finally {
         openClawProvisionInFlight.current = false;
       }
     },
-    [handleOpenClawInstance, markProductAsTried, product, userData],
+    [
+      defaultUserNamespace,
+      handleOpenClawApiError,
+      handleOpenClawInstance,
+      markProductAsTried,
+      product,
+    ],
   );
 
   /**
@@ -204,7 +248,7 @@ export function OpenClawCatalogCard({
    * available.
    */
   const handleOpenClawDelete = useCallback(async () => {
-    if (!userData?.defaultUserNamespace) {
+    if (!defaultUserNamespace) {
       return;
     }
 
@@ -216,13 +260,19 @@ export function OpenClawCatalogCard({
     setOpenClawBeingDeleted(true);
 
     try {
-      await deleteOpenClaw(userData.defaultUserNamespace);
+      await deleteOpenClaw(defaultUserNamespace);
+    } catch (error) {
+      handleOpenClawApiError(
+        error,
+        "OpenClaw deletion failed",
+        "An unexpected error occurred while deleting your OpenClaw instance. Please try again later.",
+      );
     } finally {
       openClawDeleteInFlight.current = false;
       setOpenClawBeingDeleted(false);
       setOpenClawDeleteModalOpen(false);
     }
-  }, [deleteOpenClaw, userData?.defaultUserNamespace]);
+  }, [deleteOpenClaw, defaultUserNamespace, handleOpenClawApiError]);
 
   return (
     <>
@@ -251,18 +301,20 @@ export function OpenClawCatalogCard({
             onClose={() => setOpenClawInfoModalOpen(false)}
             product={product}
             openclawStatus={openclawStatus}
-            openclawError={openclawError}
             openclawUILink={openclawUILink}
+            openClawProvisioningErrorDetails={openClawProvisioningErrorDetails}
             onProvision={handleOpenClawProvision}
             onLaunch={markProductAsTried}
+            onProvisioningErrorDismissed={resetOpenClawProvisioningErrorDetails}
           />
 
-          <DeleteInstanceModal
-            productName="OpenClaw"
-            isOpen={isOpenClawDeleteModalOpen}
-            onClose={() => setOpenClawDeleteModalOpen(false)}
-            onDelete={handleOpenClawDelete}
-            deleting={isOpenClawBeingDeleted}
+          <OpenClawDeleteInstanceModal
+            isOpenClawBeingDeleted={isOpenClawBeingDeleted}
+            isOpenClawDeleteModalOpen={isOpenClawDeleteModalOpen}
+            onErrorModalClose={resetOpenClawDeletionErrorDetails}
+            openClawDeletionErrorDetails={openClawDeletionErrorDetails}
+            onDeleteModalClose={() => setOpenClawDeleteModalOpen(false)}
+            onDeleteButtonClicked={handleOpenClawDelete}
           />
         </>
       )}

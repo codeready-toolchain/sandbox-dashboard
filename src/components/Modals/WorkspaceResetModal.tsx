@@ -1,15 +1,20 @@
-import { useRef, useState } from "react";
 import {
-  Modal,
-  ModalBody,
-  ModalHeader,
-  ModalFooter,
+  Alert,
+  AlertActionLink,
   Button,
   Content,
-  Alert,
+  Modal,
+  ModalBody,
+  ModalFooter,
+  ModalHeader,
 } from "@patternfly/react-core";
+import { useRef, useState } from "react";
 import { resetWorkspaces } from "../../api/registration";
+import { SUPPORT_EMAIL } from "../../const";
+import { ApiError } from "../../error/ApiError";
 import { errorMessage } from "../../utils/common";
+import logger from "../../utils/logger";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
 type WorkspaceResetModalProps = {
   isOpen: boolean;
@@ -26,12 +31,17 @@ export function WorkspaceResetModal({
 }: WorkspaceResetModalProps) {
   const [stage, setStage] = useState<ResetStage>("initial");
   const [error, setError] = useState<string | null>(null);
+  const [technicalDetails, setTechnicalDetails] = useState<string | null>(null);
   const inFlightRef = useRef(false);
 
   const resetState = () => {
     setStage("initial");
     setError(null);
+    setTechnicalDetails(null);
   };
+
+  const { copyToClipboard, copyToClipboardLabel } =
+    useCopyToClipboard(technicalDetails);
 
   const handleClose = () => {
     resetState();
@@ -57,7 +67,17 @@ export function WorkspaceResetModal({
         resetState();
         onReset();
       } catch (err) {
-        setError(errorMessage(err));
+        if (!(err instanceof ApiError)) {
+          logger.error("Unexpected error resetting workspaces:", err);
+        }
+        setError(
+          `Unable to reset your workspaces. Please, try again later, and if your issue persists, contact support at ${SUPPORT_EMAIL}`,
+        );
+        if (err instanceof ApiError) {
+          setTechnicalDetails(`${err.statusCode} ${err.body}`);
+        } else {
+          setTechnicalDetails(errorMessage(err));
+        }
         setStage("confirmed");
       } finally {
         inFlightRef.current = false;
@@ -92,6 +112,13 @@ export function WorkspaceResetModal({
             isInline
             isPlain
             title={error}
+            actionLinks={
+              technicalDetails && (
+                <AlertActionLink onClick={copyToClipboard}>
+                  {copyToClipboardLabel}
+                </AlertActionLink>
+              )
+            }
             style={{ marginBottom: "16px" }}
             data-testid="workspace-reset-error"
           />

@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnsibleDeleteInstanceModal } from "../AnsibleDeleteInstanceModal";
+import { ApiError } from "../../../error/ApiError";
 import * as aapApi from "../../../api/aap";
 import * as kubeApi from "../../../api/kube";
 
@@ -74,8 +75,71 @@ describe("AnsibleDeleteInstanceModal", () => {
     await user.click(screen.getByTestId("confirm-delete-aap"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("ansible-delete-error")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("ansible-automation-platform-error"),
+      ).toBeInTheDocument();
     });
+  });
+
+  it("calls onDeleted even when cleanup fails, then shows error modal", async () => {
+    vi.mocked(kubeApi.getDeployments).mockResolvedValue({ items: [] });
+    vi.mocked(kubeApi.getStatefulSets).mockResolvedValue({ items: [] });
+    vi.mocked(aapApi.deleteAAPCR).mockResolvedValue();
+    vi.mocked(kubeApi.deleteSecretsAndPVCs).mockRejectedValue(
+      new Error("cleanup failed"),
+    );
+    vi.mocked(kubeApi.deletePVCsForSTS).mockResolvedValue();
+
+    let isOpen = true;
+    const onDeleted = vi.fn(() => {
+      isOpen = false;
+    });
+
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <AnsibleDeleteInstanceModal
+        {...defaultProps}
+        isOpen={isOpen}
+        onDeleted={onDeleted}
+      />,
+    );
+
+    await user.click(screen.getByTestId("confirm-delete-aap"));
+
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+    });
+
+    rerender(
+      <AnsibleDeleteInstanceModal
+        {...defaultProps}
+        isOpen={isOpen}
+        onDeleted={onDeleted}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("ansible-automation-platform-error-modal"),
+    ).toBeInTheDocument();
+  });
+
+  it("includes HTTP status code in ApiError deletion error details", async () => {
+    vi.mocked(kubeApi.getDeployments).mockRejectedValue(
+      new ApiError("getDeployments failed", 403, "Forbidden"),
+    );
+
+    const user = userEvent.setup();
+    render(<AnsibleDeleteInstanceModal {...defaultProps} />);
+
+    await user.click(screen.getByTestId("confirm-delete-aap"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("ansible-automation-platform-error-modal"),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Copy technical details")).toBeInTheDocument();
   });
 
   it("calls onClose when Cancel is clicked", async () => {

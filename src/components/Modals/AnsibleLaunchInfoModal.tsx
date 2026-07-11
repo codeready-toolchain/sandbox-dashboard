@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   ClipboardCopy,
   Content,
@@ -24,6 +23,7 @@ import { useState } from "react";
 import AnsibleIcon from "../../assets/logos/ansible.svg";
 import RedHatLogo from "../../assets/logos/red_hat_logo.svg";
 import { AnsibleStatus } from "../../utils/aap-utils";
+import { ErrorModal } from "./ErrorModal";
 
 type AnsibleLaunchInfoModalProps = {
   isOpen: boolean;
@@ -31,8 +31,9 @@ type AnsibleLaunchInfoModalProps = {
   ansibleUILink: string | undefined;
   ansibleUIUser: string | undefined;
   ansibleUIPassword: string;
+  ansibleProvisioningErrorDetails: string | null;
+  resetAnsibleProvisioningErrorDetails: () => void;
   ansibleStatus: AnsibleStatus;
-  ansibleError: string | null;
 };
 
 function PasswordField({ password }: { password: string }) {
@@ -93,8 +94,9 @@ export function AnsibleLaunchInfoModal({
   ansibleUILink,
   ansibleUIUser,
   ansibleUIPassword,
+  ansibleProvisioningErrorDetails,
+  resetAnsibleProvisioningErrorDetails,
   ansibleStatus,
-  ansibleError,
 }: AnsibleLaunchInfoModalProps) {
   const isProvisioning =
     ansibleStatus === AnsibleStatus.PROVISIONING ||
@@ -124,6 +126,23 @@ export function AnsibleLaunchInfoModal({
     "Ansible Automation Platform"
   );
 
+  if (ansibleProvisioningErrorDetails) {
+    return (
+      <ErrorModal
+        headerTitle="Provision AAP instance"
+        productName="ansible-automation-platform"
+        alertTitle="Unable to provision your Ansible Automation Platform instance"
+        alertText="An error occurred while provisioning your Ansible Automation Platform instance."
+        copyableTechnicalDetails={ansibleProvisioningErrorDetails}
+        isErrorModalOpen
+        onErrorModalClose={() => {
+          resetAnsibleProvisioningErrorDetails();
+          onClose();
+        }}
+      />
+    );
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -134,16 +153,6 @@ export function AnsibleLaunchInfoModal({
     >
       <ModalHeader title={titleContent} />
       <ModalBody>
-        {ansibleError && (
-          <Alert
-            variant="danger"
-            isInline
-            isPlain
-            title={ansibleError}
-            style={{ marginBottom: "16px" }}
-            data-testid="ansible-error"
-          />
-        )}
         {isProvisioning && (
           <div style={{ textAlign: "center", padding: "32px 0" }}>
             <Spinner size="lg" />
@@ -287,12 +296,13 @@ export function AnsibleLaunchInfoModal({
             </Content>
           </div>
         )}
-        {ansibleStatus === AnsibleStatus.UNKNOWN && !ansibleError && (
-          <Content component="p">
-            Unable to determine the status of your Ansible Automation Platform
-            instance. Please try again later.
-          </Content>
-        )}
+        {ansibleStatus === AnsibleStatus.UNKNOWN &&
+          !ansibleProvisioningErrorDetails && (
+            <Content component="p">
+              Unable to determine the status of your Ansible Automation Platform
+              instance. Please try again later.
+            </Content>
+          )}
       </ModalBody>
       <ModalFooter>
         {isReady && ansibleUILink && (

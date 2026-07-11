@@ -12,6 +12,10 @@ import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, type EnsureUserIsReadyResult } from "./catalogCardTypes";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
 import { products } from "./productData";
+import { UserFacingError } from "../../error/UserFacingError";
+import { useNotifications } from "../../notifications/useNotifications";
+import logger from "../../utils/logger";
+import { AlertVariant } from "@patternfly/react-core";
 
 export function CatalogGrid() {
   const {
@@ -23,6 +27,20 @@ export function CatalogGrid() {
     refetchUserData,
     disabledIntegrations,
   } = useSandboxContext();
+
+  const { addAlert, addAlertFromError } = useNotifications();
+
+  const handleSignupError = useCallback(
+    (error: unknown, fallbackTitle: string, fallbackMessage: string): void => {
+      if (error instanceof UserFacingError) {
+        addAlertFromError(error);
+      } else {
+        logger.error(fallbackTitle, error);
+        addAlert(AlertVariant.danger, fallbackTitle, fallbackMessage);
+      }
+    },
+    [addAlert, addAlertFromError],
+  );
 
   /**
    * Filters the disabled products so that they do not get shown in the
@@ -84,7 +102,17 @@ export function CatalogGrid() {
         userSignupCreationInFlight.current = true;
         try {
           await signupUser();
+        } catch (error) {
+          userSignupCreationInFlight.current = false;
+          handleSignupError(
+            error,
+            "Unable to sign you up",
+            "We were unable to set up your Developer Sandbox account in our systems, please try again later.",
+          );
+          return { ready: false };
+        }
 
+        try {
           let resolved: { status: UserStatus; namespace?: string } = {
             status: UserStatus.UNKNOWN,
           };
@@ -106,8 +134,19 @@ export function CatalogGrid() {
           }
 
           if (resolved.status === UserStatus.READY) {
-            return { ready: true, namespace: resolved.namespace || "" };
+            if (resolved.namespace) {
+              return { ready: true, namespace: resolved.namespace };
+            } else {
+              return { ready: false };
+            }
           }
+        } catch (error) {
+          handleSignupError(
+            error,
+            "Unable to sign you up",
+            "We were unable to confirm your Developer Sandbox account status, please try again later.",
+          );
+          return { ready: false };
         } finally {
           userSignupCreationInFlight.current = false;
         }
@@ -120,12 +159,19 @@ export function CatalogGrid() {
         return { ready: false };
       }
 
+      // Make sure that we have a namespace before stating that the user data
+      // is ready.
       if (userReady) {
-        return { ready: true, namespace: userData?.defaultUserNamespace || "" };
+        if (userData?.defaultUserNamespace) {
+          return { ready: true, namespace: userData?.defaultUserNamespace };
+        } else {
+          return { ready: false };
+        }
       }
 
       return { ready: false };
     }, [
+      handleSignupError,
       userStatus,
       verificationRequired,
       userReady,
@@ -182,7 +228,7 @@ export function CatalogGrid() {
 
   return (
     <>
-      <div className="sandbox-catalog-grid">
+      <div className="sandbox-catalog-grid" data-testid="sandbox-catalog-grid">
         {enabledProducts.map((product: Product) => {
           switch (product.type) {
             case ProductType.AAP:
