@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  getSegmentWriteKey,
-  getSignupData,
-  getUIConfig,
-  signup,
-} from "../api/registration";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { getSignupData, signup } from "../api/registration";
 import { CriticalErrorPage } from "../components/CriticalErrorPage";
 import { Environment, getConfig } from "../config/config";
 import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
@@ -15,19 +17,14 @@ import { UserStatus, type SignupData } from "../types";
 import logger from "../utils/logger";
 import { signupDataToStatus } from "../utils/register-utils";
 import { withRetry } from "../utils/retry";
-import { SandboxContext } from "./SandboxContext";
+import { UserContext } from "./UserContext";
 import { useRecaptcha } from "./useRecaptcha";
 
-export function SandboxProvider({ children }: { children: ReactNode }) {
+export function UserProvider({ children }: { children: ReactNode }) {
   const config = getConfig();
   const isProd = config.environment === Environment.PRODUCTION;
   useRecaptcha(isProd);
 
-  const [segmentWriteKey, setSegmentWriteKey] = useState<string>();
-  const [marketoWebhookURL, setMarketoWebhookURL] = useState<string>();
-  const [disabledIntegrations, setDisabledIntegrations] = useState<
-    string[] | undefined
-  >();
   const [statusUnknown, setStatusUnknown] = useState(true);
   const [userFound, setUserFound] = useState(false);
   const [userData, setData] = useState<SignupData | undefined>(undefined);
@@ -137,41 +134,6 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     fetchData();
   });
 
-  // Fetch Segment write key (placeholder for Phase 5)
-  useEffect(() => {
-    if (!isProd) return;
-    const fetchKey = async () => {
-      try {
-        const writeKey = await getSegmentWriteKey();
-        setSegmentWriteKey(writeKey);
-      } catch {
-        // Continue without Segment tracking
-      }
-    };
-    fetchKey();
-  }, [isProd]);
-
-  // Fetch UI config
-  useEffect(() => {
-    const fetchUIConfigData = async () => {
-      try {
-        const uiConfig = await getUIConfig();
-        if (uiConfig.workatoWebHookURL) {
-          setMarketoWebhookURL(uiConfig.workatoWebHookURL);
-        }
-        setDisabledIntegrations(
-          Array.isArray(uiConfig.disabledIntegrations)
-            ? uiConfig.disabledIntegrations
-            : [],
-        );
-      } catch (err) {
-        logger.error("Error fetching UI config:", err);
-        setDisabledIntegrations([]);
-      }
-    };
-    fetchUIConfigData();
-  }, []);
-
   // Poll user status
   const pollStatus = userFound && !userReady;
   const pollInterval =
@@ -187,36 +149,31 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
     return undefined;
   }, [pollStatus, pollInterval]);
 
-  // segmentWriteKey will be consumed in Phase 5
-  void segmentWriteKey;
+  const refetchUserData = useCallback(() => fetchData(true), []);
 
   // Memoize the contents of the context to avoid rerenders on any state or
   // function changes.
   const contextValue = useMemo(
     () => ({
-      userStatus: status,
+      loading,
+      pendingApproval,
+      refetchUserData,
+      signupUser,
+      userData,
       userFound,
       userReady,
+      userStatus: status,
       verificationRequired,
-      pendingApproval,
-      userData,
-      loading,
-      refetchUserData: fetchData,
-      signupUser,
-      segmentTrackClick: undefined,
-      marketoWebhookURL,
-      disabledIntegrations,
     }),
     [
+      loading,
+      pendingApproval,
+      refetchUserData,
       status,
+      userData,
       userFound,
       userReady,
       verificationRequired,
-      pendingApproval,
-      userData,
-      loading,
-      marketoWebhookURL,
-      disabledIntegrations,
     ],
   );
 
@@ -227,8 +184,6 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SandboxContext.Provider value={contextValue}>
-      {children}
-    </SandboxContext.Provider>
+    <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   );
 }

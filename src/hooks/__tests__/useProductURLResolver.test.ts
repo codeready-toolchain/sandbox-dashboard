@@ -9,13 +9,13 @@ import {
   type Product,
   type URLTemplateVars,
 } from "../../types/product";
-import type { SandboxContextType } from "../SandboxContext";
-import { SandboxContext } from "../SandboxContext";
+import type { UserContextType } from "../UserContext";
+import { UserContext } from "../UserContext";
 import useProductURLResolver from "../useProductURLResolver";
 
 function makeContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -26,7 +26,6 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn().mockResolvedValue(undefined),
     signupUser: vi.fn(),
-    disabledIntegrations: [],
     ...overrides,
   };
 }
@@ -41,10 +40,10 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
   };
 }
 
-function renderResolver(contextOverrides: Partial<SandboxContextType> = {}) {
+function renderResolver(contextOverrides: Partial<UserContextType> = {}) {
   const ctx = makeContext(contextOverrides);
   const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(SandboxContext.Provider, { value: ctx }, children);
+    createElement(UserContext.Provider, { value: ctx }, children);
 
   return renderHook(() => useProductURLResolver(), { wrapper });
 }

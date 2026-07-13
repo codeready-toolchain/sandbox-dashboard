@@ -2,7 +2,7 @@ import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
-import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
 import logger from "../../utils/logger";
@@ -92,7 +92,7 @@ export function OpenClawCatalogCard({
   ensureUserIsReady,
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
-  const { userData } = useSandboxContext();
+  const { userData } = useUserContext();
   const {
     deleteOpenClaw,
     handleOpenClawInstance,

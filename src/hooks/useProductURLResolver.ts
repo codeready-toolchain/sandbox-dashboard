@@ -1,12 +1,12 @@
 import { useCallback, useMemo } from "react";
 import type { Product, URLTemplateVars } from "../types/product";
-import { useSandboxContext } from "./SandboxContext";
+import { useUserContext } from "./UserContext";
 
 /**
  * Resolves the URL for the products taking into account the user's data.
  */
 const useProductURLResolver = () => {
-  const { userData } = useSandboxContext();
+  const { userData } = useUserContext();
 
   /**
    * Computes the URL template variables for the user.

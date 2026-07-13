@@ -16,10 +16,10 @@ import { AnsibleStatus, decode, getReadyCondition } from "../utils/aap-utils";
 import { errorMessage } from "../utils/common";
 import logger from "../utils/logger";
 import { AnsibleContext } from "./AnsibleContext";
-import { useSandboxContext } from "./SandboxContext";
+import { useUserContext } from "./UserContext";
 
 export function AnsibleProvider({ children }: { children: ReactNode }) {
-  const { userData } = useSandboxContext();
+  const { userData } = useUserContext();
 
   const [ansibleData, setAnsibleData] = useState<AAPData | undefined>();
   const [ansibleUILink, setAnsibleUILink] = useState<string | undefined>();

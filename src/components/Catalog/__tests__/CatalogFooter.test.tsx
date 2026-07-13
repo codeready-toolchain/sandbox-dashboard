@@ -1,9 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import {
-  SandboxContext,
-  type SandboxContextType,
-} from "../../../hooks/SandboxContext";
+import { UserContext, type UserContextType } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { UserStatus } from "../../../types";
 import { CatalogFooter } from "../CatalogFooter";
@@ -35,8 +32,8 @@ vi.mock("@rhds/elements/react/rh-cta/rh-cta.js", () => ({
 }));
 
 function makeSandboxContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -47,16 +44,15 @@ function makeSandboxContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    disabledIntegrations: [],
     ...overrides,
   };
 }
 
 function renderFooter() {
   return render(
-    <SandboxContext.Provider value={makeSandboxContext()}>
+    <UserContext.Provider value={makeSandboxContext()}>
       <CatalogFooter />
-    </SandboxContext.Provider>,
+    </UserContext.Provider>,
   );
 }
 

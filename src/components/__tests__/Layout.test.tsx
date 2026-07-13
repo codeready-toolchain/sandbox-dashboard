@@ -6,10 +6,7 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../auth/AuthenticatedContext";
-import {
-  SandboxContext,
-  type SandboxContextType,
-} from "../../hooks/SandboxContext";
+import { UserContext, type UserContextType } from "../../hooks/UserContext";
 import { readyUserFixture } from "../../mocks/fixtures";
 import { UserStatus } from "../../types";
 
@@ -25,8 +22,8 @@ const authValue: AuthenticatedContextValue = {
 };
 
 function makeSandboxContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -37,18 +34,17 @@ function makeSandboxContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    disabledIntegrations: [],
     ...overrides,
   };
 }
 
 function renderLayout(
   route = "/",
-  sandboxOverrides: Partial<SandboxContextType> = {},
+  sandboxOverrides: Partial<UserContextType> = {},
 ) {
   return render(
     <AuthenticatedContext.Provider value={authValue}>
-      <SandboxContext.Provider value={makeSandboxContext(sandboxOverrides)}>
+      <UserContext.Provider value={makeSandboxContext(sandboxOverrides)}>
         <MemoryRouter initialEntries={[route]}>
           <Routes>
             <Route element={<Layout />}>
@@ -60,7 +56,7 @@ function renderLayout(
             </Route>
           </Routes>
         </MemoryRouter>
-      </SandboxContext.Provider>
+      </UserContext.Provider>
     </AuthenticatedContext.Provider>,
   );
 }

@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { setTokenGetter } from "../../api/authFetch";
 import { server } from "../../mocks/server";
-import { SandboxProvider } from "../SandboxProvider";
-import { useSandboxContext } from "../SandboxContext";
+import { UserProvider } from "../UserProvider";
+import { useUserContext } from "../UserContext";
 
 function ContextConsumer() {
-  const ctx = useSandboxContext();
+  const ctx = useUserContext();
   return (
     <div>
       <span data-testid="status">{ctx.userStatus}</span>
@@ -13,9 +13,6 @@ function ContextConsumer() {
       <span data-testid="userReady">{String(ctx.userReady)}</span>
       <span data-testid="loading">{String(ctx.loading)}</span>
       <span data-testid="givenName">{ctx.userData?.givenName ?? ""}</span>
-      <span data-testid="disabledIntegrations">
-        {JSON.stringify(ctx.disabledIntegrations)}
-      </span>
     </div>
   );
 }
@@ -33,12 +30,12 @@ beforeAll(() => {
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-describe("SandboxProvider", () => {
+describe("UserProvider", () => {
   it("fetches user data and provides it via context", async () => {
     render(
-      <SandboxProvider>
+      <UserProvider>
         <ContextConsumer />
-      </SandboxProvider>,
+      </UserProvider>,
     );
 
     await waitFor(() => {
@@ -50,28 +47,16 @@ describe("SandboxProvider", () => {
     expect(screen.getByTestId("status").textContent).toBe("ready");
     expect(screen.getByTestId("givenName").textContent).toBe("John");
   });
-
-  it("fetches disabled integrations from UI config", async () => {
-    render(
-      <SandboxProvider>
-        <ContextConsumer />
-      </SandboxProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("disabledIntegrations").textContent).toBe("[]");
-    });
-  });
 });
 
-describe("useSandboxContext", () => {
-  it("throws when used outside SandboxProvider", () => {
+describe("useUserContext", () => {
+  it("throws when used outside UserProvider", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
 
     expect(() => render(<ContextConsumer />)).toThrow(
-      "Context useSandboxContext is not defined",
+      "Context useUserContext is not defined",
     );
 
     consoleError.mockRestore();

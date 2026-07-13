@@ -38,7 +38,7 @@ import {
   defaultOpenClawWorkspace,
 } from "../utils/openclaw-workspace-content";
 import { OpenClawContext } from "./OpenClawContext";
-import { useSandboxContext } from "./SandboxContext";
+import { useUserContext } from "./UserContext";
 
 function resolveOpenClawError(err: unknown, fallbackPrefix: string): string {
   if (err instanceof ApiError) {
@@ -53,7 +53,7 @@ function resolveOpenClawError(err: unknown, fallbackPrefix: string): string {
 }
 
 export function OpenClawProvider({ children }: { children: ReactNode }) {
-  const { userData } = useSandboxContext();
+  const { userData } = useUserContext();
 
   const userDataRef = useRef(userData);
   useEffect(() => {
