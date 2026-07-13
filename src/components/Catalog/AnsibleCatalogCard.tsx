@@ -2,7 +2,7 @@ import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
-import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
 import { AnsibleStatus } from "../../utils/aap-utils";
@@ -92,7 +92,8 @@ export function AnsibleCatalogCard({
     handleAAPInstance,
     refetchAAP,
   } = useAnsibleContext();
-  const { userData } = useSandboxContext();
+
+  const { userData } = useUserContext();
 
   const { addAlert, addAlertFromError } = useNotifications();
 

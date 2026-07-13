@@ -8,7 +8,7 @@ import { FooterUniversal } from "@rhds/elements/react/rh-footer/rh-footer-univer
 import { Cta } from "@rhds/elements/react/rh-cta/rh-cta.js";
 import "@rhds/elements/rh-footer/rh-footer-lightdom.css";
 import { AccessCodeInputModal } from "../Modals";
-import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useUserContext } from "../../hooks/UserContext";
 
 let trustArcElement: HTMLSpanElement | null = null;
 
@@ -35,7 +35,7 @@ function CookieConsentElement() {
 }
 
 export function CatalogFooter() {
-  const { refetchUserData } = useSandboxContext();
+  const { refetchUserData } = useUserContext();
   const [isAccessCodeModalOpen, setIsAccessCodeModalOpen] = useState(false);
 
   const handleActivationCodeVerified = async () => {

@@ -4,8 +4,8 @@ import {
   AnsibleContext,
   type AnsibleContextType,
 } from "../../../hooks/AnsibleContext";
-import type { SandboxContextType } from "../../../hooks/SandboxContext";
-import { SandboxContext } from "../../../hooks/SandboxContext";
+import type { UserContextType } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { UserStatus } from "../../../types";
@@ -18,8 +18,8 @@ import { products } from "../productData";
 const aapProduct = products.find((p) => p.type === ProductType.AAP)!;
 
 function makeSandboxContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -30,7 +30,6 @@ function makeSandboxContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    disabledIntegrations: [],
     ...overrides,
   };
 }
@@ -53,7 +52,7 @@ function makeAnsibleContext(
 }
 
 function renderCard(
-  sandboxOverrides: Partial<SandboxContextType> = {},
+  sandboxOverrides: Partial<UserContextType> = {},
   ansibleOverrides: Partial<AnsibleContextType> = {},
   ensureUserIsReady?: () => Promise<EnsureUserIsReadyResult>,
   markProductAsTried?: (product: Product) => void,
@@ -70,7 +69,7 @@ function renderCard(
 
   render(
     <NotificationProvider>
-      <SandboxContext.Provider value={sandboxCtx}>
+      <UserContext.Provider value={sandboxCtx}>
         <AnsibleContext.Provider value={ansibleCtx}>
           <AnsibleCatalogCard
             product={aapProduct}
@@ -79,7 +78,7 @@ function renderCard(
             markProductAsTried={defaultMarkTried}
           />
         </AnsibleContext.Provider>
-      </SandboxContext.Provider>
+      </UserContext.Provider>
     </NotificationProvider>,
   );
 

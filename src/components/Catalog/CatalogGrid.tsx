@@ -4,7 +4,7 @@ import { SHORT_INTERVAL } from "../../const";
 import { UserFacingError } from "../../error/UserFacingError";
 import { AnsibleProvider } from "../../hooks/AnsibleProvider";
 import { OpenClawProvider } from "../../hooks/OpenClawProvider";
-import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useUserContext } from "../../hooks/UserContext";
 import useProductURLResolver from "../../hooks/useProductURLResolver";
 import useTriedProducts from "../../hooks/useTriedProducts";
 import { useNotifications } from "../../notifications/useNotifications";
@@ -18,6 +18,7 @@ import { ButtonLabel, type EnsureUserIsReadyResult } from "./catalogCardTypes";
 import "./CatalogGrid.css";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
 import { products } from "./productData";
+import { useUIConfigurationContext } from "../../hooks/UIConfigurationContext";
 
 export function CatalogGrid() {
   const {
@@ -27,8 +28,9 @@ export function CatalogGrid() {
     userData,
     signupUser,
     refetchUserData,
-    disabledIntegrations,
-  } = useSandboxContext();
+  } = useUserContext();
+
+  const { disabledIntegrations } = useUIConfigurationContext();
 
   const { addAlert, addAlertFromError } = useNotifications();
 

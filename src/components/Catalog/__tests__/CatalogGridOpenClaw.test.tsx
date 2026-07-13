@@ -6,8 +6,9 @@ import {
 } from "../../../hooks/AnsibleContext";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
-import type { SandboxContextType } from "../../../hooks/SandboxContext";
-import { SandboxContext } from "../../../hooks/SandboxContext";
+import type { UserContextType } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
+import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { UserStatus } from "../../../types";
@@ -25,8 +26,8 @@ vi.mock("../../../hooks/OpenClawProvider", () => ({
 }));
 
 function makeSandboxContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -37,7 +38,6 @@ function makeSandboxContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    disabledIntegrations: [],
     ...overrides,
   };
 }
@@ -62,13 +62,15 @@ function renderGrid(openClawOverrides: Partial<OpenClawContextType> = {}) {
   const openClawCtx = makeOpenClawContext(openClawOverrides);
   render(
     <NotificationProvider>
-      <AnsibleContext.Provider value={ansibleCtx}>
-        <OpenClawContext.Provider value={openClawCtx}>
-          <SandboxContext.Provider value={sandboxCtx}>
-            <CatalogGrid />
-          </SandboxContext.Provider>
-        </OpenClawContext.Provider>
-      </AnsibleContext.Provider>
+      <UIConfigurationContext.Provider value={{ disabledIntegrations: [] }}>
+        <AnsibleContext.Provider value={ansibleCtx}>
+          <OpenClawContext.Provider value={openClawCtx}>
+            <UserContext.Provider value={sandboxCtx}>
+              <CatalogGrid />
+            </UserContext.Provider>
+          </OpenClawContext.Provider>
+        </AnsibleContext.Provider>
+      </UIConfigurationContext.Provider>
     </NotificationProvider>,
   );
 }

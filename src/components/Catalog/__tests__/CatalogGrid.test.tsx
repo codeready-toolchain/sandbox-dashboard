@@ -7,8 +7,10 @@ import {
 } from "../../../hooks/AnsibleContext";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
-import type { SandboxContextType } from "../../../hooks/SandboxContext";
-import { SandboxContext } from "../../../hooks/SandboxContext";
+import type { UserContextType } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
+import type { UIConfigurationContextType } from "../../../hooks/UIConfigurationContext";
+import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import type { SignupData } from "../../../types";
@@ -29,8 +31,8 @@ vi.mock("../../../hooks/OpenClawProvider", () => ({
 }));
 
 function makeContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -41,6 +43,14 @@ function makeContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
+    ...overrides,
+  };
+}
+
+function makeUIConfigContext(
+  overrides: Partial<UIConfigurationContextType> = {},
+): UIConfigurationContextType {
+  return {
     disabledIntegrations: [],
     ...overrides,
   };
@@ -64,21 +74,25 @@ function makeAnsibleContext(
 }
 
 function renderGrid(
-  ctx: SandboxContextType,
+  ctx: UserContextType,
   ansibleOverrides: Partial<AnsibleContextType> = {},
   openClawOverrides: Partial<OpenClawContextType> = {},
+  uiConfigOverrides: Partial<UIConfigurationContextType> = {},
 ) {
   const ansibleCtx = makeAnsibleContext(ansibleOverrides);
   const openClawCtx = makeOpenClawContext(openClawOverrides);
+  const uiConfigCtx = makeUIConfigContext(uiConfigOverrides);
   render(
     <NotificationProvider>
-      <AnsibleContext.Provider value={ansibleCtx}>
-        <OpenClawContext.Provider value={openClawCtx}>
-          <SandboxContext.Provider value={ctx}>
-            <CatalogGrid />
-          </SandboxContext.Provider>
-        </OpenClawContext.Provider>
-      </AnsibleContext.Provider>
+      <UIConfigurationContext.Provider value={uiConfigCtx}>
+        <AnsibleContext.Provider value={ansibleCtx}>
+          <OpenClawContext.Provider value={openClawCtx}>
+            <UserContext.Provider value={ctx}>
+              <CatalogGrid />
+            </UserContext.Provider>
+          </OpenClawContext.Provider>
+        </AnsibleContext.Provider>
+      </UIConfigurationContext.Provider>
     </NotificationProvider>,
   );
   return { ansibleCtx, openClawCtx };
@@ -114,7 +128,7 @@ describe("CatalogGrid", () => {
   });
 
   it("renders nothing while disabledIntegrations is undefined", () => {
-    renderGrid(makeContext({ disabledIntegrations: undefined }));
+    renderGrid(makeContext(), {}, {}, { disabledIntegrations: undefined });
     expect(screen.queryAllByTestId("catalog-card")).toHaveLength(0);
     expect(screen.queryByTestId("sandbox-catalog-grid")).toBeNull();
   });
@@ -127,9 +141,12 @@ describe("CatalogGrid", () => {
 
   it("filters out disabled integrations", () => {
     renderGrid(
-      makeContext({
+      makeContext(),
+      {},
+      {},
+      {
         disabledIntegrations: [products[0].type],
-      }),
+      },
     );
     const cards = screen.getAllByTestId("catalog-card");
     expect(cards).toHaveLength(products.length - 1);
@@ -207,7 +224,6 @@ describe("CatalogGrid", () => {
         userData: undefined,
         signupUser,
         refetchUserData,
-        disabledIntegrations: [],
       }),
       { handleAAPInstance },
     );
@@ -256,7 +272,6 @@ describe("CatalogGrid", () => {
         userData: undefined,
         signupUser,
         refetchUserData,
-        disabledIntegrations: [],
       }),
     );
 
@@ -295,7 +310,6 @@ describe("CatalogGrid", () => {
         userData: undefined,
         signupUser,
         refetchUserData,
-        disabledIntegrations: [],
       }),
     );
 
@@ -334,7 +348,6 @@ describe("CatalogGrid", () => {
         userData: undefined,
         signupUser,
         refetchUserData,
-        disabledIntegrations: [],
       }),
     );
 
@@ -375,7 +388,6 @@ describe("CatalogGrid", () => {
         userFound: false,
         userData: undefined,
         signupUser,
-        disabledIntegrations: [],
       }),
     );
 
@@ -408,7 +420,6 @@ describe("CatalogGrid", () => {
         userFound: false,
         userData: undefined,
         signupUser,
-        disabledIntegrations: [],
       }),
     );
 
@@ -434,7 +445,6 @@ describe("CatalogGrid", () => {
         userData: undefined,
         signupUser,
         refetchUserData,
-        disabledIntegrations: [],
       }),
     );
 

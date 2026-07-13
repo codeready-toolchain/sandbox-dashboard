@@ -2,8 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
-import type { SandboxContextType } from "../../../hooks/SandboxContext";
-import { SandboxContext } from "../../../hooks/SandboxContext";
+import type { UserContextType } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { UserStatus } from "../../../types";
@@ -17,8 +17,8 @@ import { products } from "../productData";
 const openclawProduct = products.find((p) => p.type === ProductType.OPENCLAW)!;
 
 function makeSandboxContext(
-  overrides: Partial<SandboxContextType> = {},
-): SandboxContextType {
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
   return {
     userStatus: UserStatus.READY,
     userFound: true,
@@ -29,7 +29,6 @@ function makeSandboxContext(
     loading: false,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
-    disabledIntegrations: [],
     ...overrides,
   };
 }
@@ -38,7 +37,7 @@ function renderCard(
   openClawOverrides: Partial<OpenClawContextType> = {},
   ensureUserIsReady?: () => Promise<EnsureUserIsReadyResult>,
   markProductAsTried?: (product: Product) => void,
-  sandboxOverrides: Partial<SandboxContextType> = {},
+  sandboxOverrides: Partial<UserContextType> = {},
 ) {
   const sandboxCtx = makeSandboxContext(sandboxOverrides);
   const openClawCtx = makeOpenClawContext(openClawOverrides);
@@ -52,7 +51,7 @@ function renderCard(
 
   render(
     <NotificationProvider>
-      <SandboxContext.Provider value={sandboxCtx}>
+      <UserContext.Provider value={sandboxCtx}>
         <OpenClawContext.Provider value={openClawCtx}>
           <OpenClawCatalogCard
             product={openclawProduct}
@@ -61,7 +60,7 @@ function renderCard(
             markProductAsTried={defaultMarkTried}
           />
         </OpenClawContext.Provider>
-      </SandboxContext.Provider>
+      </UserContext.Provider>
     </NotificationProvider>,
   );
 

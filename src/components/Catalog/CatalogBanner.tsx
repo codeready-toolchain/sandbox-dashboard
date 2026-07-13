@@ -13,13 +13,13 @@ import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/o
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
 import SalesImage from "../../assets/images/banner/sales.svg";
-import { useSandboxContext } from "../../hooks/SandboxContext";
+import { useUserContext } from "../../hooks/UserContext";
 import { calculateDaysBetweenDates } from "../../utils/common";
 import { CommentAltIcon } from "@patternfly/react-icons";
 
 export function CatalogBanner() {
   const { userData, pendingApproval, verificationRequired, loading } =
-    useSandboxContext();
+    useUserContext();
 
   const daysLeft = userData?.endDate
     ? calculateDaysBetweenDates(new Date(), new Date(userData.endDate))
