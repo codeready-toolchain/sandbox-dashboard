@@ -1,8 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import { UserContext, type UserContextType } from "../../../hooks/UserContext";
+import {
+  UserContext,
+  UserSignupPhase,
+  type UserContextType,
+} from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
-import { UserStatus } from "../../../types";
 import { CatalogFooter } from "../CatalogFooter";
 
 vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
@@ -35,13 +38,8 @@ function makeSandboxContext(
   overrides: Partial<UserContextType> = {},
 ): UserContextType {
   return {
-    userStatus: UserStatus.READY,
-    userFound: true,
-    userReady: true,
-    verificationRequired: false,
-    pendingApproval: false,
-    userData: readyUserFixture,
-    loading: false,
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.READY,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
     ...overrides,

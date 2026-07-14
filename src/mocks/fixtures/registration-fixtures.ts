@@ -1,4 +1,4 @@
-import type { AuthConfigResponse, SignupData, UIConfig } from "../../types";
+import type { AuthConfigResponse, User, UIConfig } from "../../types";
 
 export const MOCK_PROXY_URL = "https://proxy.example.com";
 export const MOCK_REG_SERVICE_URL = "https://registration.example.com";
@@ -27,7 +27,7 @@ export const localKeycloakAuthConfigFixture: AuthConfigResponse = {
   "signup-url": MOCK_REG_SERVICE_URL,
 };
 
-export const readyUserFixture: SignupData = {
+export const readyUserFixture: User = {
   name: "John Doe",
   compliantUsername: "johndoe",
   username: "johndoe",
@@ -50,7 +50,7 @@ export const readyUserFixture: SignupData = {
   endDate: "2025-01-31T00:00:00Z",
 };
 
-export const verifyUserFixture: SignupData = {
+export const verifyUserFixture: User = {
   ...readyUserFixture,
   status: {
     ready: false,
@@ -59,7 +59,7 @@ export const verifyUserFixture: SignupData = {
   },
 };
 
-export const provisioningUserFixture: SignupData = {
+export const provisioningUserFixture: User = {
   ...readyUserFixture,
   status: {
     ready: false,

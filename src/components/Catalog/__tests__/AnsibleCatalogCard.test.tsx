@@ -5,14 +5,13 @@ import {
   type AnsibleContextType,
 } from "../../../hooks/AnsibleContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext } from "../../../hooks/UserContext";
+import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
+import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
-import { UserStatus } from "../../../types";
 import { ProductType, type Product } from "../../../types/product";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { AnsibleCatalogCard } from "../AnsibleCatalogCard";
-import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { products } from "../productData";
 
 const aapProduct = products.find((p) => p.type === ProductType.AAP)!;
@@ -21,13 +20,8 @@ function makeSandboxContext(
   overrides: Partial<UserContextType> = {},
 ): UserContextType {
   return {
-    userStatus: UserStatus.READY,
-    userFound: true,
-    userReady: true,
-    verificationRequired: false,
-    pendingApproval: false,
-    userData: readyUserFixture,
-    loading: false,
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.READY,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
     ...overrides,
@@ -54,29 +48,26 @@ function makeAnsibleContext(
 function renderCard(
   sandboxOverrides: Partial<UserContextType> = {},
   ansibleOverrides: Partial<AnsibleContextType> = {},
-  ensureUserIsReady?: () => Promise<EnsureUserIsReadyResult>,
   markProductAsTried?: (product: Product) => void,
 ) {
   const sandboxCtx = makeSandboxContext(sandboxOverrides);
   const ansibleCtx = makeAnsibleContext(ansibleOverrides);
-  const defaultEnsureReady =
-    ensureUserIsReady ??
-    vi.fn().mockResolvedValue({
-      ready: true,
-      namespace: readyUserFixture.defaultUserNamespace,
-    });
   const defaultMarkTried = markProductAsTried ?? vi.fn();
+  const openPhoneVerificationModal = vi.fn();
 
   render(
     <NotificationProvider>
       <UserContext.Provider value={sandboxCtx}>
         <AnsibleContext.Provider value={ansibleCtx}>
-          <AnsibleCatalogCard
-            product={aapProduct}
-            isGreenCornerVisible={false}
-            ensureUserIsReady={defaultEnsureReady}
-            markProductAsTried={defaultMarkTried}
-          />
+          <PhoneVerificationContext.Provider
+            value={{ openPhoneVerificationModal }}
+          >
+            <AnsibleCatalogCard
+              product={aapProduct}
+              isGreenCornerVisible={false}
+              markProductAsTried={defaultMarkTried}
+            />
+          </PhoneVerificationContext.Provider>
         </AnsibleContext.Provider>
       </UserContext.Provider>
     </NotificationProvider>,
@@ -85,8 +76,8 @@ function renderCard(
   return {
     sandboxCtx,
     ansibleCtx,
-    ensureUserIsReady: defaultEnsureReady,
     markProductAsTried: defaultMarkTried,
+    openPhoneVerificationModal,
   };
 }
 
@@ -94,43 +85,70 @@ describe("AnsibleCatalogCard", () => {
   it("calls handleAAPInstance and opens info modal on primary button click when user is ready", async () => {
     const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
     const markProductAsTried = vi.fn();
-    const ensureUserIsReady = vi.fn().mockResolvedValue({
-      ready: true,
-      namespace: "test-ns",
-    });
 
     renderCard(
       {},
       { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
-      ensureUserIsReady,
       markProductAsTried,
     );
 
     const button = screen.getByTestId("try-it-button");
     await userEvent.click(button);
 
-    expect(ensureUserIsReady).toHaveBeenCalled();
-    expect(handleAAPInstance).toHaveBeenCalledWith("test-ns");
+    expect(handleAAPInstance).toHaveBeenCalledWith(
+      readyUserFixture.defaultUserNamespace,
+    );
     expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
     expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
   });
 
-  it("does not call handleAAPInstance when ensureUserIsReady returns not ready", async () => {
+  it("calls signupUser when signup phase is NOT_STARTED instead of provisioning", async () => {
     const handleAAPInstance = vi.fn();
-    const markProductAsTried = vi.fn();
-    const ensureUserIsReady = vi.fn().mockResolvedValue({ ready: false });
+    const signupUser = vi.fn();
 
     renderCard(
-      {},
+      {
+        userSignupPhase: UserSignupPhase.NOT_STARTED,
+        user: undefined,
+        signupUser,
+      },
       { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
-      ensureUserIsReady,
+    );
+
+    const button = screen.getByTestId("try-it-button");
+    await userEvent.click(button);
+
+    expect(signupUser).toHaveBeenCalled();
+    expect(handleAAPInstance).not.toHaveBeenCalled();
+  });
+
+  it("opens phone verification modal when signup phase is PENDING_PHONE_VERIFICATION", async () => {
+    const handleAAPInstance = vi.fn();
+
+    const { openPhoneVerificationModal } = renderCard(
+      { userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION },
+      { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
+    );
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(openPhoneVerificationModal).toHaveBeenCalledTimes(1);
+    expect(handleAAPInstance).not.toHaveBeenCalled();
+  });
+
+  it("does not call handleAAPInstance when signup phase is not READY", async () => {
+    const handleAAPInstance = vi.fn();
+    const markProductAsTried = vi.fn();
+
+    renderCard(
+      { userSignupPhase: UserSignupPhase.PROVISIONING },
+      { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
       markProductAsTried,
     );
 
     const button = screen.getByTestId("try-it-button");
     await userEvent.click(button);
 
-    expect(ensureUserIsReady).toHaveBeenCalled();
     expect(handleAAPInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
   });
@@ -144,9 +162,9 @@ describe("AnsibleCatalogCard", () => {
     expect(screen.getByTestId("ansible-delete-modal")).toBeInTheDocument();
   });
 
-  it("does not render delete button or modal when userData is missing proxyURL", () => {
+  it("does not render delete button or modal when user is missing proxyURL", () => {
     renderCard(
-      { userData: { ...readyUserFixture, proxyURL: "" } },
+      { user: { ...readyUserFixture, proxyURL: "" } },
       { ansibleStatus: AnsibleStatus.READY },
     );
 
@@ -159,11 +177,6 @@ describe("AnsibleCatalogCard", () => {
   });
 
   it("renders info modal with correct credentials when status is READY", async () => {
-    const ensureUserIsReady = vi.fn().mockResolvedValue({
-      ready: true,
-      namespace: "test-ns",
-    });
-
     renderCard(
       {},
       {
@@ -173,7 +186,6 @@ describe("AnsibleCatalogCard", () => {
         ansibleUILink: "https://aap.test.com",
         handleAAPInstance: vi.fn().mockResolvedValue(undefined),
       },
-      ensureUserIsReady,
     );
 
     await userEvent.click(screen.getByTestId("try-it-button"));

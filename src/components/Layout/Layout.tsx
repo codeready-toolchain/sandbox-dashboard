@@ -21,15 +21,15 @@ import {
 } from "@patternfly/react-core";
 import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { useAuth } from "../../auth/useAuth";
 import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
-import { useUserContext } from "../../hooks/UserContext";
+import { useAuth } from "../../auth/useAuth";
+import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { WorkspaceResetModal } from "../Modals";
 import "./Layout.css";
 
 export function Layout() {
   const { logout } = useAuth();
-  const { userData, userReady, refetchUserData } = useUserContext();
+  const { refetchUserData, user, userSignupPhase } = useUserContext();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -37,9 +37,9 @@ export function Layout() {
   const location = useLocation();
 
   const displayName =
-    userData?.givenName && userData?.familyName
-      ? `${userData.givenName} ${userData.familyName}`
-      : userData?.givenName || "User";
+    user?.givenName && user?.familyName
+      ? `${user.givenName} ${user.familyName}`
+      : user?.givenName || "User";
 
   const handleResetComplete = async () => {
     setIsResetModalOpen(false);
@@ -106,7 +106,7 @@ export function Layout() {
                   }}
                 >
                   <DropdownList>
-                    {userReady && (
+                    {userSignupPhase === UserSignupPhase.READY && (
                       <>
                         <DropdownItem
                           key="reset"

@@ -2,7 +2,7 @@ import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
-import { useUserContext } from "../../hooks/UserContext";
+import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
 import logger from "../../utils/logger";
@@ -11,8 +11,8 @@ import { OpenClawStatus } from "../../utils/openclaw-utils";
 import { OpenClawLaunchInfoModal } from "../Modals";
 import { OpenClawDeleteInstanceModal } from "../Modals/OpenClawDeletInstanceModal";
 import { CatalogCard } from "./CatalogCard";
-import type { EnsureUserIsReadyResult } from "./catalogCardTypes";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
+import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 
 /**
  * Obtains the main button's label.
@@ -75,11 +75,6 @@ type OpenClawCatalogCardProps = {
   /** Shows or hides the green corner on the top left part of the card. */
   isGreenCornerVisible: boolean;
   /**
-   * Function to make sure that the user signup is ready before attempting to
-   * manage any OpenClaw instances.
-   */
-  ensureUserIsReady: () => Promise<EnsureUserIsReadyResult>;
-  /**
    * Marks the product as "tried".
    * @param product The product to be marked.
    */
@@ -89,10 +84,9 @@ type OpenClawCatalogCardProps = {
 export function OpenClawCatalogCard({
   product,
   isGreenCornerVisible,
-  ensureUserIsReady,
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
-  const { userData } = useUserContext();
+  const { signupUser, user, userSignupPhase } = useUserContext();
   const {
     deleteOpenClaw,
     handleOpenClawInstance,
@@ -105,8 +99,9 @@ export function OpenClawCatalogCard({
   } = useOpenClawContext();
 
   const { addAlert, addAlertFromError } = useNotifications();
+  const { openPhoneVerificationModal } = usePhoneVerificationContext();
 
-  const defaultUserNamespace = userData?.defaultUserNamespace;
+  const namespace = user?.defaultUserNamespace;
 
   const [isOpenClawInfoModalOpen, setOpenClawInfoModalOpen] =
     useState<boolean>(false);
@@ -127,7 +122,7 @@ export function OpenClawCatalogCard({
     openclawStatus !== OpenClawStatus.DELETING &&
     openclawStatus !== OpenClawStatus.TERMINATING &&
     openclawStatus !== OpenClawStatus.UNKNOWN &&
-    Boolean(userData?.proxyURL && defaultUserNamespace);
+    Boolean(user?.proxyURL && namespace);
 
   /**
    * Routes caught errors to the appropriate notification mechanism: user-facing
@@ -155,9 +150,17 @@ export function OpenClawCatalogCard({
    * provision it otherwise.
    */
   const handleOnClickPrimaryButton = useCallback(async () => {
-    const isUserReady = await ensureUserIsReady();
-    if (!isUserReady.ready) {
-      return;
+    switch (userSignupPhase) {
+      case UserSignupPhase.NOT_STARTED:
+        signupUser();
+        return;
+      case UserSignupPhase.PENDING_PHONE_VERIFICATION:
+        openPhoneVerificationModal();
+        return;
+      case UserSignupPhase.READY:
+        break;
+      default:
+        return;
     }
 
     switch (openclawStatus) {
@@ -165,13 +168,13 @@ export function OpenClawCatalogCard({
         setOpenClawInfoModalOpen(true);
         return;
       case OpenClawStatus.IDLED:
-        if (!defaultUserNamespace || openClawUnidleInFlight.current) {
+        if (!namespace || openClawUnidleInFlight.current) {
           return;
         }
 
         openClawUnidleInFlight.current = true;
         try {
-          await handleOpenClawInstance(defaultUserNamespace);
+          await handleOpenClawInstance(namespace);
         } catch (error) {
           handleOpenClawApiError(
             error,
@@ -190,11 +193,13 @@ export function OpenClawCatalogCard({
         setOpenClawInfoModalOpen(true);
     }
   }, [
-    ensureUserIsReady,
     handleOpenClawApiError,
     handleOpenClawInstance,
     openclawStatus,
-    defaultUserNamespace,
+    namespace,
+    openPhoneVerificationModal,
+    signupUser,
+    userSignupPhase,
   ]);
 
   /**
@@ -203,7 +208,7 @@ export function OpenClawCatalogCard({
    */
   const handleOpenClawProvision = useCallback(
     async (credentials: AddedCredential[]): Promise<boolean> => {
-      if (!defaultUserNamespace) {
+      if (!namespace) {
         return false;
       }
 
@@ -214,7 +219,7 @@ export function OpenClawCatalogCard({
       openClawProvisionInFlight.current = true;
       try {
         const success = await handleOpenClawInstance(
-          defaultUserNamespace,
+          namespace,
           credentials,
           false,
         );
@@ -236,7 +241,7 @@ export function OpenClawCatalogCard({
       }
     },
     [
-      defaultUserNamespace,
+      namespace,
       handleOpenClawApiError,
       handleOpenClawInstance,
       markProductAsTried,
@@ -249,7 +254,7 @@ export function OpenClawCatalogCard({
    * available.
    */
   const handleOpenClawDelete = useCallback(async () => {
-    if (!defaultUserNamespace) {
+    if (!namespace) {
       return;
     }
 
@@ -261,7 +266,7 @@ export function OpenClawCatalogCard({
     setOpenClawBeingDeleted(true);
 
     try {
-      await deleteOpenClaw(defaultUserNamespace);
+      await deleteOpenClaw(namespace);
     } catch (error) {
       handleOpenClawApiError(
         error,
@@ -273,7 +278,7 @@ export function OpenClawCatalogCard({
       setOpenClawBeingDeleted(false);
       setOpenClawDeleteModalOpen(false);
     }
-  }, [deleteOpenClaw, defaultUserNamespace, handleOpenClawApiError]);
+  }, [deleteOpenClaw, handleOpenClawApiError, namespace]);
 
   return (
     <>
@@ -295,7 +300,7 @@ export function OpenClawCatalogCard({
         onClickPrimaryButton={handleOnClickPrimaryButton}
         onClickDeleteButton={() => setOpenClawDeleteModalOpen(true)}
       />
-      {userData?.proxyURL && userData?.defaultUserNamespace && (
+      {user?.proxyURL && namespace && (
         <>
           <OpenClawLaunchInfoModal
             isOpen={isOpenClawInfoModalOpen}

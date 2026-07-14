@@ -53,12 +53,12 @@ function resolveOpenClawError(err: unknown, fallbackPrefix: string): string {
 }
 
 export function OpenClawProvider({ children }: { children: ReactNode }) {
-  const { userData } = useUserContext();
+  const { user } = useUserContext();
 
-  const userDataRef = useRef(userData);
+  const userDataRef = useRef(user);
   useEffect(() => {
-    userDataRef.current = userData;
-  }, [userData]);
+    userDataRef.current = user;
+  }, [user]);
 
   const [clawNamespace, setClawNamespace] = useState<string | undefined>();
   const pendingCredentials = useRef<AddedCredential[] | undefined>(undefined);
@@ -80,8 +80,8 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
   const proxyURLRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    proxyURLRef.current = userData?.proxyURL;
-  }, [userData?.proxyURL]);
+    proxyURLRef.current = user?.proxyURL;
+  }, [user?.proxyURL]);
 
   /**
    * Polls the current state of the OpenClaw instance and drives the
@@ -266,13 +266,13 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
 
   // Initial OpenClaw fetch
   useEffect(() => {
-    if (userData?.defaultUserNamespace) {
+    if (user?.defaultUserNamespace) {
       void (async () => {
-        await getOpenClawData(userData.defaultUserNamespace!);
+        await getOpenClawData(user.defaultUserNamespace!);
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData?.defaultUserNamespace, userData?.proxyURL]);
+  }, [user?.defaultUserNamespace, user?.proxyURL]);
 
   const resetOpenClawDeletionErrorDetails = useCallback((): void => {
     setOpenClawDeletionErrorDetails(null);
@@ -442,18 +442,18 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
   // Poll OpenClaw status during provisioning/terminating/deleting
   useEffect(() => {
     if (
-      userData?.defaultUserNamespace &&
+      user?.defaultUserNamespace &&
       (openclawStatus === OpenClawStatus.PROVISIONING ||
         openclawStatus === OpenClawStatus.TERMINATING ||
         openclawStatus === OpenClawStatus.DELETING)
     ) {
-      const ns = userData.defaultUserNamespace;
+      const ns = user.defaultUserNamespace;
       const handle = setInterval(() => getOpenClawData(ns), SHORT_INTERVAL);
       return () => clearInterval(handle);
     }
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData?.defaultUserNamespace, userData?.proxyURL, openclawStatus]);
+  }, [user?.defaultUserNamespace, user?.proxyURL, openclawStatus]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
   // function changes.

@@ -28,11 +28,3 @@ export type StatusLabel = {
   color: StatusColor;
   label: "Provisioning" | "Ready" | "Idled" | "Deleting" | "Failed";
 };
-
-/**
- * Defines a result type that helps dependants determine if the user signup
- * is ready, and if we have a namespace we can work with.
- */
-export type EnsureUserIsReadyResult =
-  | { ready: true; namespace: string }
-  | { ready: false };

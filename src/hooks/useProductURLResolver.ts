@@ -1,24 +1,24 @@
 import { useCallback, useMemo } from "react";
 import type { Product, URLTemplateVars } from "../types/product";
-import { useUserContext } from "./UserContext";
+import { UserSignupPhase, useUserContext } from "./UserContext";
 
 /**
  * Resolves the URL for the products taking into account the user's data.
  */
 const useProductURLResolver = () => {
-  const { userData } = useUserContext();
+  const { user, userSignupPhase } = useUserContext();
 
   /**
    * Computes the URL template variables for the user.
    */
   const userURLTemplateVars = useMemo((): URLTemplateVars => {
     return {
-      cheDashboardURL: userData?.cheDashboardURL ?? "",
-      consoleURL: userData?.consoleURL ?? "",
-      defaultUserNamespace: userData?.defaultUserNamespace ?? "",
-      rhodsMemberURL: userData?.rhodsMemberURL ?? "",
+      cheDashboardURL: user?.cheDashboardURL ?? "",
+      consoleURL: user?.consoleURL ?? "",
+      defaultUserNamespace: user?.defaultUserNamespace ?? "",
+      rhodsMemberURL: user?.rhodsMemberURL ?? "",
     };
-  }, [userData]);
+  }, [user]);
 
   /**
    * Computes the URL for the given product.
@@ -27,7 +27,7 @@ const useProductURLResolver = () => {
    */
   const getProductURL = useCallback(
     (product: Product): string => {
-      if (!userData?.status?.ready) {
+      if (userSignupPhase !== UserSignupPhase.READY) {
         return "";
       }
 
@@ -55,7 +55,7 @@ const useProductURLResolver = () => {
 
       return "";
     },
-    [userData?.status?.ready, userURLTemplateVars],
+    [userSignupPhase, userURLTemplateVars],
   );
 
   return { getProductURL };

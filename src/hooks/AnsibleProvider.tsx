@@ -19,7 +19,7 @@ import { AnsibleContext } from "./AnsibleContext";
 import { useUserContext } from "./UserContext";
 
 export function AnsibleProvider({ children }: { children: ReactNode }) {
-  const { userData } = useUserContext();
+  const { user } = useUserContext();
 
   const [ansibleData, setAnsibleData] = useState<AAPData | undefined>();
   const [ansibleUILink, setAnsibleUILink] = useState<string | undefined>();
@@ -77,7 +77,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     async (
       userNamespace: string,
     ): Promise<{ status: AnsibleStatus; data: AAPData | undefined }> => {
-      const proxyURL = userData?.proxyURL;
+      const proxyURL = user?.proxyURL;
       if (!proxyURL)
         return {
           status: ansibleStatusRef.current,
@@ -121,7 +121,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
       }
       return { status: st, data };
     },
-    [userData?.proxyURL, resetAnsibleProvisioningErrorDetails],
+    [user?.proxyURL, resetAnsibleProvisioningErrorDetails],
   );
 
   /**
@@ -161,7 +161,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const proxyURL = userData?.proxyURL;
+      const proxyURL = user?.proxyURL;
       if (!proxyURL) return;
 
       if (
@@ -191,7 +191,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
         );
       }
     },
-    [getAAPData, userData?.proxyURL],
+    [getAAPData, user?.proxyURL],
   );
 
   /**
@@ -202,15 +202,15 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    *
    * The interval is created only when the user's namespace is
    * available and is torn down on unmount or when the dependencies
-   * ({@link userData.defaultUserNamespace}, {@link userData.proxyURL})
+   * ({@link user.defaultUserNamespace}, {@link user.proxyURL})
    * change.
    *
    * Expected {@link ApiError}s (transient 4xx/5xx from the proxy)
    * are silently swallowed; unexpected errors are logged.
    */
   useEffect(() => {
-    if (userData?.defaultUserNamespace) {
-      const ns = userData.defaultUserNamespace;
+    if (user?.defaultUserNamespace) {
+      const ns = user.defaultUserNamespace;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount is intentional
       getAAPData(ns).catch((err) => {
         if (!(err instanceof ApiError)) {
@@ -218,14 +218,14 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
         }
       });
     }
-  }, [getAAPData, userData?.defaultUserNamespace]);
+  }, [getAAPData, user?.defaultUserNamespace]);
 
   useEffect(() => {
     if (
-      userData?.defaultUserNamespace &&
+      user?.defaultUserNamespace &&
       ansibleStatus === AnsibleStatus.PROVISIONING
     ) {
-      const ns = userData.defaultUserNamespace;
+      const ns = user.defaultUserNamespace;
       const handle = setInterval(async () => {
         try {
           await getAAPData(ns);
@@ -238,7 +238,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
       return () => clearInterval(handle);
     }
     return undefined;
-  }, [getAAPData, userData?.defaultUserNamespace, ansibleStatus]);
+  }, [getAAPData, user?.defaultUserNamespace, ansibleStatus]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
   // function changes.

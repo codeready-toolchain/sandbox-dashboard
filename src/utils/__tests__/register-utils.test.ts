@@ -1,15 +1,23 @@
-import { signupDataToStatus } from "../register-utils";
-import { UserStatus } from "../../types";
-import type { SignupData } from "../../types";
+import { UserSignupPhase } from "../../hooks/UserContext";
+import type { User } from "../../types";
+import { mapUserStatusToSignupPhase } from "../register-utils";
 
 describe("register-utils", () => {
-  describe("signupDataToStatus", () => {
-    it("should return UserStatus.NEW when signupData is undefined", () => {
-      expect(signupDataToStatus(undefined)).toBe(UserStatus.NEW);
+  describe("mapUserStatusToSignupPhase", () => {
+    it("should return NOT_STARTED when user data is undefined and phase is NOT_STARTED", () => {
+      expect(
+        mapUserStatusToSignupPhase(UserSignupPhase.NOT_STARTED, undefined),
+      ).toBe(UserSignupPhase.NOT_STARTED);
     });
 
-    it("should return UserStatus.READY when status.ready is true", () => {
-      const signupData: SignupData = {
+    it("should preserve SIGNING_UP phase when user data is undefined", () => {
+      expect(
+        mapUserStatusToSignupPhase(UserSignupPhase.SIGNING_UP, undefined),
+      ).toBe(UserSignupPhase.SIGNING_UP);
+    });
+
+    it("should return READY when status.ready is true", () => {
+      const user: User = {
         name: "Test User",
         compliantUsername: "testuser",
         username: "testuser",
@@ -22,11 +30,13 @@ describe("register-utils", () => {
           reason: "",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe(UserStatus.READY);
+      expect(
+        mapUserStatusToSignupPhase(UserSignupPhase.NOT_STARTED, user),
+      ).toBe(UserSignupPhase.READY);
     });
 
-    it("should return UserStatus.VERIFY when not ready and verification is required", () => {
-      const signupData: SignupData = {
+    it("should return PENDING_PHONE_VERIFICATION when not ready and verification is required", () => {
+      const user: User = {
         name: "Test User",
         compliantUsername: "testuser",
         username: "testuser",
@@ -39,11 +49,13 @@ describe("register-utils", () => {
           reason: "",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe(UserStatus.VERIFY);
+      expect(
+        mapUserStatusToSignupPhase(UserSignupPhase.NOT_STARTED, user),
+      ).toBe(UserSignupPhase.PENDING_PHONE_VERIFICATION);
     });
 
-    it("should return UserStatus.PROVISIONING when not ready and reason is Provisioning", () => {
-      const signupData: SignupData = {
+    it("should return PROVISIONING when not ready and reason is Provisioning", () => {
+      const user: User = {
         name: "Test User",
         compliantUsername: "testuser",
         username: "testuser",
@@ -56,11 +68,13 @@ describe("register-utils", () => {
           reason: "Provisioning",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe(UserStatus.PROVISIONING);
+      expect(
+        mapUserStatusToSignupPhase(UserSignupPhase.NOT_STARTED, user),
+      ).toBe(UserSignupPhase.PROVISIONING);
     });
 
-    it("should return UserStatus.PENDING_APPROVAL for unknown states", () => {
-      const signupData: SignupData = {
+    it("should return PENDING_MANUAL_APPROVAL for unknown states", () => {
+      const user: User = {
         name: "Test User",
         compliantUsername: "testuser",
         username: "testuser",
@@ -73,7 +87,9 @@ describe("register-utils", () => {
           reason: "SomeOtherReason",
         },
       };
-      expect(signupDataToStatus(signupData)).toBe(UserStatus.PENDING_APPROVAL);
+      expect(
+        mapUserStatusToSignupPhase(UserSignupPhase.NOT_STARTED, user),
+      ).toBe(UserSignupPhase.PENDING_MANUAL_APPROVAL);
     });
   });
 });

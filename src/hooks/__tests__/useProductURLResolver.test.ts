@@ -2,28 +2,22 @@ import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { products } from "../../components/Catalog/productData";
 import { readyUserFixture } from "../../mocks/fixtures";
-import type { SignupData } from "../../types";
-import { UserStatus } from "../../types";
+import type { User } from "../../types";
 import {
   ProductType,
   type Product,
   type URLTemplateVars,
 } from "../../types/product";
 import type { UserContextType } from "../UserContext";
-import { UserContext } from "../UserContext";
+import { UserContext, UserSignupPhase } from "../UserContext";
 import useProductURLResolver from "../useProductURLResolver";
 
 function makeContext(
   overrides: Partial<UserContextType> = {},
 ): UserContextType {
   return {
-    userStatus: UserStatus.READY,
-    userFound: true,
-    userReady: true,
-    verificationRequired: false,
-    pendingApproval: false,
-    userData: readyUserFixture,
-    loading: false,
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.READY,
     refetchUserData: vi.fn().mockResolvedValue(undefined),
     signupUser: vi.fn(),
     ...overrides,
@@ -50,15 +44,15 @@ function renderResolver(contextOverrides: Partial<UserContextType> = {}) {
 
 describe("useProductURLResolver", () => {
   describe("when the user is not ready", () => {
-    const notReadyUserData: SignupData = {
+    const notReadyUserData: User = {
       ...readyUserFixture,
       status: { ready: false, reason: "", verificationRequired: false },
     };
 
     it("returns empty string when user status is not ready", () => {
       const { result } = renderResolver({
-        userData: notReadyUserData,
-        userReady: false,
+        user: notReadyUserData,
+        userSignupPhase: UserSignupPhase.PENDING_MANUAL_APPROVAL,
       });
 
       const product = makeProduct({
@@ -70,8 +64,8 @@ describe("useProductURLResolver", () => {
 
     it("returns empty string for a product with a custom resolver", () => {
       const { result } = renderResolver({
-        userData: notReadyUserData,
-        userReady: false,
+        user: notReadyUserData,
+        userSignupPhase: UserSignupPhase.PENDING_MANUAL_APPROVAL,
       });
 
       const product = makeProduct({
@@ -81,8 +75,11 @@ describe("useProductURLResolver", () => {
       expect(result.current.getProductURL(product)).toBe("");
     });
 
-    it("returns empty string when userData is undefined", () => {
-      const { result } = renderResolver({ userData: undefined });
+    it("returns empty string when user is undefined", () => {
+      const { result } = renderResolver({
+        user: undefined,
+        userSignupPhase: UserSignupPhase.NOT_STARTED,
+      });
 
       const product = makeProduct({
         urlTemplate: "{{consoleURL}}/dashboard",
@@ -106,13 +103,13 @@ describe("useProductURLResolver", () => {
     });
 
     it("derives the URL from consoleURL when cheDashboardURL is empty", () => {
-      const userData: SignupData = {
+      const user: User = {
         ...readyUserFixture,
         cheDashboardURL: "",
         consoleURL:
           "https://console-openshift-console.apps.cluster1.example.com",
       };
-      const { result } = renderResolver({ userData });
+      const { result } = renderResolver({ user });
 
       expect(result.current.getProductURL(devSpacesProduct)).toBe(
         "https://devspaces.apps.cluster1.example.com",
@@ -120,23 +117,23 @@ describe("useProductURLResolver", () => {
     });
 
     it("returns empty string when both cheDashboardURL and consoleURL are empty", () => {
-      const userData: SignupData = {
+      const user: User = {
         ...readyUserFixture,
         cheDashboardURL: "",
         consoleURL: "",
       };
-      const { result } = renderResolver({ userData });
+      const { result } = renderResolver({ user });
 
       expect(result.current.getProductURL(devSpacesProduct)).toBe("");
     });
 
     it("returns empty string when consoleURL has no '.apps' segment", () => {
-      const userData: SignupData = {
+      const user: User = {
         ...readyUserFixture,
         cheDashboardURL: "",
         consoleURL: "https://console.example.com",
       };
-      const { result } = renderResolver({ userData });
+      const { result } = renderResolver({ user });
 
       expect(result.current.getProductURL(devSpacesProduct)).toBe("");
     });
