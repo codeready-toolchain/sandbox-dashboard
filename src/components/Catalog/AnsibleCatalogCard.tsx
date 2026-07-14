@@ -2,15 +2,15 @@ import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
-import { useUserContext } from "../../hooks/UserContext";
+import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
 import { AnsibleStatus } from "../../utils/aap-utils";
 import logger from "../../utils/logger";
 import { AnsibleDeleteInstanceModal, AnsibleLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
-import type { EnsureUserIsReadyResult } from "./catalogCardTypes";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
+import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 
 /**
  * Obtains the main button's label.
@@ -65,11 +65,6 @@ type AnsibleCatalogCardProps = {
   /** Shows or hides the green corner on the top left part of the card. */
   isGreenCornerVisible: boolean;
   /**
-   * Function to make sure that the user signup is ready before attempting to
-   * manage any AAP instances.
-   */
-  ensureUserIsReady: () => Promise<EnsureUserIsReadyResult>;
-  /**
    * Marks the product as "tried".
    * @param product The product to be marked.
    */
@@ -79,7 +74,6 @@ type AnsibleCatalogCardProps = {
 export function AnsibleCatalogCard({
   product,
   isGreenCornerVisible,
-  ensureUserIsReady,
   markProductAsTried,
 }: AnsibleCatalogCardProps) {
   const {
@@ -93,9 +87,9 @@ export function AnsibleCatalogCard({
     refetchAAP,
   } = useAnsibleContext();
 
-  const { userData } = useUserContext();
-
+  const { signupUser, user, userSignupPhase } = useUserContext();
   const { addAlert, addAlertFromError } = useNotifications();
+  const { openPhoneVerificationModal } = usePhoneVerificationContext();
 
   const [isAnsibleInfoModalOpen, setAnsibleInfoModalOpen] =
     useState<boolean>(false);
@@ -112,29 +106,37 @@ export function AnsibleCatalogCard({
     ansibleStatus !== AnsibleStatus.NEW &&
     ansibleStatus !== AnsibleStatus.NOT_DEPLOYED &&
     ansibleStatus !== AnsibleStatus.UNKNOWN &&
-    Boolean(userData?.proxyURL && userData?.defaultUserNamespace);
+    Boolean(user?.proxyURL && user?.defaultUserNamespace);
 
   /**
    * Once the user signup is ready, it either un-idles or provisions the
    * Ansible instance.
    */
   const handleOnClickPrimaryButton = useCallback(async () => {
+    switch (userSignupPhase) {
+      case UserSignupPhase.NOT_STARTED:
+        signupUser();
+        return;
+      case UserSignupPhase.PENDING_PHONE_VERIFICATION:
+        openPhoneVerificationModal();
+        return;
+      case UserSignupPhase.READY:
+        break;
+      default:
+        return;
+    }
+
     if (ansibleProvisionInFlight.current) {
       return;
     }
 
     ansibleProvisionInFlight.current = true;
     try {
-      const isUserReady = await ensureUserIsReady();
-      if (!isUserReady.ready || !isUserReady.namespace) {
+      if (!user?.defaultUserNamespace) {
         return;
       }
 
-      if (!isUserReady.namespace) {
-        return;
-      }
-
-      await handleAAPInstance(isUserReady.namespace);
+      await handleAAPInstance(user?.defaultUserNamespace);
 
       setAnsibleInfoModalOpen(true);
       markProductAsTried(product);
@@ -158,10 +160,13 @@ export function AnsibleCatalogCard({
   }, [
     addAlert,
     addAlertFromError,
-    ensureUserIsReady,
     handleAAPInstance,
     markProductAsTried,
+    openPhoneVerificationModal,
     product,
+    signupUser,
+    user,
+    userSignupPhase,
   ]);
 
   /**
@@ -177,8 +182,8 @@ export function AnsibleCatalogCard({
     ansibleDeleteInFlight.current = true;
 
     try {
-      if (userData?.defaultUserNamespace) {
-        await refetchAAP(userData.defaultUserNamespace);
+      if (user?.defaultUserNamespace) {
+        await refetchAAP(user?.defaultUserNamespace);
       }
     } catch (error) {
       logger.error(
@@ -188,7 +193,7 @@ export function AnsibleCatalogCard({
     } finally {
       ansibleDeleteInFlight.current = false;
     }
-  }, [refetchAAP, userData]);
+  }, [refetchAAP, user]);
 
   return (
     <>
@@ -216,13 +221,13 @@ export function AnsibleCatalogCard({
           resetAnsibleProvisioningErrorDetails
         }
       />
-      {userData?.proxyURL && userData?.defaultUserNamespace && (
+      {user?.proxyURL && user?.defaultUserNamespace && (
         <AnsibleDeleteInstanceModal
           isOpen={isAnsibleDeleteModalOpen}
           onClose={() => setAnsibleDeleteModalOpen(false)}
           onDeleted={handleAAPDeleted}
-          proxyURL={userData.proxyURL}
-          userNamespace={userData.defaultUserNamespace}
+          proxyURL={user?.proxyURL}
+          userNamespace={user?.defaultUserNamespace}
         />
       )}
     </>

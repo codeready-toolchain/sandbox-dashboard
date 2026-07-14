@@ -13,16 +13,15 @@ import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/o
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
 import SalesImage from "../../assets/images/banner/sales.svg";
-import { useUserContext } from "../../hooks/UserContext";
+import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { calculateDaysBetweenDates } from "../../utils/common";
 import { CommentAltIcon } from "@patternfly/react-icons";
 
 export function CatalogBanner() {
-  const { userData, pendingApproval, verificationRequired, loading } =
-    useUserContext();
+  const { user, userSignupPhase } = useUserContext();
 
-  const daysLeft = userData?.endDate
-    ? calculateDaysBetweenDates(new Date(), new Date(userData.endDate))
+  const daysLeft = user?.endDate
+    ? calculateDaysBetweenDates(new Date(), new Date(user?.endDate))
     : undefined;
 
   const popoverBody = (
@@ -43,13 +42,13 @@ export function CatalogBanner() {
   );
 
   const renderSubtitle = () => {
-    if (verificationRequired) {
+    if (userSignupPhase === UserSignupPhase.PENDING_PHONE_VERIFICATION) {
       return 'Click on "Try it" to initiate your free, no commitment 30-day trial.';
     }
-    if (pendingApproval) {
+    if (userSignupPhase === UserSignupPhase.PENDING_MANUAL_APPROVAL) {
       return "Please wait for your trial to be approved.";
     }
-    if (userData?.endDate && daysLeft !== undefined) {
+    if (user?.endDate && daysLeft !== undefined) {
       return `Your free trial expires in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
     }
     return "";
@@ -70,7 +69,7 @@ export function CatalogBanner() {
             />
           </FlexItem>
           <FlexItem>
-            {loading ? (
+            {userSignupPhase === UserSignupPhase.FETCHING_DATA ? (
               <div>
                 <Skeleton
                   width="500px"
@@ -85,10 +84,10 @@ export function CatalogBanner() {
                 />
                 <Skeleton width="300px" height="25px" />
               </div>
-            ) : userData ? (
+            ) : user ? (
               <div>
                 <Content component="h1">
-                  Welcome, {userData.givenName || userData.compliantUsername}
+                  Welcome, {user?.givenName || user?.username}
                 </Content>
                 <Flex
                   alignItems={{ default: "alignItemsCenter" }}
@@ -99,7 +98,7 @@ export function CatalogBanner() {
                       {renderSubtitle()}
                     </Content>
                   </FlexItem>
-                  {userData.endDate && (
+                  {user?.endDate && (
                     <FlexItem>
                       <Popover
                         headerContent="Trial expiration"

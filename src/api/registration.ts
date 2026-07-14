@@ -1,6 +1,6 @@
 import { Environment, getConfig } from "../config/config";
 import { ApiError } from "../error/ApiError";
-import type { SignupData, UIConfig } from "../types";
+import type { User, UIConfig } from "../types";
 import logger from "../utils/logger";
 import { authFetch } from "./authFetch";
 
@@ -13,7 +13,7 @@ function getBaseURL(): string {
  * @returns the signup data or `undefined` if we get a "not found" error.
  * @throws {ApiError} if any errors occur.
  */
-export async function getSignupData(): Promise<SignupData | undefined> {
+export async function getSignupData(): Promise<User | undefined> {
   const response = await authFetch(`${getBaseURL()}/signup`, {
     method: "GET",
   });

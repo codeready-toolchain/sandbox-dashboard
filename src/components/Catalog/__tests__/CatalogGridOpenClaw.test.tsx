@@ -7,11 +7,11 @@ import {
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext } from "../../../hooks/UserContext";
+import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
+import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
-import { UserStatus } from "../../../types";
 import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";
@@ -29,13 +29,8 @@ function makeSandboxContext(
   overrides: Partial<UserContextType> = {},
 ): UserContextType {
   return {
-    userStatus: UserStatus.READY,
-    userFound: true,
-    userReady: true,
-    verificationRequired: false,
-    pendingApproval: false,
-    userData: readyUserFixture,
-    loading: false,
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.READY,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
     ...overrides,
@@ -66,7 +61,11 @@ function renderGrid(openClawOverrides: Partial<OpenClawContextType> = {}) {
         <AnsibleContext.Provider value={ansibleCtx}>
           <OpenClawContext.Provider value={openClawCtx}>
             <UserContext.Provider value={sandboxCtx}>
-              <CatalogGrid />
+              <PhoneVerificationContext.Provider
+                value={{ openPhoneVerificationModal: vi.fn() }}
+              >
+                <CatalogGrid />
+              </PhoneVerificationContext.Provider>
             </UserContext.Provider>
           </OpenClawContext.Provider>
         </AnsibleContext.Provider>

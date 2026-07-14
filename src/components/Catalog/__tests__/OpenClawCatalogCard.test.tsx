@@ -3,13 +3,12 @@ import userEvent from "@testing-library/user-event";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext } from "../../../hooks/UserContext";
+import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
+import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
-import { UserStatus } from "../../../types";
 import { ProductType, type Product } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
-import type { EnsureUserIsReadyResult } from "../catalogCardTypes";
 import { OpenClawCatalogCard } from "../OpenClawCatalogCard";
 import { makeOpenClawContext } from "./openClawTestHelpers";
 import { products } from "../productData";
@@ -20,13 +19,8 @@ function makeSandboxContext(
   overrides: Partial<UserContextType> = {},
 ): UserContextType {
   return {
-    userStatus: UserStatus.READY,
-    userFound: true,
-    userReady: true,
-    verificationRequired: false,
-    pendingApproval: false,
-    userData: readyUserFixture,
-    loading: false,
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.READY,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
     ...overrides,
@@ -35,30 +29,26 @@ function makeSandboxContext(
 
 function renderCard(
   openClawOverrides: Partial<OpenClawContextType> = {},
-  ensureUserIsReady?: () => Promise<EnsureUserIsReadyResult>,
   markProductAsTried?: (product: Product) => void,
   sandboxOverrides: Partial<UserContextType> = {},
 ) {
   const sandboxCtx = makeSandboxContext(sandboxOverrides);
   const openClawCtx = makeOpenClawContext(openClawOverrides);
-  const defaultEnsureReady =
-    ensureUserIsReady ??
-    vi.fn().mockResolvedValue({
-      ready: true,
-      namespace: readyUserFixture.defaultUserNamespace,
-    });
   const defaultMarkTried = markProductAsTried ?? vi.fn();
 
   render(
     <NotificationProvider>
       <UserContext.Provider value={sandboxCtx}>
         <OpenClawContext.Provider value={openClawCtx}>
-          <OpenClawCatalogCard
-            product={openclawProduct}
-            isGreenCornerVisible={false}
-            ensureUserIsReady={defaultEnsureReady}
-            markProductAsTried={defaultMarkTried}
-          />
+          <PhoneVerificationContext.Provider
+            value={{ openPhoneVerificationModal: vi.fn() }}
+          >
+            <OpenClawCatalogCard
+              product={openclawProduct}
+              isGreenCornerVisible={false}
+              markProductAsTried={defaultMarkTried}
+            />
+          </PhoneVerificationContext.Provider>
         </OpenClawContext.Provider>
       </UserContext.Provider>
     </NotificationProvider>,
@@ -67,7 +57,6 @@ function renderCard(
   return {
     sandboxCtx,
     openClawCtx,
-    ensureUserIsReady: defaultEnsureReady,
     markProductAsTried: defaultMarkTried,
   };
 }
@@ -84,7 +73,6 @@ describe("OpenClawCatalogCard", () => {
         openclawStatus: OpenClawStatus.READY,
         openclawUILink: "https://openclaw.example.com",
       },
-      undefined,
       markProductAsTried,
     );
 
@@ -108,7 +96,6 @@ describe("OpenClawCatalogCard", () => {
         openclawStatus: OpenClawStatus.READY,
         openclawUILink: undefined,
       },
-      undefined,
       markProductAsTried,
     );
 
@@ -132,7 +119,6 @@ describe("OpenClawCatalogCard", () => {
         openclawStatus: OpenClawStatus.READY,
         openclawUILink: "",
       },
-      undefined,
       markProductAsTried,
     );
 
@@ -168,7 +154,7 @@ describe("OpenClawCatalogCard", () => {
     expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
   });
 
-  it("opens info modal when status is TERMINATING", async () => {
+  it("disables button when status is TERMINATING", async () => {
     renderCard({ openclawStatus: OpenClawStatus.TERMINATING });
 
     const button = screen.getByTestId("try-it-button");
@@ -191,13 +177,13 @@ describe("OpenClawCatalogCard", () => {
     expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
   });
 
-  it("does not perform any action when ensureUserIsReady returns not ready", async () => {
+  it("calls signupUser when signup phase is NOT_STARTED instead of performing actions", async () => {
     const windowOpenSpy = vi
       .spyOn(window, "open")
       .mockImplementation(() => null);
     const handleOpenClawInstance = vi.fn();
     const markProductAsTried = vi.fn();
-    const ensureUserIsReady = vi.fn().mockResolvedValue({ ready: false });
+    const signupUser = vi.fn();
 
     renderCard(
       {
@@ -205,13 +191,80 @@ describe("OpenClawCatalogCard", () => {
         openclawUILink: "https://openclaw.example.com",
         handleOpenClawInstance,
       },
-      ensureUserIsReady,
       markProductAsTried,
+      {
+        userSignupPhase: UserSignupPhase.NOT_STARTED,
+        user: undefined,
+        signupUser,
+      },
     );
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(ensureUserIsReady).toHaveBeenCalled();
+    expect(signupUser).toHaveBeenCalled();
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+    expect(handleOpenClawInstance).not.toHaveBeenCalled();
+    expect(markProductAsTried).not.toHaveBeenCalled();
+
+    windowOpenSpy.mockRestore();
+  });
+
+  it("opens phone verification modal when signup phase is PENDING_PHONE_VERIFICATION", async () => {
+    const handleOpenClawInstance = vi.fn();
+    const openPhoneVerificationModal = vi.fn();
+
+    const sandboxCtx = makeSandboxContext({
+      userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION,
+    });
+    const openClawCtx = makeOpenClawContext({
+      openclawStatus: OpenClawStatus.READY,
+      openclawUILink: "https://openclaw.example.com",
+      handleOpenClawInstance,
+    });
+
+    render(
+      <NotificationProvider>
+        <UserContext.Provider value={sandboxCtx}>
+          <OpenClawContext.Provider value={openClawCtx}>
+            <PhoneVerificationContext.Provider
+              value={{ openPhoneVerificationModal }}
+            >
+              <OpenClawCatalogCard
+                product={openclawProduct}
+                isGreenCornerVisible={false}
+                markProductAsTried={vi.fn()}
+              />
+            </PhoneVerificationContext.Provider>
+          </OpenClawContext.Provider>
+        </UserContext.Provider>
+      </NotificationProvider>,
+    );
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(openPhoneVerificationModal).toHaveBeenCalledTimes(1);
+    expect(handleOpenClawInstance).not.toHaveBeenCalled();
+  });
+
+  it("does not perform any action when signup phase is not READY or NOT_STARTED", async () => {
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+    const handleOpenClawInstance = vi.fn();
+    const markProductAsTried = vi.fn();
+
+    renderCard(
+      {
+        openclawStatus: OpenClawStatus.READY,
+        openclawUILink: "https://openclaw.example.com",
+        handleOpenClawInstance,
+      },
+      markProductAsTried,
+      { userSignupPhase: UserSignupPhase.PROVISIONING },
+    );
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(handleOpenClawInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
@@ -245,9 +298,9 @@ describe("OpenClawCatalogCard", () => {
     });
   });
 
-  it("does not render modals when userData is missing proxyURL", () => {
-    renderCard({ openclawStatus: OpenClawStatus.READY }, undefined, undefined, {
-      userData: { ...readyUserFixture, proxyURL: "" },
+  it("does not render modals when user is missing proxyURL", () => {
+    renderCard({ openclawStatus: OpenClawStatus.READY }, undefined, {
+      user: { ...readyUserFixture, proxyURL: "" },
     });
 
     expect(

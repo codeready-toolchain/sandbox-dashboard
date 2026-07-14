@@ -1,16 +1,29 @@
 import { createContext, useContext } from "react";
-import { type SignupData, UserStatus } from "../types";
+import { type User } from "../types";
+
+/**
+ * Defines the phases in which the "user signup" currently is.
+ */
+export enum UserSignupPhase {
+  NOT_STARTED,
+  FETCHING_DATA,
+  SIGNING_UP,
+  PENDING_PHONE_VERIFICATION,
+  PENDING_MANUAL_APPROVAL,
+  PROVISIONING,
+  PROVISIONING_TIMED_OUT,
+  READY,
+}
 
 export interface UserContextType {
-  loading: boolean;
-  pendingApproval: boolean;
-  refetchUserData: () => Promise<SignupData | undefined>;
+  /** Triggers a refetch of the "userSignup". */
+  refetchUserData: () => Promise<void>;
+  /** Signs up the user in the Developer Sandbox. */
   signupUser: () => void;
-  userData: SignupData | undefined;
-  userFound: boolean;
-  userReady: boolean;
-  userStatus: UserStatus;
-  verificationRequired: boolean;
+  /** The user object representing the logged in and signed up user. */
+  user?: User;
+  /** Holds the phase in which the user signup currently is. */
+  userSignupPhase: UserSignupPhase;
 }
 
 export const UserContext = createContext<UserContextType | undefined>(

@@ -1,7 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PhoneVerificationModal } from "../PhoneVerificationModal";
 import * as registrationApi from "../../../api/registration";
+import {
+  UserContext,
+  UserSignupPhase,
+  type UserContextType,
+} from "../../../hooks/UserContext";
+import { readyUserFixture } from "../../../mocks/fixtures";
+import { PhoneVerificationModal } from "../PhoneVerificationModal";
 
 vi.mock("../../../api/registration", () => ({
   initiatePhoneVerification: vi.fn(),
@@ -11,13 +17,30 @@ vi.mock("../../../api/registration", () => ({
 const mockOnClose = vi.fn();
 const mockOnVerified = vi.fn();
 
-function renderModal(isOpen = true) {
+function makeContext(
+  overrides: Partial<UserContextType> = {},
+): UserContextType {
+  return {
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION,
+    refetchUserData: vi.fn().mockResolvedValue(undefined),
+    signupUser: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderModal(
+  isOpen = true,
+  contextOverrides: Partial<UserContextType> = {},
+) {
   return render(
-    <PhoneVerificationModal
-      isOpen={isOpen}
-      onClose={mockOnClose}
-      onVerified={mockOnVerified}
-    />,
+    <UserContext.Provider value={makeContext(contextOverrides)}>
+      <PhoneVerificationModal
+        isOpen={isOpen}
+        onClose={mockOnClose}
+        onVerified={mockOnVerified}
+      />
+    </UserContext.Provider>,
   );
 }
 

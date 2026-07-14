@@ -6,9 +6,12 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../auth/AuthenticatedContext";
-import { UserContext, type UserContextType } from "../../hooks/UserContext";
+import {
+  UserContext,
+  UserSignupPhase,
+  type UserContextType,
+} from "../../hooks/UserContext";
 import { readyUserFixture } from "../../mocks/fixtures";
-import { UserStatus } from "../../types";
 
 const mockLogout = vi.fn();
 
@@ -25,13 +28,8 @@ function makeSandboxContext(
   overrides: Partial<UserContextType> = {},
 ): UserContextType {
   return {
-    userStatus: UserStatus.READY,
-    userFound: true,
-    userReady: true,
-    verificationRequired: false,
-    pendingApproval: false,
-    userData: readyUserFixture,
-    loading: false,
+    user: readyUserFixture,
+    userSignupPhase: UserSignupPhase.READY,
     refetchUserData: vi.fn(),
     signupUser: vi.fn(),
     ...overrides,
@@ -73,11 +71,6 @@ describe("Layout", () => {
     expect(screen.getByText("Activities")).toBeInTheDocument();
   });
 
-  it("displays user name in dropdown toggle", () => {
-    renderLayout();
-    expect(screen.getByText("John Doe")).toBeInTheDocument();
-  });
-
   it("renders page content via Outlet", () => {
     renderLayout();
     expect(screen.getByText("Catalog Content")).toBeInTheDocument();
@@ -86,6 +79,11 @@ describe("Layout", () => {
   it("renders activities page when navigated to /activities", () => {
     renderLayout("/activities");
     expect(screen.getByText("Activities Content")).toBeInTheDocument();
+  });
+
+  it("displays user name in dropdown toggle", () => {
+    renderLayout();
+    expect(screen.getByText("John Doe")).toBeInTheDocument();
   });
 
   it("shows logout option in dropdown", async () => {
@@ -99,9 +97,9 @@ describe("Layout", () => {
     expect(mockLogout).toHaveBeenCalled();
   });
 
-  it("shows Reset Workspaces option when user is ready", async () => {
+  it("shows Reset Workspaces option when user signup phase is READY", async () => {
     const user = userEvent.setup();
-    renderLayout("/", { userReady: true });
+    renderLayout("/", { userSignupPhase: UserSignupPhase.READY });
 
     await user.click(screen.getByText("John Doe"));
     expect(
@@ -109,13 +107,30 @@ describe("Layout", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides Reset Workspaces option when user is not ready", async () => {
+  it("hides Reset Workspaces option when user signup phase is not READY", async () => {
     const user = userEvent.setup();
-    renderLayout("/", { userReady: false });
+    renderLayout("/", {
+      userSignupPhase: UserSignupPhase.PROVISIONING,
+    });
 
     await user.click(screen.getByText("John Doe"));
     expect(
       screen.queryByTestId("reset-workspaces-menu-item"),
     ).not.toBeInTheDocument();
+  });
+
+  it("falls back to givenName when familyName is missing", () => {
+    renderLayout("/", {
+      user: { ...readyUserFixture, familyName: "" },
+    });
+    expect(screen.queryByText("John Doe")).not.toBeInTheDocument();
+    expect(screen.getByText("John")).toBeInTheDocument();
+  });
+
+  it("falls back to 'User' when givenName is also missing", () => {
+    renderLayout("/", {
+      user: { ...readyUserFixture, givenName: "", familyName: "" },
+    });
+    expect(screen.getByText("User")).toBeInTheDocument();
   });
 });
