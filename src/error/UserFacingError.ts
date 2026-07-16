@@ -13,13 +13,18 @@ export enum ErrorSeverity {
  */
 export class UserFacingError extends Error {
   readonly severity: ErrorSeverity;
+  /** User facing error title. */
   readonly title: string;
+  /** User facing error details. */
   readonly detail: string;
+  /** Internal technical details of the error. */
+  readonly technicalDetails?: string;
 
   constructor(
     title: string,
     detail: string,
     cause?: unknown,
+    technicalDetails?: string,
     severity?: ErrorSeverity,
   ) {
     super(title, { cause });
@@ -27,6 +32,7 @@ export class UserFacingError extends Error {
     this.name = "UserFacingError";
     this.title = title;
     this.detail = detail;
+    this.technicalDetails = technicalDetails;
     this.severity = severity ?? ErrorSeverity.ERROR;
   }
 }

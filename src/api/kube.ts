@@ -145,7 +145,7 @@ export async function getSecret(
   proxyURL: string,
   namespace: string,
   secretName: string,
-): Promise<SecretItem | undefined> {
+): Promise<SecretItem> {
   const url = `/api/v1/namespaces/${namespace}/secrets/${secretName}`;
   const response = await authFetch(`${proxyURL}${url}`, {
     method: "GET",
@@ -154,6 +154,7 @@ export async function getSecret(
   if (!response.ok) {
     throw await ApiError.fromResponse("getSecret failed", response);
   }
+
   return response.json();
 }
 

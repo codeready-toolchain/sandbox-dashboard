@@ -1,5 +1,5 @@
 import { ApiError } from "../error/ApiError";
-import type { AAPData } from "../types";
+import type { AAPCR, AAPCRList } from "../types";
 import { AAPObject } from "../utils/aap-utils";
 import { authFetch } from "./authFetch";
 
@@ -10,13 +10,14 @@ const aapBasePath = (namespace: string) =>
  * Fetches an Ansible Automation Platform custom resource.
  * @param proxyURL the URL of the proxy to send the request to.
  * @param namespace the namespace to fetch the resource from.
- * @returns the Ansible Automation Platform custom resource.
+ * @returns the Ansible Automation Platform custom resource or `undefined` if
+ * the resource does not exist.
  * @throws {ApiError} if the API call fails.
  */
 export async function getAAP(
   proxyURL: string,
   namespace: string,
-): Promise<AAPData | undefined> {
+): Promise<AAPCR | undefined> {
   const response = await authFetch(`${proxyURL}${aapBasePath(namespace)}`, {
     method: "GET",
   });
@@ -25,7 +26,8 @@ export async function getAAP(
     throw await ApiError.fromResponse("getAAP failed", response);
   }
 
-  return response.json();
+  const crList: AAPCRList = await response.json();
+  return crList.items.find(({ metadata }) => metadata.name === "sandbox-aap");
 }
 
 /**
@@ -46,6 +48,7 @@ export async function createAAP(
     },
   });
 
+  // A "409 - Conflict" response means that the resource was already created.
   if (!response.ok && response.status !== 409) {
     throw await ApiError.fromResponse("createAAP failed", response);
   }

@@ -15,7 +15,6 @@ import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { ProductType } from "../../../types/product";
-import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";
 import { products } from "../productData";
@@ -56,15 +55,14 @@ function makeAnsibleContext(
   overrides: Partial<AnsibleContextType> = {},
 ): AnsibleContextType {
   return {
-    ansibleData: undefined,
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.NEW,
-    ansibleUILink: undefined,
-    ansibleUIPassword: "",
-    ansibleUIUser: undefined,
-    handleAAPInstance: vi.fn(),
-    refetchAAP: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
+    deleteInstance: vi.fn(),
+    fetchInstanceCredentials: vi.fn().mockResolvedValue({
+      username: "admin",
+      password: "secret",
+      url: "https://aap.example.com",
+    }),
+    handleAAPInstance: vi.fn().mockResolvedValue(undefined),
+    instanceStatus: { kind: "new" },
     ...overrides,
   };
 }
@@ -153,7 +151,7 @@ describe("CatalogGrid", () => {
   it("shows default 'Try it' button on non-AAP/non-OpenClaw products regardless of statuses", () => {
     renderGrid(
       makeContext(),
-      { ansibleStatus: AnsibleStatus.READY },
+      { instanceStatus: { kind: "ready" } },
       { openclawStatus: OpenClawStatus.READY },
     );
 

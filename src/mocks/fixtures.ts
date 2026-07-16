@@ -21,5 +21,6 @@ export {
   aapReadyFixture,
   aapProvisioningFixture,
   aapIdledFixture,
+  aapFailedFixture,
   aapEmptyFixture,
 } from "./fixtures/aap-fixtures";

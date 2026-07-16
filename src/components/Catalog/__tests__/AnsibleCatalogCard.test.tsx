@@ -1,16 +1,17 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { UserFacingError } from "../../../error/UserFacingError";
 import {
   AnsibleContext,
   type AnsibleContextType,
 } from "../../../hooks/AnsibleContext";
+import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
-import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { ProductType, type Product } from "../../../types/product";
-import { AnsibleStatus } from "../../../utils/aap-utils";
+import { AAPInstanceErrorType } from "../../../utils/aap-utils";
 import { AnsibleCatalogCard } from "../AnsibleCatalogCard";
 import { products } from "../productData";
 
@@ -32,15 +33,14 @@ function makeAnsibleContext(
   overrides: Partial<AnsibleContextType> = {},
 ): AnsibleContextType {
   return {
-    ansibleData: undefined,
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.NEW,
-    ansibleUILink: undefined,
-    ansibleUIPassword: "",
-    ansibleUIUser: undefined,
-    handleAAPInstance: vi.fn(),
-    refetchAAP: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
+    deleteInstance: vi.fn(),
+    fetchInstanceCredentials: vi.fn().mockResolvedValue({
+      username: "admin",
+      password: "secret",
+      url: "https://aap.example.com",
+    }),
+    handleAAPInstance: vi.fn().mockResolvedValue(undefined),
+    instanceStatus: { kind: "new" },
     ...overrides,
   };
 }
@@ -88,16 +88,14 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard(
       {},
-      { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
+      { handleAAPInstance, instanceStatus: { kind: "new" } },
       markProductAsTried,
     );
 
     const button = screen.getByTestId("try-it-button");
     await userEvent.click(button);
 
-    expect(handleAAPInstance).toHaveBeenCalledWith(
-      readyUserFixture.defaultUserNamespace,
-    );
+    expect(handleAAPInstance).toHaveBeenCalled();
     expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
     expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
   });
@@ -112,7 +110,7 @@ describe("AnsibleCatalogCard", () => {
         user: undefined,
         signupUser,
       },
-      { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
+      { handleAAPInstance, instanceStatus: { kind: "new" } },
     );
 
     const button = screen.getByTestId("try-it-button");
@@ -127,7 +125,7 @@ describe("AnsibleCatalogCard", () => {
 
     const { openPhoneVerificationModal } = renderCard(
       { userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION },
-      { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
+      { handleAAPInstance, instanceStatus: { kind: "new" } },
     );
 
     await userEvent.click(screen.getByTestId("try-it-button"));
@@ -142,7 +140,7 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard(
       { userSignupPhase: UserSignupPhase.PROVISIONING },
-      { handleAAPInstance, ansibleStatus: AnsibleStatus.NEW },
+      { handleAAPInstance, instanceStatus: { kind: "new" } },
       markProductAsTried,
     );
 
@@ -154,7 +152,7 @@ describe("AnsibleCatalogCard", () => {
   });
 
   it("opens the delete confirmation modal when delete button is clicked", async () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+    renderCard({}, { instanceStatus: { kind: "ready" } });
 
     const deleteButton = screen.getByTestId("delete-instance-button");
     await userEvent.click(deleteButton);
@@ -162,121 +160,432 @@ describe("AnsibleCatalogCard", () => {
     expect(screen.getByTestId("ansible-delete-modal")).toBeInTheDocument();
   });
 
-  it("does not render delete button or modal when user is missing proxyURL", () => {
+  it("does not render delete button when user is missing proxyURL", () => {
     renderCard(
       { user: { ...readyUserFixture, proxyURL: "" } },
-      { ansibleStatus: AnsibleStatus.READY },
+      { instanceStatus: { kind: "ready" } },
     );
 
     expect(
       screen.queryByTestId("delete-instance-button"),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("ansible-delete-modal"),
-    ).not.toBeInTheDocument();
   });
 
-  it("renders info modal with correct credentials when status is READY", async () => {
-    renderCard(
-      {},
-      {
-        ansibleStatus: AnsibleStatus.READY,
-        ansibleUIUser: "my-admin",
-        ansibleUIPassword: "my-password",
-        ansibleUILink: "https://aap.test.com",
-        handleAAPInstance: vi.fn().mockResolvedValue(undefined),
-      },
-    );
-
-    await userEvent.click(screen.getByTestId("try-it-button"));
-
-    const modal = screen.getByTestId("ansible-launch-info-modal");
-    expect(modal).toBeInTheDocument();
-
-    const usernameField = screen.getByTestId("ansible-username");
-    const usernameInput = usernameField.querySelector(
-      "input",
-    ) as HTMLInputElement;
-    expect(usernameInput.value).toBe("my-admin");
-
-    const getStartedButton = screen.getByTestId("get-started-button");
-    expect(getStartedButton).toHaveAttribute("href", "https://aap.test.com");
-
-    await userEvent.click(screen.getByTestId("toggle-password-visibility"));
-    const passwordField = screen.getByTestId(
-      "ansible-password-field",
-    ) as HTMLInputElement;
-    expect(passwordField.value).toBe("my-password");
-  });
-
-  it("shows 'Provision' button when ansibleStatus is NEW", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.NEW });
+  it("shows 'Provision' button when instanceStatus is 'new'", () => {
+    renderCard({}, { instanceStatus: { kind: "new" } });
 
     const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
     expect(mainButton.textContent).toContain("Provision");
     expect(mainButton.textContent).not.toContain("Provisioning");
   });
 
-  it("shows 'Provisioning...' button when ansibleStatus is PROVISIONING", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.PROVISIONING });
+  it("shows 'Provisioning...' button when instanceStatus is 'provisioning'", () => {
+    renderCard({}, { instanceStatus: { kind: "provisioning" } });
 
     const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
     expect(mainButton.textContent).toContain("Provisioning...");
   });
 
-  it("shows 'Launch' button when ansibleStatus is READY", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+  it("shows 'Launch' button when instanceStatus is 'ready'", () => {
+    renderCard({}, { instanceStatus: { kind: "ready" } });
 
     const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
     expect(mainButton.textContent).toContain("Launch");
   });
 
-  it("shows 'Re-provision' button when ansibleStatus is IDLED", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.IDLED });
+  it("shows 'Re-provision' button when instanceStatus is 'idled'", () => {
+    renderCard({}, { instanceStatus: { kind: "idled" } });
 
     const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
     expect(mainButton.textContent).toContain("Re-provision");
   });
 
-  it("hides delete button when ansibleStatus is NEW", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.NEW });
+  it("hides delete button when instanceStatus is 'new'", () => {
+    renderCard({}, { instanceStatus: { kind: "new" } });
 
     expect(
       screen.queryByTestId("delete-instance-button"),
     ).not.toBeInTheDocument();
   });
 
-  it("hides delete button when ansibleStatus is NOT_DEPLOYED", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.NOT_DEPLOYED });
+  it("hides delete button when instanceStatus is 'notDeployed'", () => {
+    renderCard({}, { instanceStatus: { kind: "notDeployed" } });
 
     expect(
       screen.queryByTestId("delete-instance-button"),
     ).not.toBeInTheDocument();
   });
 
-  it("shows delete button when ansibleStatus is READY", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+  it("hides delete button when instanceStatus is 'unknown'", () => {
+    renderCard({}, { instanceStatus: { kind: "unknown" } });
+
+    expect(
+      screen.queryByTestId("delete-instance-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides delete button when instanceStatus is 'deleted'", () => {
+    renderCard({}, { instanceStatus: { kind: "deleted" } });
+
+    expect(
+      screen.queryByTestId("delete-instance-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows delete button when instanceStatus is 'ready'", () => {
+    renderCard({}, { instanceStatus: { kind: "ready" } });
 
     expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
   });
 
-  it("shows delete button when ansibleStatus is PROVISIONING", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.PROVISIONING });
+  it("shows delete button when instanceStatus is 'provisioning'", () => {
+    renderCard({}, { instanceStatus: { kind: "provisioning" } });
 
     expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
   });
 
-  it("renders 'Ready' status label when ansibleStatus is READY", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.READY });
+  it("shows delete button when instanceStatus is 'idled'", () => {
+    renderCard({}, { instanceStatus: { kind: "idled" } });
+
+    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+  });
+
+  it("renders 'Ready' status label when instanceStatus is 'ready'", () => {
+    renderCard({}, { instanceStatus: { kind: "ready" } });
 
     const card = screen.getByTestId("catalog-card");
     expect(card.textContent).toContain("Ready");
   });
 
-  it("renders 'Provisioning' status label when ansibleStatus is PROVISIONING", () => {
-    renderCard({}, { ansibleStatus: AnsibleStatus.PROVISIONING });
+  it("renders 'Provisioning' status label when instanceStatus is 'provisioning'", () => {
+    renderCard({}, { instanceStatus: { kind: "provisioning" } });
 
     const card = screen.getByTestId("catalog-card");
     expect(card.textContent).toContain("Provisioning");
+  });
+
+  it("renders 'Idled' status label when instanceStatus is 'idled'", () => {
+    renderCard({}, { instanceStatus: { kind: "idled" } });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Idled");
+  });
+
+  it("does not render a status label when instanceStatus is 'new'", () => {
+    renderCard({}, { instanceStatus: { kind: "new" } });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).not.toContain("Ready");
+    expect(card.textContent).not.toContain("Provisioning");
+    expect(card.textContent).not.toContain("Idled");
+  });
+
+  it("shows 'Provision' button for 'notDeployed' status", () => {
+    renderCard({}, { instanceStatus: { kind: "notDeployed" } });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+  });
+
+  it("shows 'Provision' button for 'unknown' status", () => {
+    renderCard({}, { instanceStatus: { kind: "unknown" } });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+  });
+
+  it("shows a generic alert when handleAAPInstance throws a non-UserFacingError", async () => {
+    const handleAAPInstance = vi
+      .fn()
+      .mockRejectedValue(new Error("unexpected"));
+
+    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "new" } });
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleAAPInstance).toHaveBeenCalled();
+    expect(screen.getByText("AAP provisioning failed")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /An unexpected error occurred while handling your AAP instance/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a user-facing alert when handleAAPInstance throws a UserFacingError", async () => {
+    const handleAAPInstance = vi
+      .fn()
+      .mockRejectedValue(
+        new UserFacingError("Provision failed", "Something went wrong"),
+      );
+
+    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "new" } });
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleAAPInstance).toHaveBeenCalled();
+    expect(screen.getByText("Provision failed")).toBeInTheDocument();
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  });
+
+  it("prevents double-click on provision button via in-flight guard", async () => {
+    let resolveProvision: () => void;
+    const handleAAPInstance = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveProvision = resolve;
+        }),
+    );
+
+    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "new" } });
+
+    const button = screen.getByTestId("try-it-button");
+
+    await userEvent.click(button);
+    await userEvent.click(button);
+
+    expect(handleAAPInstance).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveProvision!();
+    });
+  });
+
+  it("shows 'Provision' button for 'error' status", () => {
+    renderCard(
+      {},
+      {
+        instanceStatus: {
+          kind: "error",
+          errorType: AAPInstanceErrorType.INITIAL_FETCH_FAILED,
+        },
+      },
+    );
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+  });
+
+  it("shows delete button when instanceStatus is 'error'", () => {
+    renderCard(
+      {},
+      {
+        instanceStatus: {
+          kind: "error",
+          errorType: AAPInstanceErrorType.INITIAL_FETCH_FAILED,
+        },
+      },
+    );
+
+    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+  });
+
+  it("shows 'Deleting...' button for 'deleting' status", () => {
+    renderCard({}, { instanceStatus: { kind: "deleting" } });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Deleting...");
+  });
+
+  it("shows delete button when instanceStatus is 'deleting'", () => {
+    renderCard({}, { instanceStatus: { kind: "deleting" } });
+
+    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+  });
+
+  it("shows 'Provisioning...' button for 'unidling' status", () => {
+    renderCard({}, { instanceStatus: { kind: "unidling" } });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provisioning...");
+  });
+
+  it("shows delete button when instanceStatus is 'unidling'", () => {
+    renderCard({}, { instanceStatus: { kind: "unidling" } });
+
+    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+  });
+
+  it("does not call handleAAPInstance when clicking during provisioning", async () => {
+    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+
+    renderCard(
+      {},
+      { handleAAPInstance, instanceStatus: { kind: "provisioning" } },
+    );
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
+  });
+
+  it("does not call handleAAPInstance when clicking during unidling", async () => {
+    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+
+    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "unidling" } });
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
+  });
+
+  it("blocks primary button click during deletion", async () => {
+    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+
+    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "deleting" } });
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleAAPInstance).not.toHaveBeenCalled();
+  });
+
+  it("renders 'Failed' status label for 'error' status", () => {
+    renderCard(
+      {},
+      {
+        instanceStatus: {
+          kind: "error",
+          errorType: AAPInstanceErrorType.INITIAL_FETCH_FAILED,
+        },
+      },
+    );
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Failed");
+  });
+
+  it("renders 'Deleting' status label for 'deleting' status", () => {
+    renderCard({}, { instanceStatus: { kind: "deleting" } });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Deleting");
+  });
+
+  it("renders 'Provisioning' status label for 'unidling' status", () => {
+    renderCard({}, { instanceStatus: { kind: "unidling" } });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Provisioning");
+  });
+
+  it("calls deleteInstance when delete is confirmed and dismisses the modal", async () => {
+    const deleteInstance = vi.fn().mockResolvedValue(undefined);
+
+    renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
+
+    const deleteButton = screen.getByTestId("delete-instance-button");
+    await userEvent.click(deleteButton);
+
+    expect(screen.getByTestId("ansible-delete-modal")).toBeInTheDocument();
+
+    const confirmDelete = screen.getByTestId("confirm-delete-aap");
+    await userEvent.click(confirmDelete);
+
+    expect(deleteInstance).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId("ansible-delete-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows alert when deleteInstance throws a UserFacingError", async () => {
+    const deleteInstance = vi
+      .fn()
+      .mockRejectedValue(
+        new UserFacingError(
+          "Unable to delete",
+          "Deletion failed",
+          undefined,
+          "Tech details",
+        ),
+      );
+
+    renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
+
+    await userEvent.click(screen.getByTestId("delete-instance-button"));
+    await userEvent.click(screen.getByTestId("confirm-delete-aap"));
+
+    expect(deleteInstance).toHaveBeenCalledTimes(1);
+    const errorAlert = screen.getByTestId("ansible-automation-platform-error");
+    expect(
+      within(errorAlert).getByText("Unable to delete"),
+    ).toBeInTheDocument();
+    expect(within(errorAlert).getByText(/Deletion failed/)).toBeInTheDocument();
+  });
+
+  it("shows generic alert when deleteInstance throws a non-UserFacingError", async () => {
+    const deleteInstance = vi
+      .fn()
+      .mockRejectedValue(new Error("network error"));
+
+    renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
+
+    await userEvent.click(screen.getByTestId("delete-instance-button"));
+    await userEvent.click(screen.getByTestId("confirm-delete-aap"));
+
+    expect(deleteInstance).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText("Unable to delete your instance"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /An unexpected error occurred while deleting your AAP instance/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("prevents double-click on delete button via in-flight guard", async () => {
+    let resolveDelete: () => void;
+    const deleteInstance = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+
+    renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
+
+    await userEvent.click(screen.getByTestId("delete-instance-button"));
+
+    const confirmButton = screen.getByTestId("confirm-delete-aap");
+    await userEvent.click(confirmButton);
+    await userEvent.click(confirmButton);
+
+    expect(deleteInstance).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveDelete!();
+    });
+  });
+
+  it("clears deletionError when delete modal is closed and instance is ready", async () => {
+    const deleteInstance = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new UserFacingError(
+          "Unable to delete",
+          "Deletion failed",
+          undefined,
+          "Tech details",
+        ),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
+
+    await userEvent.click(screen.getByTestId("delete-instance-button"));
+    await userEvent.click(screen.getByTestId("confirm-delete-aap"));
+
+    expect(
+      screen.getByTestId("ansible-automation-platform-error"),
+    ).toBeInTheDocument();
+
+    const closeButton = screen.getByRole("button", { name: "Close" });
+    await userEvent.click(closeButton);
+
+    expect(
+      screen.queryByTestId("ansible-automation-platform-error"),
+    ).not.toBeInTheDocument();
   });
 });

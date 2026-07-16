@@ -1,6 +1,6 @@
-import type { AAPData } from "../../types";
+import type { AAPCRList } from "../../types";
 
-export const aapReadyFixture: AAPData = {
+export const aapReadyFixture: AAPCRList = {
   items: [
     {
       status: {
@@ -26,7 +26,7 @@ export const aapReadyFixture: AAPData = {
   ],
 };
 
-export const aapProvisioningFixture: AAPData = {
+export const aapProvisioningFixture: AAPCRList = {
   items: [
     {
       status: {
@@ -52,7 +52,7 @@ export const aapProvisioningFixture: AAPData = {
   ],
 };
 
-export const aapIdledFixture: AAPData = {
+export const aapIdledFixture: AAPCRList = {
   items: [
     {
       status: {
@@ -78,6 +78,32 @@ export const aapIdledFixture: AAPData = {
   ],
 };
 
-export const aapEmptyFixture: AAPData = {
+export const aapFailedFixture: AAPCRList = {
+  items: [
+    {
+      status: {
+        conditions: [
+          {
+            type: "Failure",
+            status: "True",
+            reason: "ReconciliationFailed",
+            message: "Task failed: some operator error",
+          },
+        ],
+        URL: "",
+        adminPasswordSecret: "",
+        adminUser: "",
+      },
+      spec: { idle_aap: false },
+      metadata: {
+        name: "sandbox-aap",
+        uuid: "aap-uuid-123",
+        creationTimestamp: "2025-01-15T00:00:00Z",
+      },
+    },
+  ],
+};
+
+export const aapEmptyFixture: AAPCRList = {
   items: [],
 };
