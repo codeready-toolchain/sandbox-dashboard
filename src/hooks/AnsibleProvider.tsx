@@ -1,3 +1,4 @@
+import { AlertVariant } from "@patternfly/react-core";
 import {
   useCallback,
   useEffect,
@@ -6,123 +7,256 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createAAP, getAAP, unIdleAAP } from "../api/aap";
-import { getSecret } from "../api/kube";
-import { SHORT_INTERVAL } from "../const";
+import { createAAP, deleteAAPCR, getAAP, unIdleAAP } from "../api/aap";
+import {
+  deletePVCsForSTS,
+  deleteSecretsAndPVCs,
+  getDeployments,
+  getSecret,
+  getStatefulSets,
+} from "../api/kube";
+import { SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
+import { AAPProvisioningError } from "../error/AAPProvisioningError";
 import { ApiError } from "../error/ApiError";
+import { DeletionError } from "../error/DeletionError";
 import { UserFacingError } from "../error/UserFacingError";
-import type { AAPData } from "../types";
-import { AnsibleStatus, decode, getReadyCondition } from "../utils/aap-utils";
-import { errorMessage } from "../utils/common";
+import { useNotifications } from "../notifications/useNotifications";
+import type {
+  AAPCR,
+  AAPInstanceCredentials,
+  DeploymentData,
+  SecretItem,
+  StatefulSetData,
+} from "../types";
+import {
+  AAPInstanceErrorType,
+  mapAnsibleStatus,
+  type AAPInstanceStatus,
+} from "../utils/aap-utils";
 import logger from "../utils/logger";
+import { isTransient, withRetry } from "../utils/retry";
 import { AnsibleContext } from "./AnsibleContext";
 import { useUserContext } from "./UserContext";
 
 export function AnsibleProvider({ children }: { children: ReactNode }) {
   const { user } = useUserContext();
+  const { addAlert } = useNotifications();
 
-  const [ansibleData, setAnsibleData] = useState<AAPData | undefined>();
-  const [ansibleUILink, setAnsibleUILink] = useState<string | undefined>();
-  const [ansibleUIUser, setAnsibleUIUser] = useState<string>();
-  const [ansibleUIPassword, setAnsibleUIPassword] = useState("");
-  const [ansibleStatus, setAnsibleStatus] = useState<AnsibleStatus>(
-    AnsibleStatus.NEW,
-  );
-  const [ansibleProvisioningErrorDetails, setAnsibleProvisioningErrorDetails] =
-    useState<string | null>(null);
-
-  const ansibleStatusRef = useRef(ansibleStatus);
-  const ansibleDataRef = useRef(ansibleData);
-  const ansibleUIPasswordRef = useRef(ansibleUIPassword);
+  const [instanceCR, setInstanceCR] = useState<AAPCR | undefined>();
+  const [instanceCredentials, setInstanceCredentials] = useState<
+    AAPInstanceCredentials | undefined
+  >();
+  const [instanceStatus, setInstanceStatus] = useState<AAPInstanceStatus>({
+    kind: "new",
+  });
 
   /**
-   * Keeps {@link ansibleStatusRef} in sync with the latest
-   * {@link ansibleStatus} state so that callbacks invoked from
-   * the polling interval (which would otherwise close over a stale
-   * value) can read the current status via the ref.
+   * Defines how many times we are going to retry fetching for the instance's
+   * status on transient errors before giving up.
    */
-  useEffect(() => {
-    ansibleStatusRef.current = ansibleStatus;
-  }, [ansibleStatus]);
+  const maxTransientErrorRetries: number = 3;
 
   /**
-   * Keeps {@link ansibleDataRef} in sync with the latest
-   * {@link ansibleData} state for the same stale-closure reason
-   * described above.
+   * Reference to avoid stale closures in functions that require the latest
+   * status available.
    */
-  useEffect(() => {
-    ansibleDataRef.current = ansibleData;
-  }, [ansibleData]);
+  const instanceStatusRef = useRef<AAPInstanceStatus>(instanceStatus);
+  /**
+   * Reference to avoid stale closures in functions that require the latest
+   * CR available.
+   */
+  const instanceCRRef = useRef<AAPCR | undefined>(instanceCR);
+  /**
+   * Reference to know if we have already fetched the CR on the provider's
+   * mount.
+   */
+  const hasFetchedOnMount = useRef<boolean>(false);
+  /**
+   * Counter to keep track of how many transient errors we have encountered
+   * while polling to check for an status update of the instance.
+   */
+  const pollTransientRetriesLeft = useRef<number>(maxTransientErrorRetries);
 
   /**
-   * Keeps {@link ansibleUIPasswordRef} in sync with the latest
-   * {@link ansibleData} state for the same stale-closure reason
-   * described above.
+   * Helper function to keep the instance's CR contents up to date both in
+   * the state and in its reference. Clears cached credentials when the CR
+   * is removed or replaced with a different identity so that stale secrets
+   * from a previous instance are never served.
    */
-  useEffect(() => {
-    ansibleUIPasswordRef.current = ansibleUIPassword;
-  }, [ansibleUIPassword]);
-
-  const resetAnsibleProvisioningErrorDetails = useCallback((): void => {
-    setAnsibleProvisioningErrorDetails(null);
+  const updateInstanceCR = useCallback((newCR: AAPCR | undefined) => {
+    const prevCR = instanceCRRef.current;
+    if (
+      prevCR &&
+      (!newCR ||
+        prevCR.metadata?.uuid !== newCR.metadata?.uuid ||
+        prevCR.status?.adminPasswordSecret !==
+          newCR.status?.adminPasswordSecret)
+    ) {
+      setInstanceCredentials(undefined);
+    }
+    setInstanceCR(newCR);
+    instanceCRRef.current = newCR;
   }, []);
+
+  /**
+   * Helper function to keep the keep the instance's status up to date both
+   * in the state and in its reference.
+   */
+  const updateInstanceStatus = useCallback((status: AAPInstanceStatus) => {
+    setInstanceStatus(status);
+    instanceStatusRef.current = status;
+  }, []);
+
+  const [prevProxyURL, setPrevProxyURL] = useState(user?.proxyURL);
+  const [prevNamespace, setPrevNamespace] = useState(
+    user?.defaultUserNamespace,
+  );
+
+  if (
+    user?.proxyURL !== prevProxyURL ||
+    user?.defaultUserNamespace !== prevNamespace
+  ) {
+    setPrevProxyURL(user?.proxyURL);
+    setPrevNamespace(user?.defaultUserNamespace);
+    setInstanceCR(undefined);
+    setInstanceStatus({ kind: "new" });
+    setInstanceCredentials(undefined);
+  }
+
+  useEffect(() => {
+    hasFetchedOnMount.current = false;
+    instanceCRRef.current = undefined;
+    instanceStatusRef.current = { kind: "new" };
+  }, [user?.proxyURL, user?.defaultUserNamespace]);
 
   /**
    * Gets the Ansible Automation Platform resource from Kubernetes.
    * @param userNamespace the namespace to fetch teh resource for.
-   * @throws {ApiError} if the API calls to fetch the AAP resource or the
-   * secret containing the admin details fail.
+   * @throws {ApiError} if the API calls to fetch the AAP resource.
    */
-  const getAAPData = useCallback(
-    async (
-      userNamespace: string,
-    ): Promise<{ status: AnsibleStatus; data: AAPData | undefined }> => {
+  const fetchCR = useCallback(
+    async (userNamespace: string): Promise<void> => {
       const proxyURL = user?.proxyURL;
-      if (!proxyURL)
-        return {
-          status: ansibleStatusRef.current,
-          data: ansibleDataRef.current,
-        };
+      if (!proxyURL) {
+        return;
+      }
 
-      const data = await getAAP(proxyURL, userNamespace);
-      setAnsibleData(data);
-      let failed = false;
-      const st = getReadyCondition(data, (e) => {
-        failed = true;
-        setAnsibleProvisioningErrorDetails(errorMessage(e));
-      });
-      if (!failed) {
-        resetAnsibleProvisioningErrorDetails();
+      const cr = await getAAP(proxyURL, userNamespace);
+      if (!cr) {
+        updateInstanceStatus({ kind: "new" });
+        updateInstanceCR(undefined);
+        return;
       }
-      setAnsibleStatus(st);
-      if (data && data.items?.length > 0 && data.items[0]?.status) {
-        if (data.items[0].status.URL) {
-          setAnsibleUILink(data.items[0].status.URL);
-        }
-        if (data.items[0].status.adminUser) {
-          setAnsibleUIUser(data.items[0].status.adminUser);
-        }
-        if (data.items[0].status.adminPasswordSecret) {
-          if (!ansibleUIPasswordRef.current) {
-            try {
-              const adminSecret = await getSecret(
-                proxyURL,
-                userNamespace,
-                data.items[0].status.adminPasswordSecret,
-              );
-              if (adminSecret?.data) {
-                setAnsibleUIPassword(decode(adminSecret.data.password));
-              }
-            } catch (secretError) {
-              logger.error("Failed to fetch AAP admin secret", secretError);
-            }
-          }
-        }
+
+      const [ansibleStatus, matchedCondition] = mapAnsibleStatus(cr);
+      if (ansibleStatus.kind === "error" && matchedCondition) {
+        updateInstanceStatus(ansibleStatus);
+        throw new AAPProvisioningError(matchedCondition);
       }
-      return { status: st, data };
+
+      updateInstanceStatus(ansibleStatus);
+      updateInstanceCR(cr);
     },
-    [user?.proxyURL, resetAnsibleProvisioningErrorDetails],
+    [user?.proxyURL, updateInstanceCR, updateInstanceStatus],
   );
+
+  /**
+   * Fetches the user instance's administrator credentials.
+   */
+  const fetchInstanceCredentials =
+    useCallback(async (): Promise<AAPInstanceCredentials> => {
+      if (!user?.proxyURL || !user?.defaultUserNamespace) {
+        throw new UserFacingError(
+          "Unable to obtain your instance's credentials",
+          "The proxy URL or the namespace are not available for the user",
+          undefined,
+          "Unable to fetch AAP credentials: either the proxy URL or the user's namespace are missing",
+        );
+      }
+
+      // Return the cached version if we have it to avoid refetching the
+      // secret.
+      if (instanceCredentials) {
+        return instanceCredentials;
+      }
+
+      // Make sure we have all the information to be able to both fetch the
+      // secret and then display it to the user.
+      if (
+        !instanceCR?.status ||
+        !instanceCR.status.adminPasswordSecret ||
+        !instanceCR.status.adminUser ||
+        !instanceCR.status.URL
+      ) {
+        throw new UserFacingError(
+          "Unable to obtain your instance's credentials",
+          `Unable to obtain the credentials for your Ansible Automation Platform instance at the moment. Please try again later and if the issue persists, please contact ${SUPPORT_EMAIL}.`,
+          undefined,
+          'Unable to fetch AAP credentials: the CR does not have one of "status", "adminPasswordSecret", "adminUser" or "URL" fields.',
+        );
+      }
+
+      // Fetch the secret from OpenShift.
+      let adminSecret: SecretItem;
+      try {
+        adminSecret = await getSecret(
+          user.proxyURL,
+          user.defaultUserNamespace,
+          instanceCR.status.adminPasswordSecret,
+        );
+      } catch (error) {
+        if (error instanceof ApiError) {
+          throw new UserFacingError(
+            "Unable to fetch your instance's credentials",
+            `Error while attempting to fetch the credentials: ${error.message}`,
+            error,
+            `Unable to fetch AAP credentials: fetching the secret returned an error: ${error.message}.`,
+          );
+        } else {
+          throw new UserFacingError(
+            "Unable to fetch your instance's credentials",
+            `Error while attempting to fetch the credentials: ${error}`,
+            error,
+            `Unable to fetch AAP credentials: fetching the secret returned an error: ${error}.`,
+          );
+        }
+      }
+
+      // Make sure the secret has the expected payload.
+      if (!adminSecret?.data?.password) {
+        throw new UserFacingError(
+          "Unable to fetch your instance's credentials",
+          'The fetched secret does not have the expected "Password" field',
+          undefined,
+          `Unable to decode AAP credentials: the "password" field is missing from the secret.`,
+        );
+      }
+
+      // Build the instance credentials and return them.
+      let fetchedCredentials: AAPInstanceCredentials;
+      try {
+        fetchedCredentials = {
+          username: instanceCR.status.adminUser,
+          password: new TextDecoder().decode(
+            Uint8Array.from(
+              atob(adminSecret.data.password),
+              (character: string) => character.charCodeAt(0),
+            ),
+          ),
+          url: instanceCR.status.URL,
+        };
+      } catch (error) {
+        throw new UserFacingError(
+          "Unable to fetch your instance's credentials",
+          `Error while decoding the credentials: ${error}`,
+          error,
+          `Unable to decode AAP credentials: the ${error}.`,
+        );
+      }
+
+      setInstanceCredentials(fetchedCredentials);
+      return fetchedCredentials;
+    }, [user, instanceCredentials, instanceCR]);
 
   /**
    * Provisions or "unidles" the Ansible Automation Platform instance
@@ -131,139 +265,388 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    * @throws {UserFacingError} if fetching, "unidling" or creating the
    * instance fails.
    */
-  const handleAAPInstance = useCallback(
-    async (userNamespace: string) => {
-      let currentStatus: AnsibleStatus;
-      let currentData: AAPData | undefined;
+  const handleAAPInstance = useCallback(async () => {
+    if (!user?.proxyURL || !user?.defaultUserNamespace) {
+      throw new UserFacingError(
+        "Unable to delete your AAP instance",
+        "The proxy URL or the namespace are not available for the user",
+        undefined,
+        "Unable to delete AAP instance: either the proxy URL or the user's namespace are missing",
+      );
+    }
 
+    // Get the latest status for the instance.
+    try {
+      await fetchCR(user?.defaultUserNamespace);
+    } catch (error) {
+      throw new UserFacingError(
+        "Unable to get your Ansible Automation Platform instance's information",
+        "We were unable to obtain the status of your Ansible Automation Platform instance. Please try again later.",
+        error,
+        `Unable to handle AAP instance for the user: fetching the CR failed: ${error}`,
+      );
+    }
+
+    // When the instance is provisioning or is already provisioned, there is
+    // nothing else to do.
+    if (
+      instanceStatusRef.current.kind === "provisioning" ||
+      instanceStatusRef.current.kind === "ready"
+    ) {
+      return;
+    }
+
+    // When the instance is idled, unidle the instance.
+    if (instanceStatusRef.current.kind === "idled" && instanceCRRef.current) {
       try {
-        const result = await getAAPData(userNamespace);
-        currentStatus = result.status;
-        currentData = result.data;
-      } catch (apiError) {
-        if (apiError instanceof ApiError && apiError.statusCode === 404) {
-          currentStatus = AnsibleStatus.NEW;
-          currentData = undefined;
-          setAnsibleStatus(AnsibleStatus.NEW);
-          setAnsibleData(undefined);
-        } else {
-          throw new UserFacingError(
-            "Unable to get your Ansible Automation Platform instance's information",
-            "We were unable to obtain the status of your Ansible Automation Platform instance. Please try again later.",
-            apiError,
-          );
-        }
-      }
-      if (
-        currentStatus === AnsibleStatus.PROVISIONING ||
-        currentStatus === AnsibleStatus.READY
-      ) {
+        await unIdleAAP(user?.proxyURL, user?.defaultUserNamespace);
+        pollTransientRetriesLeft.current = maxTransientErrorRetries;
+        updateInstanceStatus({ kind: "unidling" });
         return;
-      }
-
-      const proxyURL = user?.proxyURL;
-      if (!proxyURL) return;
-
-      if (
-        currentStatus === AnsibleStatus.IDLED &&
-        currentData &&
-        currentData.items?.length > 0
-      ) {
-        try {
-          await unIdleAAP(proxyURL, userNamespace);
-        } catch (apiError) {
-          throw new UserFacingError(
-            "Unable to provision your Ansible Automation Platform instance",
-            "We were unable to reprovision your Ansible Automation Platform instance. Please try again later.",
-            apiError,
-          );
-        }
-        return;
-      }
-
-      try {
-        await createAAP(proxyURL, userNamespace);
-      } catch (apiError) {
+      } catch (error) {
+        // Keep the instance in "idled" status and tell the user that we
+        // could not unidle it for them.
         throw new UserFacingError(
           "Unable to provision your Ansible Automation Platform instance",
-          "We were unable to provision your Ansible Automation Platform instance. Please try again later.",
-          apiError,
+          "We were unable to reprovision your Ansible Automation Platform instance. Please try again later.",
+          error,
+          `Unable to handle AAP instance for the user: unidling the instance failed: ${error}`,
         );
       }
-    },
-    [getAAPData, user?.proxyURL],
-  );
+    }
+
+    // When the CR already exists with an unrecognized status, treat it as a
+    // transient active state and poll for updates instead of creating a
+    // duplicate resource.
+    if (instanceCRRef.current) {
+      pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      updateInstanceStatus({ kind: "provisioning" });
+      return;
+    }
+
+    // The CR is absent — create the instance.
+    try {
+      await createAAP(user?.proxyURL, user?.defaultUserNamespace);
+      pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      updateInstanceStatus({ kind: "provisioning" });
+    } catch (error) {
+      logger.error(`Unable to create AAP instance: ${error}`);
+
+      updateInstanceStatus({
+        kind: "error",
+        errorType: AAPInstanceErrorType.INSTANCE_CREATION_FAILED,
+      });
+
+      throw new UserFacingError(
+        "Unable to provision your Ansible Automation Platform instance",
+        "We were unable to provision your Ansible Automation Platform instance. Please try again later.",
+        error,
+        `Unable to create the AAP instance for the user: the CR creation failed: ${error}`,
+      );
+    }
+  }, [fetchCR, updateInstanceStatus, user]);
 
   /**
-   * Polls the Ansible Automation Platform resource status at
-   * {@link SHORT_INTERVAL} intervals. On each tick it calls
-   * {@link getAAPData} to refresh {@link ansibleData},
-   * {@link ansibleStatus}, the UI link, and admin credentials.
+   * Deletes the AAP instance and all the related resources.
+   * @throws {UserFacingError} if the deletion of the CR itself, or the rest
+   * of the resources fails.
+   */
+  const deleteInstance = useCallback(async () => {
+    if (!user?.proxyURL || !user?.defaultUserNamespace) {
+      throw new UserFacingError(
+        "Unable to delete your AAP instance",
+        "The proxy URL or the namespace are not available for the user",
+        undefined,
+        "Unable to delete AAP instance: either the proxy URL or the user's namespace are missing",
+      );
+    }
+
+    const previousInstanceState = instanceStatusRef.current;
+    updateInstanceStatus({ kind: "deleting" });
+
+    let deployments: DeploymentData | undefined;
+    let statefulSets: StatefulSetData | undefined;
+    try {
+      [deployments, statefulSets] = await Promise.all([
+        getDeployments(
+          user?.proxyURL,
+          user?.defaultUserNamespace,
+          "app.kubernetes.io/managed-by=aap-operator",
+        ),
+        getStatefulSets(
+          user?.proxyURL,
+          user?.defaultUserNamespace,
+          "app.kubernetes.io/managed-by=aap-operator",
+        ),
+      ]);
+
+      await deleteAAPCR(user?.proxyURL, user?.defaultUserNamespace);
+      pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      setInstanceCredentials(undefined);
+    } catch (error) {
+      updateInstanceStatus(previousInstanceState);
+      throw new UserFacingError(
+        "Unable to delete your AAP instance",
+        `We have been unable to delete your AAP instance. Please try again, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+        error,
+        `Unable to delete AAP instance: ${error instanceof ApiError ? error.body : error}`,
+      );
+    }
+
+    // Delete all the related resources and capture the results and any
+    // errors via "allSettled".
+    const cleanupResults = await Promise.allSettled([
+      deleteSecretsAndPVCs(
+        user?.proxyURL,
+        deployments,
+        user?.defaultUserNamespace,
+      ),
+      deleteSecretsAndPVCs(
+        user?.proxyURL,
+        statefulSets,
+        user?.defaultUserNamespace,
+      ),
+      deletePVCsForSTS(
+        user?.proxyURL,
+        statefulSets,
+        user?.defaultUserNamespace,
+      ),
+    ]);
+
+    // Prepare the error structure so that the user can copy it nicely
+    // for support.
+    const cleanupError = DeletionError.fromSettledResults(
+      "Ansible Automation Platform",
+      [
+        "Delete deployment secrets/PVCs",
+        "Delete statefulset secrets/PVCs",
+        "Delete statefulset PVCs",
+      ],
+      cleanupResults,
+    );
+
+    if (cleanupError) {
+      updateInstanceStatus({
+        kind: "error",
+        errorType: AAPInstanceErrorType.DELETION_RESOURCES_ERROR,
+      });
+      throw new UserFacingError(
+        "Unable to fully delete your AAP instance",
+        `We have been able to successfully delete your AAP instance, but some internal errors might prevent you from reprovisioning it again. Please contact support at ${SUPPORT_EMAIL}.`,
+        undefined,
+        `Unable to fully delete AAP instance: the deletion of the related resources failed: ${cleanupError.toString()}`,
+      );
+    }
+
+    updateInstanceStatus({ kind: "deleted" });
+  }, [updateInstanceStatus, user]);
+
+  /**
+   * Fetch the instance's status on mount. It retries on transient failures to
+   * make sure we are able to either determine a status for the instance, or
+   * tell the user that something more critical might be going on.
    *
-   * The interval is created only when the user's namespace is
-   * available and is torn down on unmount or when the dependencies
-   * ({@link user.defaultUserNamespace}, {@link user.proxyURL})
-   * change.
-   *
-   * Expected {@link ApiError}s (transient 4xx/5xx from the proxy)
-   * are silently swallowed; unexpected errors are logged.
+   * The reference is to ensure we only run this effect once.
    */
   useEffect(() => {
-    if (user?.defaultUserNamespace) {
+    if (user?.defaultUserNamespace && !hasFetchedOnMount.current) {
+      // Narrowing after the type check to satisfy the TypeScript compiler.
       const ns = user.defaultUserNamespace;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount is intentional
-      getAAPData(ns).catch((err) => {
-        if (!(err instanceof ApiError)) {
-          logger.error("Unexpected error fetching AAP data:", err);
+
+      // The reference is updated here to avoid any more executions if the
+      // "instanceStatus" changes while "withRetry" is in flight.
+      hasFetchedOnMount.current = true;
+
+      withRetry(() => fetchCR(ns), 3, 3_000).catch((error) => {
+        logger.error(
+          `Unable to obtain the Ansible Automation Platform instance's status: ${error}`,
+        );
+        // With an AAPProvisioningError we know there's a condition failure in
+        // the instance, so we want to preserve the error status that is set
+        // by the fetch call. Any other errors we want to report them as an
+        // initial fetch failure.
+        if (!(error instanceof AAPProvisioningError)) {
+          updateInstanceStatus({
+            kind: "error",
+            errorType: AAPInstanceErrorType.INITIAL_FETCH_FAILED,
+          });
         }
+        addAlert(
+          AlertVariant.danger,
+          "Unable to determine your Ansible Automation Platform instance's status",
+          `We have been unable to determine the status of your Ansible Automation Platform's instance. Please refresh the page, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+        );
       });
     }
-  }, [getAAPData, user?.defaultUserNamespace]);
+  }, [addAlert, fetchCR, updateInstanceStatus, user?.defaultUserNamespace]);
 
+  /**
+   * Poll for the instance's status when the instance is provisioning,
+   * unidling or deleting. It stops the polling in case of unrecoverable
+   * errors, and notifies the user accordingly.
+   */
   useEffect(() => {
     if (
-      user?.defaultUserNamespace &&
-      ansibleStatus === AnsibleStatus.PROVISIONING
+      !user?.proxyURL ||
+      !user?.defaultUserNamespace ||
+      (instanceStatus.kind !== "deleting" &&
+        instanceStatus.kind !== "deleted" &&
+        instanceStatus.kind !== "provisioning" &&
+        instanceStatus.kind !== "unidling")
     ) {
-      const ns = user.defaultUserNamespace;
-      const handle = setInterval(async () => {
+      return;
+    }
+
+    // Narrowing after the type check to satisfy the TypeScript compiler.
+    const ns = user.defaultUserNamespace;
+    const proxy = user.proxyURL;
+
+    let cancelled = false;
+    const poll = async () => {
+      if (
+        instanceStatusRef.current.kind === "deleting" ||
+        instanceStatusRef.current.kind === "deleted"
+      ) {
+        // We want to keep the "fetchCR" function as a "fetch and update"
+        // status function without any deletion logic on it. This is why the
+        // polling mechanism has this special case.
+        //
+        // Using "fetchCR" directly would probably change the instance's
+        // status to something else than "deleting", which would stop the
+        // polling.
         try {
-          await getAAPData(ns);
+          const cr = await getAAP(proxy, ns);
+
+          if (!cr && instanceStatusRef.current.kind === "deleted") {
+            updateInstanceStatus({ kind: "new" });
+            updateInstanceCR(undefined);
+            return;
+          }
         } catch (err) {
-          if (!(err instanceof ApiError)) {
-            logger.error("Unexpected error polling AAP data:", err);
+          if (err instanceof ApiError) {
+            if (isTransient(err) && pollTransientRetriesLeft.current > 0) {
+              pollTransientRetriesLeft.current--;
+              logger.warn(
+                `Unexpected transient error received while polling on an AAP instance when verifying its deletion: ${err.body}`,
+              );
+            } else {
+              cancelled = true;
+              updateInstanceStatus({
+                kind: "error",
+                errorType:
+                  AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE,
+              });
+              addAlert(
+                AlertVariant.danger,
+                `Unable to delete your instance`,
+                `The deletion of the instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+              );
+              logger.error(
+                `Unexpected response received while polling on a AAP instance when verifying its deletion: ${err.body}`,
+              );
+            }
+          } else {
+            // Any other unexpected error should make the polling stop, since
+            // it would be probably related to the "send the request" failures.
+            cancelled = true;
+            updateInstanceStatus({
+              kind: "error",
+              errorType: AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE,
+            });
+
+            logger.error(
+              `Unexpected error while polling for the status of the deletion of the AAP instance: ${err}`,
+            );
+            addAlert(
+              AlertVariant.danger,
+              `Unable to delete your instance`,
+              `The deletion of the instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+            );
           }
         }
-      }, SHORT_INTERVAL);
-      return () => clearInterval(handle);
-    }
-    return undefined;
-  }, [getAAPData, user?.defaultUserNamespace, ansibleStatus]);
+      } else {
+        const wasUnidling = instanceStatusRef.current.kind === "unidling";
+        try {
+          await fetchCR(ns);
+        } catch (err) {
+          if (err instanceof ApiError) {
+            if (isTransient(err) && pollTransientRetriesLeft.current > 0) {
+              pollTransientRetriesLeft.current--;
+              logger.warn(
+                `Unexpected transient error received while polling on an AAP instance when verifying its ${wasUnidling ? "unidling" : "provisioning"}: ${err.body}`,
+              );
+            } else {
+              cancelled = true;
+            }
+          } else if (err instanceof AAPProvisioningError) {
+            cancelled = true;
+
+            logger.error(
+              `Error while polling for the AAP instance status: the AAP instance ended up in a failure condition: ${err.getFormattedErrorMessage()}`,
+            );
+          } else {
+            cancelled = true;
+
+            logger.error(
+              `Unexpected error while polling for the AAP instance status: ${err}`,
+            );
+          }
+
+          if (cancelled) {
+            // AAPProvisioningError means fetchCR already set the
+            // condition-specific error status — preserve it.
+            if (!(err instanceof AAPProvisioningError)) {
+              updateInstanceStatus({
+                kind: "error",
+                errorType: wasUnidling
+                  ? AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE
+                  : AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE,
+              });
+            }
+            addAlert(
+              AlertVariant.danger,
+              `Unable to ${wasUnidling ? "reprovision" : "provision"} your instance`,
+              `The ${wasUnidling ? "reprovisioning" : "provisioning"} of the instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+            );
+          }
+        }
+      }
+
+      // Schedule a new timeout.
+      if (!cancelled) {
+        timerId = setTimeout(poll, SHORT_INTERVAL);
+      }
+    };
+
+    let timerId = setTimeout(poll, SHORT_INTERVAL);
+    return () => {
+      cancelled = true;
+      clearTimeout(timerId);
+    };
+  }, [
+    addAlert,
+    fetchCR,
+    instanceStatus.kind,
+    updateInstanceCR,
+    updateInstanceStatus,
+    user?.defaultUserNamespace,
+    user?.proxyURL,
+  ]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
   // function changes.
   const contextValue = useMemo(
     () => ({
-      ansibleData,
-      ansibleProvisioningErrorDetails,
-      ansibleStatus,
-      ansibleUILink,
-      ansibleUIPassword,
-      ansibleUIUser,
+      deleteInstance,
+      fetchInstanceCredentials,
       handleAAPInstance,
-      refetchAAP: getAAPData,
-      resetAnsibleProvisioningErrorDetails,
+      instanceStatus,
     }),
     [
-      ansibleData,
-      ansibleProvisioningErrorDetails,
-      ansibleStatus,
-      ansibleUILink,
-      ansibleUIPassword,
-      ansibleUIUser,
+      deleteInstance,
+      fetchInstanceCredentials,
       handleAAPInstance,
-      getAAPData,
-      resetAnsibleProvisioningErrorDetails,
+      instanceStatus,
     ],
   );
 

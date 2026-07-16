@@ -1,21 +1,24 @@
 import { createContext, useContext } from "react";
-import { type AAPData } from "../types";
-import type { AnsibleStatus } from "../utils/aap-utils";
+import type { AAPInstanceStatus } from "../utils/aap-utils";
+import type { AAPInstanceCredentials } from "../types";
 
 export interface AnsibleContextType {
-  ansibleData: AAPData | undefined;
   /**
-   * Contains the raw condition message for when the provisioning the AAP
-   * instance fails.
+   * Delete the instance.
    */
-  ansibleProvisioningErrorDetails: string | null;
-  ansibleStatus: AnsibleStatus;
-  ansibleUILink: string | undefined;
-  ansibleUIPassword: string;
-  ansibleUIUser: string | undefined;
-  handleAAPInstance: (userNamespace: string) => void;
-  refetchAAP: (userNamespace: string) => void;
-  resetAnsibleProvisioningErrorDetails: () => void;
+  deleteInstance: () => Promise<void>;
+  /**
+   * Fetches the user instance's credentials.
+   */
+  fetchInstanceCredentials: () => Promise<AAPInstanceCredentials>;
+  /**
+   * Provisions or reprovisions the instance.
+   */
+  handleAAPInstance: () => Promise<void>;
+  /**
+   * Current status of the instance.
+   */
+  instanceStatus: AAPInstanceStatus;
 }
 
 export const AnsibleContext = createContext<AnsibleContextType | undefined>(

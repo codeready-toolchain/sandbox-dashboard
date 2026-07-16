@@ -2,36 +2,42 @@ import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
+import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
-import { AnsibleStatus } from "../../utils/aap-utils";
+import type { AAPInstanceStatus } from "../../utils/aap-utils";
 import logger from "../../utils/logger";
 import { AnsibleDeleteInstanceModal, AnsibleLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
-import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 
 /**
  * Obtains the main button's label.
  * @param status the status from which determine the button label.
  * @returns the label of the main button.
  */
-function getButtonLabel(status: AnsibleStatus): ButtonLabel {
-  switch (status) {
-    case AnsibleStatus.NEW:
-    case AnsibleStatus.NOT_DEPLOYED:
-    case AnsibleStatus.UNKNOWN:
+function getButtonLabel(status: AAPInstanceStatus): ButtonLabel {
+  switch (status.kind) {
+    case "new":
+    case "notDeployed":
+    case "unknown":
+    case "error":
       return ButtonLabel.PROVISION;
 
-    case AnsibleStatus.PROVISIONING:
+    case "provisioning":
+    case "unidling":
       return ButtonLabel.PROVISIONING;
 
-    case AnsibleStatus.READY:
+    case "ready":
       return ButtonLabel.LAUNCH;
 
-    case AnsibleStatus.IDLED:
+    case "idled":
       return ButtonLabel.REPROVISION;
+
+    case "deleting":
+    case "deleted":
+      return ButtonLabel.DELETING;
 
     default:
       return ButtonLabel.TRY_IT;
@@ -43,14 +49,20 @@ function getButtonLabel(status: AnsibleStatus): ButtonLabel {
  * @param status the status from which derive the label.
  * @returns a label text and color depending on the given status.
  */
-function getStatusLabel(status: AnsibleStatus): StatusLabel | undefined {
-  switch (status) {
-    case AnsibleStatus.PROVISIONING:
+function getStatusLabel(status: AAPInstanceStatus): StatusLabel | undefined {
+  switch (status.kind) {
+    case "provisioning":
+    case "unidling":
       return { label: "Provisioning", color: StatusColor.BLUE };
-    case AnsibleStatus.READY:
+    case "ready":
       return { label: "Ready", color: StatusColor.GREEN };
-    case AnsibleStatus.IDLED:
+    case "idled":
       return { label: "Idled", color: StatusColor.ORANGE };
+    case "deleting":
+    case "deleted":
+      return { label: "Deleting", color: StatusColor.BLUE };
+    case "error":
+      return { label: "Failed", color: StatusColor.RED };
     default:
       return undefined;
   }
@@ -76,36 +88,36 @@ export function AnsibleCatalogCard({
   isGreenCornerVisible,
   markProductAsTried,
 }: AnsibleCatalogCardProps) {
-  const {
-    ansibleProvisioningErrorDetails,
-    ansibleStatus,
-    ansibleUILink,
-    ansibleUIPassword,
-    ansibleUIUser,
-    resetAnsibleProvisioningErrorDetails,
-    handleAAPInstance,
-    refetchAAP,
-  } = useAnsibleContext();
+  const { deleteInstance, handleAAPInstance, instanceStatus } =
+    useAnsibleContext();
 
   const { signupUser, user, userSignupPhase } = useUserContext();
   const { addAlert, addAlertFromError } = useNotifications();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
 
+  const [deletionError, setDeletionError] = useState<
+    UserFacingError | undefined
+  >();
   const [isAnsibleInfoModalOpen, setAnsibleInfoModalOpen] =
     useState<boolean>(false);
   const [isAnsibleDeleteModalOpen, setAnsibleDeleteModalOpen] =
     useState<boolean>(false);
+  const [provisioningError, setProvisioningError] = useState<
+    UserFacingError | undefined
+  >();
+
   const ansibleProvisionInFlight = useRef(false);
   const ansibleDeleteInFlight = useRef(false);
 
   // Determine the labels and statuses if applicable, and whether we should be
   // showing the delete button or not.
-  const buttonLabel = getButtonLabel(ansibleStatus);
-  const statusLabel = getStatusLabel(ansibleStatus);
+  const buttonLabel = getButtonLabel(instanceStatus);
+  const statusLabel = getStatusLabel(instanceStatus);
   const isDeleteButtonVisible =
-    ansibleStatus !== AnsibleStatus.NEW &&
-    ansibleStatus !== AnsibleStatus.NOT_DEPLOYED &&
-    ansibleStatus !== AnsibleStatus.UNKNOWN &&
+    instanceStatus.kind !== "new" &&
+    instanceStatus.kind !== "notDeployed" &&
+    instanceStatus.kind !== "unknown" &&
+    instanceStatus.kind !== "deleted" &&
     Boolean(user?.proxyURL && user?.defaultUserNamespace);
 
   /**
@@ -126,22 +138,34 @@ export function AnsibleCatalogCard({
         return;
     }
 
+    if (
+      instanceStatus.kind === "deleting" ||
+      instanceStatus.kind === "deleted"
+    ) {
+      return;
+    }
+
+    if (
+      instanceStatus.kind === "provisioning" ||
+      instanceStatus.kind === "unidling"
+    ) {
+      setAnsibleInfoModalOpen(true);
+      return;
+    }
+
     if (ansibleProvisionInFlight.current) {
       return;
     }
 
     ansibleProvisionInFlight.current = true;
     try {
-      if (!user?.defaultUserNamespace) {
-        return;
-      }
-
-      await handleAAPInstance(user?.defaultUserNamespace);
+      await handleAAPInstance();
 
       setAnsibleInfoModalOpen(true);
       markProductAsTried(product);
     } catch (error) {
       if (error instanceof UserFacingError) {
+        setProvisioningError(error);
         addAlertFromError(error);
       } else {
         logger.error(
@@ -150,7 +174,7 @@ export function AnsibleCatalogCard({
         );
         addAlert(
           AlertVariant.danger,
-          "Ansible Automation Platform operation failed",
+          "AAP provisioning failed",
           "An unexpected error occurred while handling your AAP instance. Please try again later.",
         );
       }
@@ -161,39 +185,69 @@ export function AnsibleCatalogCard({
     addAlert,
     addAlertFromError,
     handleAAPInstance,
+    instanceStatus.kind,
     markProductAsTried,
     openPhoneVerificationModal,
     product,
     signupUser,
-    user,
     userSignupPhase,
   ]);
+
+  /**
+   * Deletes the Ansible instance.
+   */
+  const handleOnClickDelete = useCallback(async () => {
+    if (ansibleDeleteInFlight.current) {
+      return;
+    }
+
+    ansibleDeleteInFlight.current = true;
+    try {
+      await deleteInstance();
+      setAnsibleDeleteModalOpen(false);
+    } catch (error) {
+      if (error instanceof UserFacingError) {
+        setDeletionError(error);
+        addAlertFromError(error);
+      } else {
+        logger.error(
+          "Unexpected exception occurred when handling AAP instance:",
+          error,
+        );
+        addAlert(
+          AlertVariant.danger,
+          "Unable to delete your instance",
+          "An unexpected error occurred while deleting your AAP instance. Please try again later.",
+        );
+      }
+    } finally {
+      ansibleDeleteInFlight.current = false;
+    }
+  }, [addAlert, addAlertFromError, deleteInstance]);
 
   /**
    * Closes the deletion modal and triggers a refetch of the Ansible's
    * instance to update all the statuses.
    */
-  const handleAAPDeleted = useCallback(async () => {
-    if (ansibleDeleteInFlight.current) {
-      return;
+  const onDeleteModalClose = useCallback(async () => {
+    if (deletionError) {
+      setDeletionError(undefined);
     }
 
     setAnsibleDeleteModalOpen(false);
-    ansibleDeleteInFlight.current = true;
+  }, [deletionError]);
 
-    try {
-      if (user?.defaultUserNamespace) {
-        await refetchAAP(user?.defaultUserNamespace);
-      }
-    } catch (error) {
-      logger.error(
-        "Failed to refetch AAP data after instance deletion:",
-        error,
-      );
-    } finally {
-      ansibleDeleteInFlight.current = false;
+  /**
+   * Clears any errors that are clearable before switching the modal's status
+   * to "closed".
+   */
+  const onLaunchInfoModalClose = useCallback(() => {
+    if (provisioningError) {
+      setProvisioningError(undefined);
     }
-  }, [refetchAAP, user]);
+
+    setAnsibleInfoModalOpen(false);
+  }, [provisioningError]);
 
   return (
     <>
@@ -202,8 +256,11 @@ export function AnsibleCatalogCard({
         statusLabel={statusLabel}
         primaryButtonLabel={buttonLabel}
         isGreenCornerVisible={isGreenCornerVisible}
-        isPrimaryButtonDisabled={false}
-        isPrimaryButtonSpinnerVisible={buttonLabel === ButtonLabel.PROVISIONING}
+        isPrimaryButtonDisabled={buttonLabel === ButtonLabel.DELETING}
+        isPrimaryButtonSpinnerVisible={
+          buttonLabel === ButtonLabel.PROVISIONING ||
+          buttonLabel === ButtonLabel.DELETING
+        }
         isPrimaryButtonExtIconVisible={false}
         isDeleteButtonVisible={isDeleteButtonVisible}
         onClickPrimaryButton={handleOnClickPrimaryButton}
@@ -211,23 +268,15 @@ export function AnsibleCatalogCard({
       />
       <AnsibleLaunchInfoModal
         isOpen={isAnsibleInfoModalOpen}
-        onClose={() => setAnsibleInfoModalOpen(false)}
-        ansibleUILink={ansibleUILink}
-        ansibleUIUser={ansibleUIUser}
-        ansibleUIPassword={ansibleUIPassword}
-        ansibleProvisioningErrorDetails={ansibleProvisioningErrorDetails}
-        ansibleStatus={ansibleStatus}
-        resetAnsibleProvisioningErrorDetails={
-          resetAnsibleProvisioningErrorDetails
-        }
+        onClose={onLaunchInfoModalClose}
+        provisioningError={provisioningError}
       />
       {user?.proxyURL && user?.defaultUserNamespace && (
         <AnsibleDeleteInstanceModal
           isOpen={isAnsibleDeleteModalOpen}
-          onClose={() => setAnsibleDeleteModalOpen(false)}
-          onDeleted={handleAAPDeleted}
-          proxyURL={user?.proxyURL}
-          userNamespace={user?.defaultUserNamespace}
+          onClose={onDeleteModalClose}
+          onClickDelete={handleOnClickDelete}
+          deletionError={deletionError}
         />
       )}
     </>

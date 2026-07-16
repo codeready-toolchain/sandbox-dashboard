@@ -1,12 +1,15 @@
 import { ApiError } from "../error/ApiError";
 
 /**
- * Default predicate: retries everything except 4xx ApiError responses, which
- * indicate permanent client errors that will not resolve on retry.
+ * Default predicate: retries server errors (5xx) and retriable client errors
+ * (408 Request Timeout, 429 Too Many Requests). Other 4xx errors are treated
+ * as terminal. Non-ApiError values are always retried.
  */
-function isTransient(err: unknown): boolean {
+export function isTransient(err: unknown): boolean {
   if (err instanceof ApiError) {
-    return err.statusCode < 400 || err.statusCode >= 500;
+    if (err.statusCode >= 500) return true;
+    if (err.statusCode === 408 || err.statusCode === 429) return true;
+    return false;
   }
   return true;
 }

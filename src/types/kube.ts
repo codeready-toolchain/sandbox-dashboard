@@ -104,6 +104,9 @@ export type StatefulSetData = {
   items: StateFulSetItem[];
 };
 
+/**
+ * Defines the data structure for a Kubernetes secret.
+ */
 export type SecretItem = {
   data: {
     password: string;

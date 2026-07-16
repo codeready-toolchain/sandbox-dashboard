@@ -16,26 +16,61 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe("getAAP", () => {
-  it("should return AAP data on successful response", async () => {
-    const mockData = { items: [{ metadata: { name: "sandbox-aap" } }] };
+  it("should return the CR item matching metadata.name 'sandbox-aap'", async () => {
+    const otherItem = { metadata: { name: "other-aap" } };
+    const crItem = { metadata: { name: "sandbox-aap" } };
     server.use(
       http.get(AAP_BASE, () => {
-        return HttpResponse.json(mockData);
+        return HttpResponse.json({ items: [otherItem, crItem] });
       }),
     );
 
     const result = await getAAP(PROXY_URL, NS);
-    expect(result).toEqual(mockData);
+    expect(result).toEqual(crItem);
   });
 
-  it("should throw error on unsuccessful response", async () => {
+  it("should return undefined when the items list is empty", async () => {
+    server.use(
+      http.get(AAP_BASE, () => {
+        return HttpResponse.json({ items: [] });
+      }),
+    );
+
+    const result = await getAAP(PROXY_URL, NS);
+    expect(result).toBeUndefined();
+  });
+
+  it("should throw an ApiError with status 404 on a 404 response", async () => {
     server.use(
       http.get(AAP_BASE, () => {
         return HttpResponse.json({ message: "Not found" }, { status: 404 });
       }),
     );
 
-    await expect(getAAP(PROXY_URL, NS)).rejects.toThrow();
+    await expect(getAAP(PROXY_URL, NS)).rejects.toThrow(
+      expect.objectContaining({
+        message: "getAAP failed",
+        statusCode: 404,
+      }),
+    );
+  });
+
+  it("should throw an ApiError with status 500 on a 500 response", async () => {
+    server.use(
+      http.get(AAP_BASE, () => {
+        return HttpResponse.json(
+          { message: "Internal error" },
+          { status: 500 },
+        );
+      }),
+    );
+
+    await expect(getAAP(PROXY_URL, NS)).rejects.toThrow(
+      expect.objectContaining({
+        message: "getAAP failed",
+        statusCode: 500,
+      }),
+    );
   });
 });
 

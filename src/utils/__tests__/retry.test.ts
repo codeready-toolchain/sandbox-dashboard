@@ -37,6 +37,32 @@ describe("withRetry", () => {
     expect(calls).toBe(1);
   });
 
+  it("retries 408 ApiError (Request Timeout)", async () => {
+    let calls = 0;
+    const fn = () => {
+      calls++;
+      if (calls < 2) return Promise.reject(new ApiError("timeout", 408));
+      return Promise.resolve("ok");
+    };
+
+    const result = await withRetry(fn, 3, 0);
+    expect(result).toBe("ok");
+    expect(calls).toBe(2);
+  });
+
+  it("retries 429 ApiError (Too Many Requests)", async () => {
+    let calls = 0;
+    const fn = () => {
+      calls++;
+      if (calls < 2) return Promise.reject(new ApiError("rate limited", 429));
+      return Promise.resolve("ok");
+    };
+
+    const result = await withRetry(fn, 3, 0);
+    expect(result).toBe("ok");
+    expect(calls).toBe(2);
+  });
+
   it("retries 5xx ApiError", async () => {
     let calls = 0;
     const fn = () => {

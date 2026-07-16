@@ -12,7 +12,6 @@ import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
-import { AnsibleStatus } from "../../../utils/aap-utils";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";
 import { makeOpenClawContext } from "./openClawTestHelpers";
@@ -39,15 +38,14 @@ function makeSandboxContext(
 
 function makeAnsibleContext(): AnsibleContextType {
   return {
-    ansibleData: undefined,
-    ansibleProvisioningErrorDetails: null,
-    ansibleStatus: AnsibleStatus.NEW,
-    ansibleUILink: undefined,
-    ansibleUIPassword: "",
-    ansibleUIUser: undefined,
-    handleAAPInstance: vi.fn(),
-    refetchAAP: vi.fn(),
-    resetAnsibleProvisioningErrorDetails: vi.fn(),
+    deleteInstance: vi.fn(),
+    fetchInstanceCredentials: vi.fn().mockResolvedValue({
+      username: "admin",
+      password: "secret",
+      url: "https://aap.example.com",
+    }),
+    handleAAPInstance: vi.fn().mockResolvedValue(undefined),
+    instanceStatus: { kind: "new" },
   };
 }
 

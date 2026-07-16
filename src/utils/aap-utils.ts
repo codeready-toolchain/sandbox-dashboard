@@ -1,68 +1,113 @@
-import type { AAPData, StatusCondition } from "../types";
+import type { AAPCR, StatusCondition } from "../types";
+import { anyConditionMatches } from "./condition-utils";
 
 export const decode = (str: string): string => atob(str);
 
-export enum AnsibleStatus {
-  NEW = "new",
-  PROVISIONING = "provisioning",
-  UNKNOWN = "unknown",
-  READY = "ready",
-  IDLED = "idled",
-  NOT_DEPLOYED = "NOT_DEPLOYED",
+export enum AAPInstanceErrorType {
+  /** The instance reports a failure condition. */
+  CONDITION_REPORTS_FAILURE,
+  /** Error while polling to verify that the deletion succeeded. */
+  DELETING_POLLING_REPORTS_FAILURE,
+  /** The instance could not be deleted. */
+  DELETION_ERROR,
+  /**
+   * The deletion of the instance's resources like PVCs, deployments and such
+   * failed.
+   */
+  DELETION_RESOURCES_ERROR,
+  /** The initial fetching of the instance's status failed. */
+  INITIAL_FETCH_FAILED,
+  /** The instance could not be created.  */
+  INSTANCE_CREATION_FAILED,
+  /** The instance could not be unidled. */
+  INSTANCE_UNIDLING_FAILED,
+  /**
+   * The instance ended up in a "failing" state when we were polling to see if
+   * the provisioning instance was becoming ready.
+   */
+  PROVISIONING_POLLING_REPORTS_FAILURE,
+  /**
+   * The instance ended up in a "failing" state when we were polling to see if
+   * the idled instance was becoming ready.
+   */
+  UNIDLING_POLLING_REPORTS_FAILURE,
 }
 
-const isConditionTrue = (
-  condType: string,
-  conditions: StatusCondition[],
-): [boolean, StatusCondition | null] => {
-  for (const condition of conditions) {
-    if (condition.type === condType && condition.status === "True") {
-      return [true, condition];
-    }
+/**
+ * Defines the different statuses the Ansible Automation Platform instance can
+ * be in.
+ */
+export type AAPInstanceStatus =
+  | { kind: "new" }
+  | { kind: "provisioning" }
+  | { kind: "ready" }
+  | { kind: "idled" }
+  | { kind: "unidling" }
+  | { kind: "deleting" }
+  | { kind: "deleted" }
+  | { kind: "error"; errorType: AAPInstanceErrorType }
+  | { kind: "notDeployed" }
+  | { kind: "unknown" };
+
+/**
+ * Maps the current ansible status to a format the UI can understand.
+ * @param crList The CR List response that the back end returns.
+ * @returns the
+ */
+export const mapAnsibleStatus = (
+  cr: AAPCR | undefined,
+): [AAPInstanceStatus, StatusCondition | undefined] => {
+  if (!cr) {
+    return [{ kind: "new" }, undefined];
   }
-  return [false, null];
-};
 
-export const getReadyCondition = (
-  data: AAPData | undefined,
-  setError: (errorDetails: string) => void,
-): AnsibleStatus => {
-  if (!data || data.items.length === 0) {
-    return AnsibleStatus.NEW;
+  if (cr.spec?.idle_aap) {
+    return [{ kind: "idled" }, undefined];
   }
 
-  if (!data.items[0].status || data.items[0].status.conditions.length === 0) {
-    return AnsibleStatus.UNKNOWN;
+  if (
+    !cr.status ||
+    !cr.status.conditions ||
+    cr.status.conditions.length === 0
+  ) {
+    return [{ kind: "unknown" }, undefined];
   }
 
-  if (data.items[0].spec?.idle_aap) {
-    return AnsibleStatus.IDLED;
-  }
-
-  const conditions = data.items[0].status.conditions;
-
-  const [isSuccessful, conditionSuccessful] = isConditionTrue(
-    "Successful",
-    conditions,
+  const aapInstanceConditions = cr.status.conditions;
+  const failedCondition = anyConditionMatches(
+    "Failure",
+    "True",
+    aapInstanceConditions,
   );
-  if (isSuccessful && conditionSuccessful?.reason === "Successful") {
-    return AnsibleStatus.READY;
+  if (failedCondition) {
+    return [
+      {
+        kind: "error",
+        errorType: AAPInstanceErrorType.CONDITION_REPORTS_FAILURE,
+      },
+      failedCondition,
+    ];
   }
 
-  const [hasFailed, condition] = isConditionTrue("Failure", conditions);
-  if (hasFailed) {
-    if (condition) {
-      setError(condition.message);
-    }
-    return AnsibleStatus.UNKNOWN;
+  const successfulCondition = anyConditionMatches(
+    "Successful",
+    "True",
+    aapInstanceConditions,
+  );
+  if (successfulCondition) {
+    return [{ kind: "ready" }, successfulCondition];
   }
 
-  const [isStillRunning] = isConditionTrue("Running", conditions);
-  if (isStillRunning) {
-    return AnsibleStatus.PROVISIONING;
+  const runningCondition = anyConditionMatches(
+    "Running",
+    "True",
+    aapInstanceConditions,
+  );
+  if (runningCondition) {
+    return [{ kind: "provisioning" }, runningCondition];
   }
 
-  return AnsibleStatus.UNKNOWN;
+  return [{ kind: "unknown" }, undefined];
 };
 
 export const AAPObject: string = `

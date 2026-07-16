@@ -19,22 +19,28 @@ import CopyIcon from "@patternfly/react-icons/dist/esm/icons/copy-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import EyeIcon from "@patternfly/react-icons/dist/esm/icons/eye-icon";
 import EyeSlashIcon from "@patternfly/react-icons/dist/esm/icons/eye-slash-icon";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AnsibleIcon from "../../assets/logos/ansible.svg";
 import RedHatLogo from "../../assets/logos/red_hat_logo.svg";
-import { AnsibleStatus } from "../../utils/aap-utils";
+import { SUPPORT_EMAIL } from "../../const";
+import { UserFacingError } from "../../error/UserFacingError";
+import { useAnsibleContext } from "../../hooks/AnsibleContext";
+import type { AAPInstanceCredentials } from "../../types";
 import { ErrorModal } from "./ErrorModal";
 
 type AnsibleLaunchInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  ansibleUILink: string | undefined;
-  ansibleUIUser: string | undefined;
-  ansibleUIPassword: string;
-  ansibleProvisioningErrorDetails: string | null;
-  resetAnsibleProvisioningErrorDetails: () => void;
-  ansibleStatus: AnsibleStatus;
+  provisioningError?: UserFacingError;
 };
+
+/**
+ * Defines the state of the instance's credentials' fetching in the modal.
+ */
+type InstanceCredentialsStatus =
+  | { kind: "unfetched" }
+  | { kind: "ready"; credentials: AAPInstanceCredentials }
+  | { kind: "error"; errorMessage: string };
 
 function PasswordField({ password }: { password: string }) {
   const [passwordCopied, setPasswordCopied] = useState(false);
@@ -91,21 +97,116 @@ function PasswordField({ password }: { password: string }) {
 export function AnsibleLaunchInfoModal({
   isOpen,
   onClose,
-  ansibleUILink,
-  ansibleUIUser,
-  ansibleUIPassword,
-  ansibleProvisioningErrorDetails,
-  resetAnsibleProvisioningErrorDetails,
-  ansibleStatus,
+  provisioningError,
 }: AnsibleLaunchInfoModalProps) {
-  const isProvisioning =
-    ansibleStatus === AnsibleStatus.PROVISIONING ||
-    ansibleStatus === AnsibleStatus.NEW ||
-    ansibleStatus === AnsibleStatus.IDLED;
+  const { fetchInstanceCredentials, instanceStatus } = useAnsibleContext();
 
-  const isReady = ansibleStatus === AnsibleStatus.READY;
+  // Keep track of the status of the instance credentials' fecthing to show
+  // proper feedback to the user.
+  const [instanceCredentialsStatus, setInstanceCredentialsStatus] =
+    useState<InstanceCredentialsStatus>({ kind: "unfetched" });
 
-  const titleContent = isReady ? (
+  // Guard to avoid having multiple credentials' fetching requests.
+  const isFetchingCredentials = useRef(false);
+
+  // Helper variables for determining when we should fetch the instance's
+  // credentials and which content we should be showing to the user.
+  const isInstanceBeingProvisioned: boolean =
+    instanceStatus.kind === "provisioning" ||
+    instanceStatus.kind === "new" ||
+    instanceStatus.kind === "idled";
+  const isInstanceBeingUnidled: boolean = instanceStatus.kind === "unidling";
+  const isInstanceReady =
+    instanceStatus.kind === "ready" &&
+    instanceCredentialsStatus.kind === "ready";
+  const isCredentialsLoading =
+    isOpen &&
+    instanceStatus.kind === "ready" &&
+    instanceCredentialsStatus.kind === "unfetched";
+
+  // Track previous prop values so we can detect changes during render and
+  // reset credential state. This uses React's "store previous props" pattern
+  // because the project's lint rules forbid calling setState inside effects
+  // (react-hooks/set-state-in-effect) and writing to refs during render
+  // (react-hooks/refs), so the work is split across the render body (state)
+  // and a small effect (ref).
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevStatusKind, setPrevStatusKind] = useState(instanceStatus.kind);
+
+  // When the modal closes or the instance status moves away from "ready",
+  // reset credential state to "unfetched" so a subsequent reopen starts a
+  // fresh fetch instead of showing stale credentials or errors.
+  if (isOpen !== prevIsOpen || instanceStatus.kind !== prevStatusKind) {
+    setPrevIsOpen(isOpen);
+    setPrevStatusKind(instanceStatus.kind);
+    if (!isOpen || instanceStatus.kind !== "ready") {
+      setInstanceCredentialsStatus({ kind: "unfetched" });
+    }
+  }
+
+  // Ref writes are forbidden during render, so the isFetchingCredentials
+  // guard is reset in a separate effect that runs on the same triggers.
+  useEffect(() => {
+    if (!isOpen || instanceStatus.kind !== "ready") {
+      isFetchingCredentials.current = false;
+    }
+  }, [isOpen, instanceStatus.kind]);
+
+  /**
+   * Attempts fetching the provisioned instance's credentials once the
+   * instance has been provisioned.
+   */
+  useEffect(() => {
+    if (
+      !isOpen ||
+      instanceStatus.kind !== "ready" ||
+      instanceCredentialsStatus.kind !== "unfetched" ||
+      isFetchingCredentials.current
+    ) {
+      return;
+    }
+
+    // Flag to cancel or ignore stale requests, like for example when the user
+    // closes the modal.
+    let cancelled = false;
+    isFetchingCredentials.current = true;
+
+    fetchInstanceCredentials()
+      .then((credentials: AAPInstanceCredentials) => {
+        if (!cancelled) {
+          setInstanceCredentialsStatus({
+            kind: "ready",
+            credentials: credentials,
+          });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setInstanceCredentialsStatus({
+            kind: "error",
+            errorMessage:
+              error instanceof UserFacingError
+                ? (error.technicalDetails ?? error.detail)
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
+          });
+        }
+      });
+
+    // Cancel any inflight requests.
+    return () => {
+      cancelled = true;
+      isFetchingCredentials.current = false;
+    };
+  }, [
+    fetchInstanceCredentials,
+    instanceCredentialsStatus.kind,
+    instanceStatus.kind,
+    isOpen,
+  ]);
+
+  const titleContent = isInstanceReady ? (
     <Flex
       alignItems={{ default: "alignItemsFlexStart" }}
       gap={{ default: "gapSm" }}
@@ -126,17 +227,34 @@ export function AnsibleLaunchInfoModal({
     "Ansible Automation Platform"
   );
 
-  if (ansibleProvisioningErrorDetails) {
+  // Show an error modal when a provisioning error occurs.
+  if (provisioningError) {
     return (
       <ErrorModal
         headerTitle="Provision AAP instance"
         productName="ansible-automation-platform"
-        alertTitle="Unable to provision your Ansible Automation Platform instance"
-        alertText="An error occurred while provisioning your Ansible Automation Platform instance."
-        copyableTechnicalDetails={ansibleProvisioningErrorDetails}
-        isErrorModalOpen
+        alertTitle={provisioningError.title}
+        alertText={provisioningError.detail}
+        copyableTechnicalDetails={provisioningError.technicalDetails}
+        isErrorModalOpen={isOpen}
+        onErrorModalClose={onClose}
+      />
+    );
+  }
+
+  // Show an error modal when the credentials' fetching had an error.
+  if (instanceCredentialsStatus.kind === "error") {
+    return (
+      <ErrorModal
+        headerTitle="Provision AAP instance"
+        productName="ansible-automation-platform"
+        alertTitle="Unable to obtain the credentials for your instance"
+        alertText={`Your instance has been provisioned, but an error occurred while attempting to fetch your instance's credentials. Please try again later and if the issue persists, please contact ${SUPPORT_EMAIL}.`}
+        copyableTechnicalDetails={instanceCredentialsStatus.errorMessage}
+        isErrorModalOpen={isOpen}
         onErrorModalClose={() => {
-          resetAnsibleProvisioningErrorDetails();
+          isFetchingCredentials.current = false;
+          setInstanceCredentialsStatus({ kind: "unfetched" });
           onClose();
         }}
       />
@@ -153,7 +271,7 @@ export function AnsibleLaunchInfoModal({
     >
       <ModalHeader title={titleContent} />
       <ModalBody>
-        {isProvisioning && (
+        {isInstanceBeingProvisioned && (
           <div style={{ textAlign: "center", padding: "32px 0" }}>
             <Spinner size="lg" />
             <Content component="p" style={{ marginTop: "16px" }}>
@@ -163,7 +281,24 @@ export function AnsibleLaunchInfoModal({
             </Content>
           </div>
         )}
-        {isReady && (
+        {isCredentialsLoading && (
+          <div style={{ textAlign: "center", padding: "32px 0" }}>
+            <Spinner size="lg" />
+            <Content component="p" style={{ marginTop: "16px" }}>
+              We are obtaining your provisioned instance's credentials. Please
+              wait a few seconds.
+            </Content>
+          </div>
+        )}
+        {isInstanceBeingUnidled && (
+          <div style={{ textAlign: "center", padding: "32px 0" }}>
+            <Spinner size="lg" />
+            <Content component="p" style={{ marginTop: "16px" }}>
+              Your instance is being reprovisioned. Please wait a few seconds.
+            </Content>
+          </div>
+        )}
+        {isInstanceReady && (
           <div>
             <Content component="p" style={{ marginBottom: "24px" }}>
               To get started with your AAP instance, you will need{" "}
@@ -223,7 +358,7 @@ export function AnsibleLaunchInfoModal({
                     clickTip="Username copied!"
                     data-testid="ansible-username"
                   >
-                    {ansibleUIUser || "—"}
+                    {instanceCredentialsStatus.credentials.username}
                   </ClipboardCopy>
                 </FlexItem>
               </Flex>
@@ -233,7 +368,9 @@ export function AnsibleLaunchInfoModal({
               >
                 <FlexItem style={{ minWidth: "80px" }}>Password:</FlexItem>
                 <FlexItem>
-                  <PasswordField password={ansibleUIPassword} />
+                  <PasswordField
+                    password={instanceCredentialsStatus.credentials.password}
+                  />
                 </FlexItem>
               </Flex>
             </div>
@@ -296,20 +433,20 @@ export function AnsibleLaunchInfoModal({
             </Content>
           </div>
         )}
-        {ansibleStatus === AnsibleStatus.UNKNOWN &&
-          !ansibleProvisioningErrorDetails && (
-            <Content component="p">
-              Unable to determine the status of your Ansible Automation Platform
-              instance. Please try again later.
-            </Content>
-          )}
+        {(instanceStatus.kind === "unknown" ||
+          (instanceStatus.kind === "error" && !provisioningError)) && (
+          <Content component="p">
+            Unable to determine the status of your Ansible Automation Platform
+            instance. Please try again later.
+          </Content>
+        )}
       </ModalBody>
       <ModalFooter>
-        {isReady && ansibleUILink && (
+        {isInstanceReady && (
           <Button
             variant="primary"
             component="a"
-            href={ansibleUILink}
+            href={instanceCredentialsStatus.credentials.url}
             target="_blank"
             rel="noopener noreferrer"
             icon={<ExternalLinkAltIcon />}
@@ -319,7 +456,7 @@ export function AnsibleLaunchInfoModal({
             Get started
           </Button>
         )}
-        {!isReady && (
+        {!isInstanceReady && (
           <Button variant="link" onClick={onClose}>
             Close
           </Button>
