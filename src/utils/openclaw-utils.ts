@@ -9,6 +9,7 @@ import type {
 import { isConditionTrue, isConditionFalse } from "./condition-utils";
 
 export enum OpenClawStatus {
+  USER_NOT_READY = "userNotReady",
   NEW = "new",
   PROVISIONING = "provisioning",
   UNKNOWN = "unknown",

@@ -21,7 +21,7 @@ import {
   statefulSetFixture,
 } from "../../mocks/fixtures";
 import { NotificationProvider } from "../../notifications/NotificationProvider";
-import type { AAPCR } from "../../types";
+import type { AAPCR, User } from "../../types";
 import { AAPInstanceErrorType } from "../../utils/aap-utils";
 import { useAnsibleContext } from "../AnsibleContext";
 import { AnsibleProvider } from "../AnsibleProvider";
@@ -138,6 +138,18 @@ function renderProvider(userCtxOverrides: Partial<UserContextType> = {}) {
     </NotificationProvider>,
   );
   return { ...utils, userCtx };
+}
+
+function Wrapper({ userCtx }: { userCtx: UserContextType }) {
+  return (
+    <NotificationProvider>
+      <UserContext.Provider value={userCtx}>
+        <AnsibleProvider>
+          <TestConsumer />
+        </AnsibleProvider>
+      </UserContext.Provider>
+    </NotificationProvider>
+  );
 }
 
 describe("AnsibleProvider", () => {
@@ -336,22 +348,6 @@ describe("AnsibleProvider", () => {
         AAPInstanceErrorType.INSTANCE_CREATION_FAILED.toString(),
       );
     });
-
-    it("throws UserFacingError when user data is missing", async () => {
-      mockedGetAAP.mockResolvedValue(undefined);
-
-      renderProvider({ user: undefined });
-
-      await act(async () => {
-        screen.getByTestId("handle-aap").click();
-      });
-
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-error").textContent).toBe(
-          "UserFacingError",
-        ),
-      );
-    });
   });
 
   // ---------------------------------------------------------------------------
@@ -432,22 +428,6 @@ describe("AnsibleProvider", () => {
         ),
       );
     });
-
-    it("throws UserFacingError when user data is missing", async () => {
-      mockedGetAAP.mockResolvedValue(undefined);
-
-      renderProvider({ user: undefined });
-
-      await act(async () => {
-        screen.getByTestId("delete-instance").click();
-      });
-
-      await waitFor(() =>
-        expect(screen.getByTestId("delete-error").textContent).toBe(
-          "UserFacingError",
-        ),
-      );
-    });
   });
 
   // ---------------------------------------------------------------------------
@@ -504,9 +484,7 @@ describe("AnsibleProvider", () => {
       expect(mockedGetSecret).not.toHaveBeenCalled();
     });
 
-    it("throws UserFacingError when user data is missing", async () => {
-      mockedGetAAP.mockResolvedValue(undefined);
-
+    it("rejects with an error when using the NOOP provider (user not provisioned)", async () => {
       renderProvider({ user: undefined });
 
       await act(async () => {
@@ -514,7 +492,7 @@ describe("AnsibleProvider", () => {
       });
 
       await waitFor(() =>
-        expect(screen.getByTestId("creds-error").textContent).toBeTruthy(),
+        expect(screen.getByTestId("creds-error").textContent).toBe("error"),
       );
     });
 
@@ -717,6 +695,179 @@ describe("AnsibleProvider", () => {
       expect(screen.getByTestId("delete-instance")).toBeInTheDocument();
       expect(screen.getByTestId("fetch-credentials")).toBeInTheDocument();
       expect(screen.getByTestId("status-kind")).toBeInTheDocument();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // NOOP provider routing
+  // ---------------------------------------------------------------------------
+
+  describe("NOOP provider routing", () => {
+    it("uses the NOOP provider when user is undefined", async () => {
+      renderProvider({ user: undefined });
+
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(mockedGetAAP).not.toHaveBeenCalled();
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+    });
+
+    it("uses the NOOP provider when proxyURL is missing", async () => {
+      const userWithoutProxy: User = {
+        ...readyUserFixture,
+        proxyURL: undefined,
+      };
+
+      renderProvider({ user: userWithoutProxy });
+
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(mockedGetAAP).not.toHaveBeenCalled();
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+    });
+
+    it("uses the NOOP provider when defaultUserNamespace is missing", async () => {
+      const userWithoutNamespace: User = {
+        ...readyUserFixture,
+        defaultUserNamespace: undefined,
+      };
+
+      renderProvider({ user: userWithoutNamespace });
+
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(mockedGetAAP).not.toHaveBeenCalled();
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+    });
+
+    it("NOOP handleAAPInstance rejects", async () => {
+      renderProvider({ user: undefined });
+
+      await act(async () => {
+        screen.getByTestId("handle-aap").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("handle-error").textContent).toBe("other"),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+    });
+
+    it("NOOP deleteInstance rejects", async () => {
+      renderProvider({ user: undefined });
+
+      await act(async () => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("delete-error").textContent).toBe("other"),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+    });
+
+    it("NOOP fetchInstanceCredentials rejects", async () => {
+      renderProvider({ user: undefined });
+
+      await act(async () => {
+        screen.getByTestId("fetch-credentials").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("creds-error").textContent).toBe("error"),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Provider transition (NOOP → Connected)
+  // ---------------------------------------------------------------------------
+
+  describe("provider transition (NOOP → Connected)", () => {
+    it("switches from NOOP to Connected when user data becomes available", async () => {
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+
+      const { rerender } = render(
+        <Wrapper userCtx={makeUserContext({ user: undefined })} />,
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(mockedGetAAP).not.toHaveBeenCalled();
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+
+      rerender(<Wrapper userCtx={makeUserContext()} />);
+
+      await waitFor(() => {
+        expect(mockedGetAAP).toHaveBeenCalledWith(
+          MOCK_PROXY_URL,
+          readyUserFixture.defaultUserNamespace,
+        );
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // handleAAPInstance with unrecognized CR status
+  // ---------------------------------------------------------------------------
+
+  describe("handleAAPInstance with existing CR in unrecognized status", () => {
+    it("sets status to 'provisioning' and polls when CR exists with unknown status", async () => {
+      const unknownCR = {
+        status: {
+          conditions: [],
+          URL: "",
+          adminPasswordSecret: "",
+          adminUser: "",
+        },
+        spec: { idle_aap: false },
+        metadata: {
+          name: "sandbox-aap",
+          uuid: "aap-uuid-123",
+          creationTimestamp: "2025-01-15T00:00:00Z",
+        },
+      };
+
+      mockedGetAAP.mockResolvedValue(unknownCR);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unknown"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("handle-aap").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+      expect(mockedCreateAAP).not.toHaveBeenCalled();
+      expect(mockedUnIdleAAP).not.toHaveBeenCalled();
     });
   });
 });

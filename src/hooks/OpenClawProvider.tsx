@@ -55,11 +55,65 @@ function resolveOpenClawError(err: unknown, fallbackPrefix: string): string {
 export function OpenClawProvider({ children }: { children: ReactNode }) {
   const { user } = useUserContext();
 
-  const userDataRef = useRef(user);
-  useEffect(() => {
-    userDataRef.current = user;
-  }, [user]);
+  // Route and mount a fake provider if the user is not yet signed up or if it
+  // doesn't have the required variables for the OpenClaw provider to properly
+  // work.
+  if (user?.apiEndpoint && user?.defaultUserNamespace && user?.proxyURL) {
+    return (
+      <OpenClawProviderConnected
+        apiEndpoint={user.apiEndpoint}
+        proxyURL={user.proxyURL}
+        userNamespace={user.defaultUserNamespace}
+      >
+        {children}
+      </OpenClawProviderConnected>
+    );
+  } else {
+    return <OpenClawProviderNoop>{children}</OpenClawProviderNoop>;
+  }
+}
 
+/**
+ * A NOOP provider for when the user is not yet signed up. Allows rendering
+ * the cards with its actions effectively disabled.
+ */
+export function OpenClawProviderNoop({ children }: { children: ReactNode }) {
+  return (
+    <OpenClawContext.Provider
+      value={{
+        deleteOpenClaw: async () =>
+          Promise.reject(new Error("User not signed up")),
+        handleOpenClawInstance: async () => false,
+        openclawData: undefined,
+        openClawDeletionErrorDetails: null,
+        openClawProvisioningErrorDetails: null,
+        openclawStatus: OpenClawStatus.USER_NOT_READY,
+        openclawUILink: undefined,
+        resetOpenClawDeletionErrorDetails: () => {},
+        resetOpenClawProvisioningErrorDetails: () => {},
+      }}
+    >
+      {children}
+    </OpenClawContext.Provider>
+  );
+}
+
+/**
+ * A real provider for when the user is signed up. The variables defined in
+ * the components' props are a requirement for the provider to work, so this
+ * type narrowing helps avoiding having guards for them everywhere.
+ */
+export function OpenClawProviderConnected({
+  children,
+  apiEndpoint,
+  proxyURL,
+  userNamespace,
+}: {
+  children: ReactNode;
+  apiEndpoint: string;
+  proxyURL: string;
+  userNamespace: string;
+}) {
   const [clawNamespace, setClawNamespace] = useState<string | undefined>();
   const pendingCredentials = useRef<AddedCredential[] | undefined>(undefined);
   const pendingDisableDevicePairing = useRef<boolean>(false);
@@ -77,11 +131,6 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
     openClawProvisioningErrorDetails,
     setOpenClawProvisioningErrorDetails,
   ] = useState<string | null>(null);
-  const proxyURLRef = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    proxyURLRef.current = user?.proxyURL;
-  }, [user?.proxyURL]);
 
   /**
    * Polls the current state of the OpenClaw instance and drives the
@@ -110,185 +159,173 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
    * @param userNamespace the user's home namespace used to locate the
    *   SpaceRequest and workspace resources.
    */
-  const getOpenClawData = useCallback(async (userNamespace: string) => {
-    const proxyURL = proxyURLRef.current;
-    if (!proxyURL) return;
+  const getOpenClawData = useCallback(
+    async (namespace: string) => {
+      try {
+        const sr = await getSpaceRequest(proxyURL, namespace);
 
-    try {
-      const sr = await getSpaceRequest(proxyURL, userNamespace);
+        if (!sr) {
+          if (deletingOpenClaw.current) {
+            deletingOpenClaw.current = false;
+            setClawNamespace(undefined);
+            setOpenclawData(undefined);
+            setOpenclawStatus(OpenClawStatus.NEW);
+            setOpenclawUILink(undefined);
+            setOpenClawProvisioningErrorDetails(null);
+            return;
+          }
 
-      if (!sr) {
-        if (deletingOpenClaw.current) {
-          deletingOpenClaw.current = false;
-          setClawNamespace(undefined);
-          setOpenclawData(undefined);
+          if (pendingCredentials.current && !creatingSpaceRequest.current) {
+            creatingSpaceRequest.current = true;
+            try {
+              await createSpaceRequest(proxyURL, namespace);
+              setOpenclawStatus(OpenClawStatus.PROVISIONING);
+            } catch (e) {
+              setOpenClawProvisioningErrorDetails(
+                resolveOpenClawError(
+                  e,
+                  "Unable to provision OpenClaw: the space request creation failed",
+                ),
+              );
+              pendingCredentials.current = undefined;
+              setOpenclawStatus(OpenClawStatus.NEW);
+            } finally {
+              creatingSpaceRequest.current = false;
+            }
+            return;
+          }
           setOpenclawStatus(OpenClawStatus.NEW);
-          setOpenclawUILink(undefined);
-          setOpenClawProvisioningErrorDetails(null);
           return;
         }
 
-        if (pendingCredentials.current && !creatingSpaceRequest.current) {
-          creatingSpaceRequest.current = true;
+        if (isSpaceRequestTerminating(sr)) {
+          if (deletingOpenClaw.current) return;
+          setOpenclawStatus(OpenClawStatus.TERMINATING);
+          return;
+        }
+
+        if (deletingOpenClaw.current) return;
+
+        const targetNamespace = getSpaceRequestNamespace(sr);
+        if (!targetNamespace) {
+          setOpenclawStatus(OpenClawStatus.PROVISIONING);
+          return;
+        }
+
+        setClawNamespace(targetNamespace);
+
+        const data = await getOpenClaw(proxyURL, targetNamespace);
+        setOpenclawData(data);
+
+        if (!data && pendingCredentials.current && !creatingOpenClaw.current) {
+          creatingOpenClaw.current = true;
+          const credentials = pendingCredentials.current;
+          const disableDevicePairing = pendingDisableDevicePairing.current;
           try {
-            await createSpaceRequest(proxyURL, userNamespace);
+            await setupWorkspaceEnvironment(
+              proxyURL,
+              userNamespace,
+              targetNamespace,
+            );
+            await createWorkspaceKubeconfig(
+              proxyURL,
+              userNamespace,
+              targetNamespace,
+              apiEndpoint,
+            );
+
+            await createOpenClaw(
+              proxyURL,
+              targetNamespace,
+              credentials,
+              disableDevicePairing,
+              defaultOpenClawWorkspace,
+              defaultOpenClawSkills,
+            );
+            pendingCredentials.current = undefined;
+            pendingDisableDevicePairing.current = false;
             setOpenclawStatus(OpenClawStatus.PROVISIONING);
           } catch (e) {
+            pendingCredentials.current = undefined;
+            pendingDisableDevicePairing.current = false;
             setOpenClawProvisioningErrorDetails(
               resolveOpenClawError(
                 e,
-                "Unable to provision OpenClaw: the space request creation failed",
+                "Unable to provision OpenClaw: the instance creation failed",
               ),
             );
-            pendingCredentials.current = undefined;
-            setOpenclawStatus(OpenClawStatus.NEW);
+            setOpenclawStatus(OpenClawStatus.UNKNOWN);
+            try {
+              await cleanupWorkspaceEnvironment(proxyURL, userNamespace);
+            } catch {
+              // Best-effort cleanup
+            }
           } finally {
-            creatingSpaceRequest.current = false;
+            creatingOpenClaw.current = false;
           }
           return;
         }
-        setOpenclawStatus(OpenClawStatus.NEW);
-        return;
-      }
 
-      if (isSpaceRequestTerminating(sr)) {
-        if (deletingOpenClaw.current) return;
-        setOpenclawStatus(OpenClawStatus.TERMINATING);
-        return;
-      }
-
-      if (deletingOpenClaw.current) return;
-
-      const targetNamespace = getSpaceRequestNamespace(sr);
-      if (!targetNamespace) {
-        setOpenclawStatus(OpenClawStatus.PROVISIONING);
-        return;
-      }
-
-      setClawNamespace(targetNamespace);
-
-      const data = await getOpenClaw(proxyURL, targetNamespace);
-      setOpenclawData(data);
-
-      if (!data && pendingCredentials.current && !creatingOpenClaw.current) {
-        creatingOpenClaw.current = true;
-        const credentials = pendingCredentials.current;
-        const disableDevicePairing = pendingDisableDevicePairing.current;
-        try {
-          await setupWorkspaceEnvironment(
-            proxyURL,
-            userNamespace,
-            targetNamespace,
-          );
-          const currentUserData = userDataRef.current;
-          if (!currentUserData?.apiEndpoint) {
-            throw new Error(
-              "Cannot create workspace kubeconfig: apiEndpoint is missing from signup data",
-            );
-          }
-          await createWorkspaceKubeconfig(
-            proxyURL,
-            userNamespace,
-            targetNamespace,
-            currentUserData.apiEndpoint,
-          );
-
-          await createOpenClaw(
-            proxyURL,
-            targetNamespace,
-            credentials,
-            disableDevicePairing,
-            defaultOpenClawWorkspace,
-            defaultOpenClawSkills,
-          );
-          pendingCredentials.current = undefined;
-          pendingDisableDevicePairing.current = false;
-          setOpenclawStatus(OpenClawStatus.PROVISIONING);
-        } catch (e) {
-          setOpenClawProvisioningErrorDetails(
-            resolveOpenClawError(
-              e,
-              "Unable to provision OpenClaw: the instance creation failed",
-            ),
-          );
-          setOpenclawStatus(OpenClawStatus.UNKNOWN);
+        let conditionFailed = false;
+        const st = getOpenClawReadyCondition(data, (conditionMessage) => {
+          logger.error("OpenClaw CR reported failure:", conditionMessage);
+          conditionFailed = true;
+          setOpenClawProvisioningErrorDetails(errorMessage(conditionMessage));
+        });
+        if (!conditionFailed) {
+          setOpenClawProvisioningErrorDetails(null);
+        }
+        setOpenclawStatus(st);
+        if (data?.status?.url) {
           try {
-            await cleanupWorkspaceEnvironment(proxyURL, userNamespace);
+            const url = new URL(data.status.url);
+            if (!data.spec?.auth?.disableDevicePairing) {
+              url.pathname = `${url.pathname.replace(
+                /\/$/,
+                "",
+              )}/integration/device-pairing/`;
+            }
+            setOpenclawUILink(url.toString());
           } catch {
-            // Best-effort cleanup
+            setOpenclawUILink(data.status.url);
           }
-        } finally {
-          creatingOpenClaw.current = false;
         }
-        return;
-      }
 
-      let conditionFailed = false;
-      const st = getOpenClawReadyCondition(data, (conditionMessage) => {
-        logger.error("OpenClaw CR reported failure:", conditionMessage);
-        conditionFailed = true;
-        setOpenClawProvisioningErrorDetails(errorMessage(conditionMessage));
-      });
-      if (!conditionFailed) {
-        setOpenClawProvisioningErrorDetails(null);
-      }
-      setOpenclawStatus(st);
-      if (data?.status?.url) {
-        try {
-          const url = new URL(data.status.url);
-          if (!data.spec?.auth?.disableDevicePairing) {
-            url.pathname = `${url.pathname.replace(
-              /\/$/,
-              "",
-            )}/integration/device-pairing/`;
-          }
-          setOpenclawUILink(url.toString());
-        } catch {
-          setOpenclawUILink(data.status.url);
+        if (st === OpenClawStatus.UNKNOWN && isSpaceRequestReady(sr)) {
+          setOpenclawStatus(OpenClawStatus.PROVISIONING);
+        }
+      } catch (e) {
+        const detail = resolveOpenClawError(
+          e,
+          "Unable to fetch OpenClaw instance status",
+        );
+        if (deletingOpenClaw.current) {
+          setOpenClawDeletionErrorDetails(detail);
+        } else {
+          setOpenClawProvisioningErrorDetails(detail);
         }
       }
-
-      if (st === OpenClawStatus.UNKNOWN && isSpaceRequestReady(sr)) {
-        setOpenclawStatus(OpenClawStatus.PROVISIONING);
-      }
-    } catch (e) {
-      const detail = resolveOpenClawError(
-        e,
-        "Unable to fetch OpenClaw instance status",
-      );
-      if (deletingOpenClaw.current) {
-        setOpenClawDeletionErrorDetails(detail);
-      } else {
-        setOpenClawProvisioningErrorDetails(detail);
-      }
-    }
-  }, []);
+    },
+    [apiEndpoint, proxyURL, userNamespace],
+  );
 
   // Initial OpenClaw fetch
   useEffect(() => {
-    if (user?.defaultUserNamespace) {
-      void (async () => {
-        await getOpenClawData(user.defaultUserNamespace!);
-      })();
-    }
+    void (async () => {
+      await getOpenClawData(userNamespace);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.defaultUserNamespace, user?.proxyURL]);
+  }, [proxyURL, userNamespace]);
 
   const resetOpenClawDeletionErrorDetails = useCallback((): void => {
     setOpenClawDeletionErrorDetails(null);
-    const ns = userDataRef.current?.defaultUserNamespace;
-    if (ns) {
-      getOpenClawData(ns);
-    }
-  }, [getOpenClawData]);
+    getOpenClawData(userNamespace);
+  }, [getOpenClawData, userNamespace]);
 
   const resetOpenClawProvisioningErrorDetails = useCallback((): void => {
     setOpenClawProvisioningErrorDetails(null);
-    const ns = userDataRef.current?.defaultUserNamespace;
-    if (ns) {
-      getOpenClawData(ns);
-    }
-  }, [getOpenClawData]);
+    getOpenClawData(userNamespace);
+  }, [getOpenClawData, userNamespace]);
 
   /**
    * Unidles the already provisioned instance if it exists, and if not, it
@@ -302,13 +339,9 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
    */
   const handleOpenClawInstance = useCallback(
     async (
-      userNamespace: string,
       credentials?: AddedCredential[],
       disableDevicePairing?: boolean,
     ): Promise<boolean> => {
-      const proxyURL = proxyURLRef.current;
-      if (!proxyURL) return false;
-
       // Fetch current state first.
       let currentStatus = openclawStatus;
       let resolvedNamespace = clawNamespace;
@@ -387,7 +420,7 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
         );
       }
     },
-    [openclawStatus, clawNamespace],
+    [clawNamespace, proxyURL, openclawStatus, userNamespace],
   );
 
   /**
@@ -395,65 +428,59 @@ export function OpenClawProvider({ children }: { children: ReactNode }) {
    * @param userNamespace the user namespace to delete OpenClaw from.
    * @throws {UserFacingError} if the deletion of any of the resources fail.
    */
-  const deleteOpenClaw = useCallback(
-    async (userNamespace: string) => {
-      const proxyURL = proxyURLRef.current;
-      if (!proxyURL) return;
+  const deleteOpenClaw = useCallback(async () => {
+    const previousUILink = openclawUILink;
 
-      const previousUILink = openclawUILink;
+    deletingOpenClaw.current = true;
+    setOpenclawStatus(OpenClawStatus.DELETING);
+    setOpenclawUILink(undefined);
+    setOpenClawDeletionErrorDetails(null);
 
-      deletingOpenClaw.current = true;
-      setOpenclawStatus(OpenClawStatus.DELETING);
-      setOpenclawUILink(undefined);
-      setOpenClawDeletionErrorDetails(null);
+    // Delete the OpenClaw resource and all of its related resources. Any
+    // errors are caught by "allSettled".
+    const results = await Promise.allSettled([
+      clawNamespace
+        ? deleteOpenClawCR(proxyURL, clawNamespace)
+        : Promise.resolve(),
+      deleteSpaceRequest(proxyURL, userNamespace),
+      cleanupWorkspaceEnvironment(proxyURL, userNamespace),
+    ]);
 
-      // Delete the OpenClaw resource and all of its related resources. Any
-      // errors are caught by "allSettled".
-      const results = await Promise.allSettled([
-        clawNamespace
-          ? deleteOpenClawCR(proxyURL, clawNamespace)
-          : Promise.resolve(),
-        deleteSpaceRequest(proxyURL, userNamespace),
-        cleanupWorkspaceEnvironment(proxyURL, userNamespace),
-      ]);
+    // Prepare an error structure to make it easy to copy for the users in
+    // case they seek support.
+    const deletionError = DeletionError.fromSettledResults(
+      "OpenClaw",
+      ["Delete CR", "Delete SpaceRequest", "Cleanup workspace"],
+      results,
+    );
 
-      // Prepare an error structure to make it easy to copy for the users in
-      // case they seek support.
-      const deletionError = DeletionError.fromSettledResults(
-        "OpenClaw",
-        ["Delete CR", "Delete SpaceRequest", "Cleanup workspace"],
-        results,
-      );
+    if (deletionError) {
+      deletingOpenClaw.current = false;
+      setOpenclawStatus(OpenClawStatus.FAILED);
+      setOpenclawUILink(previousUILink);
+      setOpenClawDeletionErrorDetails(deletionError.toString());
+      return;
+    }
 
-      if (deletionError) {
-        deletingOpenClaw.current = false;
-        setOpenclawStatus(OpenClawStatus.FAILED);
-        setOpenclawUILink(previousUILink);
-        setOpenClawDeletionErrorDetails(deletionError.toString());
-        return;
-      }
-
-      setClawNamespace(undefined);
-      setOpenclawData(undefined);
-    },
-    [openclawUILink, clawNamespace],
-  );
+    setClawNamespace(undefined);
+    setOpenclawData(undefined);
+  }, [clawNamespace, openclawUILink, proxyURL, userNamespace]);
 
   // Poll OpenClaw status during provisioning/terminating/deleting
   useEffect(() => {
     if (
-      user?.defaultUserNamespace &&
-      (openclawStatus === OpenClawStatus.PROVISIONING ||
-        openclawStatus === OpenClawStatus.TERMINATING ||
-        openclawStatus === OpenClawStatus.DELETING)
+      openclawStatus === OpenClawStatus.PROVISIONING ||
+      openclawStatus === OpenClawStatus.TERMINATING ||
+      openclawStatus === OpenClawStatus.DELETING
     ) {
-      const ns = user.defaultUserNamespace;
-      const handle = setInterval(() => getOpenClawData(ns), SHORT_INTERVAL);
+      const handle = setInterval(
+        () => getOpenClawData(userNamespace),
+        SHORT_INTERVAL,
+      );
       return () => clearInterval(handle);
     }
     return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.defaultUserNamespace, user?.proxyURL, openclawStatus]);
+  }, [getOpenClawData, openclawStatus, userNamespace]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
   // function changes.

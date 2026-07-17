@@ -86,7 +86,7 @@ export function OpenClawCatalogCard({
   isGreenCornerVisible,
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
-  const { signupUser, user, userSignupPhase } = useUserContext();
+  const { signupUser, userSignupPhase } = useUserContext();
   const {
     deleteOpenClaw,
     handleOpenClawInstance,
@@ -100,8 +100,6 @@ export function OpenClawCatalogCard({
 
   const { addAlert, addAlertFromError } = useNotifications();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
-
-  const namespace = user?.defaultUserNamespace;
 
   const [isOpenClawInfoModalOpen, setOpenClawInfoModalOpen] =
     useState<boolean>(false);
@@ -118,11 +116,11 @@ export function OpenClawCatalogCard({
   const buttonLabel = getButtonLabel(openclawStatus);
   const statusLabel = getStatusLabel(openclawStatus);
   const isDeleteButtonVisible =
+    openclawStatus !== OpenClawStatus.USER_NOT_READY &&
     openclawStatus !== OpenClawStatus.NEW &&
     openclawStatus !== OpenClawStatus.DELETING &&
     openclawStatus !== OpenClawStatus.TERMINATING &&
-    openclawStatus !== OpenClawStatus.UNKNOWN &&
-    Boolean(user?.proxyURL && namespace);
+    openclawStatus !== OpenClawStatus.UNKNOWN;
 
   /**
    * Routes caught errors to the appropriate notification mechanism: user-facing
@@ -164,17 +162,18 @@ export function OpenClawCatalogCard({
     }
 
     switch (openclawStatus) {
-      case OpenClawStatus.READY:
-        setOpenClawInfoModalOpen(true);
+      case OpenClawStatus.USER_NOT_READY:
         return;
       case OpenClawStatus.IDLED:
-        if (!namespace || openClawUnidleInFlight.current) {
+        setOpenClawInfoModalOpen(true);
+
+        if (openClawUnidleInFlight.current) {
           return;
         }
 
         openClawUnidleInFlight.current = true;
         try {
-          await handleOpenClawInstance(namespace);
+          await handleOpenClawInstance();
         } catch (error) {
           handleOpenClawApiError(
             error,
@@ -185,10 +184,9 @@ export function OpenClawCatalogCard({
           openClawUnidleInFlight.current = false;
         }
         return;
+      case OpenClawStatus.READY:
       case OpenClawStatus.PROVISIONING:
       case OpenClawStatus.TERMINATING:
-        setOpenClawInfoModalOpen(true);
-        return;
       default:
         setOpenClawInfoModalOpen(true);
     }
@@ -196,7 +194,6 @@ export function OpenClawCatalogCard({
     handleOpenClawApiError,
     handleOpenClawInstance,
     openclawStatus,
-    namespace,
     openPhoneVerificationModal,
     signupUser,
     userSignupPhase,
@@ -208,21 +205,16 @@ export function OpenClawCatalogCard({
    */
   const handleOpenClawProvision = useCallback(
     async (credentials: AddedCredential[]): Promise<boolean> => {
-      if (!namespace) {
-        return false;
-      }
-
-      if (openClawProvisionInFlight.current) {
+      if (
+        openClawProvisionInFlight.current ||
+        openclawStatus === OpenClawStatus.USER_NOT_READY
+      ) {
         return false;
       }
 
       openClawProvisionInFlight.current = true;
       try {
-        const success = await handleOpenClawInstance(
-          namespace,
-          credentials,
-          false,
-        );
+        const success = await handleOpenClawInstance(credentials, false);
 
         if (success) {
           markProductAsTried(product);
@@ -241,10 +233,10 @@ export function OpenClawCatalogCard({
       }
     },
     [
-      namespace,
       handleOpenClawApiError,
       handleOpenClawInstance,
       markProductAsTried,
+      openclawStatus,
       product,
     ],
   );
@@ -254,11 +246,10 @@ export function OpenClawCatalogCard({
    * available.
    */
   const handleOpenClawDelete = useCallback(async () => {
-    if (!namespace) {
-      return;
-    }
-
-    if (openClawDeleteInFlight.current) {
+    if (
+      openClawDeleteInFlight.current ||
+      openclawStatus === OpenClawStatus.USER_NOT_READY
+    ) {
       return;
     }
 
@@ -266,7 +257,7 @@ export function OpenClawCatalogCard({
     setOpenClawBeingDeleted(true);
 
     try {
-      await deleteOpenClaw(namespace);
+      await deleteOpenClaw();
     } catch (error) {
       handleOpenClawApiError(
         error,
@@ -278,7 +269,7 @@ export function OpenClawCatalogCard({
       setOpenClawBeingDeleted(false);
       setOpenClawDeleteModalOpen(false);
     }
-  }, [deleteOpenClaw, handleOpenClawApiError, namespace]);
+  }, [deleteOpenClaw, handleOpenClawApiError, openclawStatus]);
 
   return (
     <>
@@ -300,30 +291,26 @@ export function OpenClawCatalogCard({
         onClickPrimaryButton={handleOnClickPrimaryButton}
         onClickDeleteButton={() => setOpenClawDeleteModalOpen(true)}
       />
-      {user?.proxyURL && namespace && (
-        <>
-          <OpenClawLaunchInfoModal
-            isOpen={isOpenClawInfoModalOpen}
-            onClose={() => setOpenClawInfoModalOpen(false)}
-            product={product}
-            openclawStatus={openclawStatus}
-            openclawUILink={openclawUILink}
-            openClawProvisioningErrorDetails={openClawProvisioningErrorDetails}
-            onProvision={handleOpenClawProvision}
-            onLaunch={markProductAsTried}
-            onProvisioningErrorDismissed={resetOpenClawProvisioningErrorDetails}
-          />
+      <OpenClawLaunchInfoModal
+        isOpen={isOpenClawInfoModalOpen}
+        onClose={() => setOpenClawInfoModalOpen(false)}
+        product={product}
+        openclawStatus={openclawStatus}
+        openclawUILink={openclawUILink}
+        openClawProvisioningErrorDetails={openClawProvisioningErrorDetails}
+        onProvision={handleOpenClawProvision}
+        onLaunch={markProductAsTried}
+        onProvisioningErrorDismissed={resetOpenClawProvisioningErrorDetails}
+      />
 
-          <OpenClawDeleteInstanceModal
-            isOpenClawBeingDeleted={isOpenClawBeingDeleted}
-            isOpenClawDeleteModalOpen={isOpenClawDeleteModalOpen}
-            onErrorModalClose={resetOpenClawDeletionErrorDetails}
-            openClawDeletionErrorDetails={openClawDeletionErrorDetails}
-            onDeleteModalClose={() => setOpenClawDeleteModalOpen(false)}
-            onDeleteButtonClicked={handleOpenClawDelete}
-          />
-        </>
-      )}
+      <OpenClawDeleteInstanceModal
+        isOpenClawBeingDeleted={isOpenClawBeingDeleted}
+        isOpenClawDeleteModalOpen={isOpenClawDeleteModalOpen}
+        onErrorModalClose={resetOpenClawDeletionErrorDetails}
+        openClawDeletionErrorDetails={openClawDeletionErrorDetails}
+        onDeleteModalClose={() => setOpenClawDeleteModalOpen(false)}
+        onDeleteButtonClicked={handleOpenClawDelete}
+      />
     </>
   );
 }

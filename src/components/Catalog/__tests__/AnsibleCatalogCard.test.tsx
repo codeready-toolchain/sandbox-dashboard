@@ -160,15 +160,52 @@ describe("AnsibleCatalogCard", () => {
     expect(screen.getByTestId("ansible-delete-modal")).toBeInTheDocument();
   });
 
-  it("does not render delete button when user is missing proxyURL", () => {
+  it("does not render delete button when instanceStatus is 'userNotReady' (NOOP provider when proxyURL is missing)", () => {
     renderCard(
       { user: { ...readyUserFixture, proxyURL: "" } },
-      { instanceStatus: { kind: "ready" } },
+      { instanceStatus: { kind: "userNotReady" } },
     );
 
     expect(
       screen.queryByTestId("delete-instance-button"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows 'Provision' button when instanceStatus is 'userNotReady'", () => {
+    renderCard({}, { instanceStatus: { kind: "userNotReady" } });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Provision");
+    expect(mainButton.textContent).not.toContain("Provisioning");
+  });
+
+  it("does not call handleAAPInstance or open modal when instanceStatus is 'userNotReady'", async () => {
+    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+    const markProductAsTried = vi.fn();
+
+    renderCard(
+      {},
+      { handleAAPInstance, instanceStatus: { kind: "userNotReady" } },
+      markProductAsTried,
+    );
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(markProductAsTried).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("ansible-launch-info-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render a status label when instanceStatus is 'userNotReady'", () => {
+    renderCard({}, { instanceStatus: { kind: "userNotReady" } });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).not.toContain("Ready");
+    expect(card.textContent).not.toContain("Provisioning");
+    expect(card.textContent).not.toContain("Idled");
+    expect(card.textContent).not.toContain("Failed");
   });
 
   it("shows 'Provision' button when instanceStatus is 'new'", () => {

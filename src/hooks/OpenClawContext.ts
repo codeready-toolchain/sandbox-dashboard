@@ -4,9 +4,8 @@ import type { AddedCredential } from "../utils/openclaw-providers";
 import type { OpenClawStatus } from "../utils/openclaw-utils";
 
 export interface OpenClawContextType {
-  deleteOpenClaw: (userNamespace: string) => Promise<void>;
+  deleteOpenClaw: () => Promise<void>;
   handleOpenClawInstance: (
-    userNamespace: string,
     credentials?: AddedCredential[],
     disableDevicePairing?: boolean,
   ) => Promise<boolean>;
