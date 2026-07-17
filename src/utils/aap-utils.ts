@@ -38,6 +38,7 @@ export enum AAPInstanceErrorType {
  * be in.
  */
 export type AAPInstanceStatus =
+  | { kind: "userNotReady" }
   | { kind: "new" }
   | { kind: "provisioning" }
   | { kind: "ready" }

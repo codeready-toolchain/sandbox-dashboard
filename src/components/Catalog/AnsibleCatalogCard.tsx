@@ -19,6 +19,7 @@ import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
  */
 function getButtonLabel(status: AAPInstanceStatus): ButtonLabel {
   switch (status.kind) {
+    case "userNotReady":
     case "new":
     case "notDeployed":
     case "unknown":
@@ -91,7 +92,7 @@ export function AnsibleCatalogCard({
   const { deleteInstance, handleAAPInstance, instanceStatus } =
     useAnsibleContext();
 
-  const { signupUser, user, userSignupPhase } = useUserContext();
+  const { signupUser, userSignupPhase } = useUserContext();
   const { addAlert, addAlertFromError } = useNotifications();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
 
@@ -114,11 +115,11 @@ export function AnsibleCatalogCard({
   const buttonLabel = getButtonLabel(instanceStatus);
   const statusLabel = getStatusLabel(instanceStatus);
   const isDeleteButtonVisible =
+    instanceStatus.kind !== "userNotReady" &&
     instanceStatus.kind !== "new" &&
     instanceStatus.kind !== "notDeployed" &&
     instanceStatus.kind !== "unknown" &&
-    instanceStatus.kind !== "deleted" &&
-    Boolean(user?.proxyURL && user?.defaultUserNamespace);
+    instanceStatus.kind !== "deleted";
 
   /**
    * Once the user signup is ready, it either un-idles or provisions the
@@ -136,6 +137,10 @@ export function AnsibleCatalogCard({
         break;
       default:
         return;
+    }
+
+    if (instanceStatus.kind === "userNotReady") {
+      return;
     }
 
     if (
@@ -197,7 +202,10 @@ export function AnsibleCatalogCard({
    * Deletes the Ansible instance.
    */
   const handleOnClickDelete = useCallback(async () => {
-    if (ansibleDeleteInFlight.current) {
+    if (
+      ansibleDeleteInFlight.current ||
+      instanceStatus.kind === "userNotReady"
+    ) {
       return;
     }
 
@@ -223,7 +231,7 @@ export function AnsibleCatalogCard({
     } finally {
       ansibleDeleteInFlight.current = false;
     }
-  }, [addAlert, addAlertFromError, deleteInstance]);
+  }, [addAlert, addAlertFromError, deleteInstance, instanceStatus.kind]);
 
   /**
    * Closes the deletion modal and triggers a refetch of the Ansible's
@@ -271,14 +279,12 @@ export function AnsibleCatalogCard({
         onClose={onLaunchInfoModalClose}
         provisioningError={provisioningError}
       />
-      {user?.proxyURL && user?.defaultUserNamespace && (
-        <AnsibleDeleteInstanceModal
-          isOpen={isAnsibleDeleteModalOpen}
-          onClose={onDeleteModalClose}
-          onClickDelete={handleOnClickDelete}
-          deletionError={deletionError}
-        />
-      )}
+      <AnsibleDeleteInstanceModal
+        isOpen={isAnsibleDeleteModalOpen}
+        onClose={onDeleteModalClose}
+        onClickDelete={handleOnClickDelete}
+        deletionError={deletionError}
+      />
     </>
   );
 }

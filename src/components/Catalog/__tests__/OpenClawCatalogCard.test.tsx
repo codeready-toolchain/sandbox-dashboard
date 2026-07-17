@@ -2,16 +2,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
+import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
-import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { ProductType, type Product } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { OpenClawCatalogCard } from "../OpenClawCatalogCard";
-import { makeOpenClawContext } from "./openClawTestHelpers";
 import { products } from "../productData";
+import { makeOpenClawContext } from "./openClawTestHelpers";
 
 const openclawProduct = products.find((p) => p.type === ProductType.OPENCLAW)!;
 
@@ -131,7 +131,7 @@ describe("OpenClawCatalogCard", () => {
     windowOpenSpy.mockRestore();
   });
 
-  it("calls handleOpenClawInstance when status is IDLED", async () => {
+  it("calls handleOpenClawInstance and opens info modal when status is IDLED", async () => {
     const handleOpenClawInstance = vi.fn().mockResolvedValue(true);
 
     renderCard({
@@ -141,9 +141,8 @@ describe("OpenClawCatalogCard", () => {
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleOpenClawInstance).toHaveBeenCalledWith(
-      readyUserFixture.defaultUserNamespace,
-    );
+    expect(handleOpenClawInstance).toHaveBeenCalledWith();
+    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
   });
 
   it("opens info modal when status is PROVISIONING", async () => {
@@ -292,22 +291,31 @@ describe("OpenClawCatalogCard", () => {
     await userEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(deleteOpenClaw).toHaveBeenCalledWith(
-        readyUserFixture.defaultUserNamespace,
-      );
+      expect(deleteOpenClaw).toHaveBeenCalledWith();
     });
   });
 
-  it("does not render modals when user is missing proxyURL", () => {
-    renderCard({ openclawStatus: OpenClawStatus.READY }, undefined, {
-      user: { ...readyUserFixture, proxyURL: "" },
-    });
+  it("hides delete button when status is USER_NOT_READY", () => {
+    renderCard({ openclawStatus: OpenClawStatus.USER_NOT_READY });
 
     expect(
-      screen.queryByTestId("openclaw-launch-modal"),
+      screen.queryByTestId("delete-instance-button"),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not call handleOpenClawInstance or open modal when status is USER_NOT_READY", async () => {
+    const handleOpenClawInstance = vi.fn().mockResolvedValue(true);
+
+    renderCard({
+      openclawStatus: OpenClawStatus.USER_NOT_READY,
+      handleOpenClawInstance,
+    });
+
+    await userEvent.click(screen.getByTestId("try-it-button"));
+
+    expect(handleOpenClawInstance).not.toHaveBeenCalled();
     expect(
-      screen.queryByTestId("delete-instance-modal"),
+      screen.queryByTestId("openclaw-launch-modal"),
     ).not.toBeInTheDocument();
   });
 });

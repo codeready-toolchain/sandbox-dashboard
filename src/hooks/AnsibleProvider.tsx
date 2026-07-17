@@ -40,6 +40,62 @@ import { useUserContext } from "./UserContext";
 
 export function AnsibleProvider({ children }: { children: ReactNode }) {
   const { user } = useUserContext();
+
+  // Route and mount a fake provider if the user is not yet signed up or if it
+  // doesn't have the required variables for the Ansible provider to properly
+  // work.
+  if (user?.defaultUserNamespace && user?.proxyURL) {
+    return (
+      <AnsibleProviderConnected
+        proxyURL={user.proxyURL}
+        userNamespace={user.defaultUserNamespace}
+      >
+        {children}
+      </AnsibleProviderConnected>
+    );
+  } else {
+    return <AnsibleProviderNoop>{children}</AnsibleProviderNoop>;
+  }
+}
+
+/**
+ * A NOOP provider for when the user is not yet signed up. Allows rendering
+ * the cards with its actions effectively disabled.
+ */
+export function AnsibleProviderNoop({ children }: { children: ReactNode }) {
+  return (
+    <AnsibleContext.Provider
+      value={{
+        deleteInstance: async () => {
+          throw new Error("User not signed up");
+        },
+        fetchInstanceCredentials: async () =>
+          Promise.reject(new Error("User not signed up")),
+        handleAAPInstance: async () => {
+          throw new Error("User not signed up");
+        },
+        instanceStatus: { kind: "userNotReady" },
+      }}
+    >
+      {children}
+    </AnsibleContext.Provider>
+  );
+}
+
+/**
+ * A real provider for when the user is signed up. The variables defined in
+ * the components' props are a requirement for the provider to work, so this
+ * type narrowing helps avoiding having guards for them everywhere.
+ */
+export function AnsibleProviderConnected({
+  children,
+  userNamespace,
+  proxyURL,
+}: {
+  children: ReactNode;
+  userNamespace: string;
+  proxyURL: string;
+}) {
   const { addAlert } = useNotifications();
 
   const [instanceCR, setInstanceCR] = useState<AAPCR | undefined>();
@@ -107,17 +163,12 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     instanceStatusRef.current = status;
   }, []);
 
-  const [prevProxyURL, setPrevProxyURL] = useState(user?.proxyURL);
-  const [prevNamespace, setPrevNamespace] = useState(
-    user?.defaultUserNamespace,
-  );
+  const [prevProxyURL, setPrevProxyURL] = useState(proxyURL);
+  const [prevNamespace, setPrevNamespace] = useState(userNamespace);
 
-  if (
-    user?.proxyURL !== prevProxyURL ||
-    user?.defaultUserNamespace !== prevNamespace
-  ) {
-    setPrevProxyURL(user?.proxyURL);
-    setPrevNamespace(user?.defaultUserNamespace);
+  if (proxyURL !== prevProxyURL || userNamespace !== prevNamespace) {
+    setPrevProxyURL(proxyURL);
+    setPrevNamespace(userNamespace);
     setInstanceCR(undefined);
     setInstanceStatus({ kind: "new" });
     setInstanceCredentials(undefined);
@@ -127,7 +178,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     hasFetchedOnMount.current = false;
     instanceCRRef.current = undefined;
     instanceStatusRef.current = { kind: "new" };
-  }, [user?.proxyURL, user?.defaultUserNamespace]);
+  }, [proxyURL, userNamespace]);
 
   /**
    * Gets the Ansible Automation Platform resource from Kubernetes.
@@ -135,13 +186,8 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    * @throws {ApiError} if the API calls to fetch the AAP resource.
    */
   const fetchCR = useCallback(
-    async (userNamespace: string): Promise<void> => {
-      const proxyURL = user?.proxyURL;
-      if (!proxyURL) {
-        return;
-      }
-
-      const cr = await getAAP(proxyURL, userNamespace);
+    async (namespace: string): Promise<void> => {
+      const cr = await getAAP(proxyURL, namespace);
       if (!cr) {
         updateInstanceStatus({ kind: "new" });
         updateInstanceCR(undefined);
@@ -157,7 +203,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
       updateInstanceStatus(ansibleStatus);
       updateInstanceCR(cr);
     },
-    [user?.proxyURL, updateInstanceCR, updateInstanceStatus],
+    [proxyURL, updateInstanceCR, updateInstanceStatus],
   );
 
   /**
@@ -165,15 +211,6 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    */
   const fetchInstanceCredentials =
     useCallback(async (): Promise<AAPInstanceCredentials> => {
-      if (!user?.proxyURL || !user?.defaultUserNamespace) {
-        throw new UserFacingError(
-          "Unable to obtain your instance's credentials",
-          "The proxy URL or the namespace are not available for the user",
-          undefined,
-          "Unable to fetch AAP credentials: either the proxy URL or the user's namespace are missing",
-        );
-      }
-
       // Return the cached version if we have it to avoid refetching the
       // secret.
       if (instanceCredentials) {
@@ -200,8 +237,8 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
       let adminSecret: SecretItem;
       try {
         adminSecret = await getSecret(
-          user.proxyURL,
-          user.defaultUserNamespace,
+          proxyURL,
+          userNamespace,
           instanceCR.status.adminPasswordSecret,
         );
       } catch (error) {
@@ -256,7 +293,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
 
       setInstanceCredentials(fetchedCredentials);
       return fetchedCredentials;
-    }, [user, instanceCredentials, instanceCR]);
+    }, [instanceCredentials, instanceCR, proxyURL, userNamespace]);
 
   /**
    * Provisions or "unidles" the Ansible Automation Platform instance
@@ -266,18 +303,9 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    * instance fails.
    */
   const handleAAPInstance = useCallback(async () => {
-    if (!user?.proxyURL || !user?.defaultUserNamespace) {
-      throw new UserFacingError(
-        "Unable to delete your AAP instance",
-        "The proxy URL or the namespace are not available for the user",
-        undefined,
-        "Unable to delete AAP instance: either the proxy URL or the user's namespace are missing",
-      );
-    }
-
     // Get the latest status for the instance.
     try {
-      await fetchCR(user?.defaultUserNamespace);
+      await fetchCR(userNamespace);
     } catch (error) {
       throw new UserFacingError(
         "Unable to get your Ansible Automation Platform instance's information",
@@ -299,7 +327,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     // When the instance is idled, unidle the instance.
     if (instanceStatusRef.current.kind === "idled" && instanceCRRef.current) {
       try {
-        await unIdleAAP(user?.proxyURL, user?.defaultUserNamespace);
+        await unIdleAAP(proxyURL, userNamespace);
         pollTransientRetriesLeft.current = maxTransientErrorRetries;
         updateInstanceStatus({ kind: "unidling" });
         return;
@@ -326,7 +354,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
 
     // The CR is absent — create the instance.
     try {
-      await createAAP(user?.proxyURL, user?.defaultUserNamespace);
+      await createAAP(proxyURL, userNamespace);
       pollTransientRetriesLeft.current = maxTransientErrorRetries;
       updateInstanceStatus({ kind: "provisioning" });
     } catch (error) {
@@ -344,7 +372,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
         `Unable to create the AAP instance for the user: the CR creation failed: ${error}`,
       );
     }
-  }, [fetchCR, updateInstanceStatus, user]);
+  }, [fetchCR, proxyURL, updateInstanceStatus, userNamespace]);
 
   /**
    * Deletes the AAP instance and all the related resources.
@@ -352,15 +380,6 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    * of the resources fails.
    */
   const deleteInstance = useCallback(async () => {
-    if (!user?.proxyURL || !user?.defaultUserNamespace) {
-      throw new UserFacingError(
-        "Unable to delete your AAP instance",
-        "The proxy URL or the namespace are not available for the user",
-        undefined,
-        "Unable to delete AAP instance: either the proxy URL or the user's namespace are missing",
-      );
-    }
-
     const previousInstanceState = instanceStatusRef.current;
     updateInstanceStatus({ kind: "deleting" });
 
@@ -369,18 +388,18 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     try {
       [deployments, statefulSets] = await Promise.all([
         getDeployments(
-          user?.proxyURL,
-          user?.defaultUserNamespace,
+          proxyURL,
+          userNamespace,
           "app.kubernetes.io/managed-by=aap-operator",
         ),
         getStatefulSets(
-          user?.proxyURL,
-          user?.defaultUserNamespace,
+          proxyURL,
+          userNamespace,
           "app.kubernetes.io/managed-by=aap-operator",
         ),
       ]);
 
-      await deleteAAPCR(user?.proxyURL, user?.defaultUserNamespace);
+      await deleteAAPCR(proxyURL, userNamespace);
       pollTransientRetriesLeft.current = maxTransientErrorRetries;
       setInstanceCredentials(undefined);
     } catch (error) {
@@ -396,21 +415,9 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     // Delete all the related resources and capture the results and any
     // errors via "allSettled".
     const cleanupResults = await Promise.allSettled([
-      deleteSecretsAndPVCs(
-        user?.proxyURL,
-        deployments,
-        user?.defaultUserNamespace,
-      ),
-      deleteSecretsAndPVCs(
-        user?.proxyURL,
-        statefulSets,
-        user?.defaultUserNamespace,
-      ),
-      deletePVCsForSTS(
-        user?.proxyURL,
-        statefulSets,
-        user?.defaultUserNamespace,
-      ),
+      deleteSecretsAndPVCs(proxyURL, deployments, userNamespace),
+      deleteSecretsAndPVCs(proxyURL, statefulSets, userNamespace),
+      deletePVCsForSTS(proxyURL, statefulSets, userNamespace),
     ]);
 
     // Prepare the error structure so that the user can copy it nicely
@@ -439,7 +446,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     }
 
     updateInstanceStatus({ kind: "deleted" });
-  }, [updateInstanceStatus, user]);
+  }, [proxyURL, updateInstanceStatus, userNamespace]);
 
   /**
    * Fetch the instance's status on mount. It retries on transient failures to
@@ -449,15 +456,12 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    * The reference is to ensure we only run this effect once.
    */
   useEffect(() => {
-    if (user?.defaultUserNamespace && !hasFetchedOnMount.current) {
-      // Narrowing after the type check to satisfy the TypeScript compiler.
-      const ns = user.defaultUserNamespace;
-
+    if (!hasFetchedOnMount.current) {
       // The reference is updated here to avoid any more executions if the
       // "instanceStatus" changes while "withRetry" is in flight.
       hasFetchedOnMount.current = true;
 
-      withRetry(() => fetchCR(ns), 3, 3_000).catch((error) => {
+      withRetry(() => fetchCR(userNamespace), 3, 3_000).catch((error) => {
         logger.error(
           `Unable to obtain the Ansible Automation Platform instance's status: ${error}`,
         );
@@ -478,7 +482,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
         );
       });
     }
-  }, [addAlert, fetchCR, updateInstanceStatus, user?.defaultUserNamespace]);
+  }, [addAlert, fetchCR, updateInstanceStatus, userNamespace]);
 
   /**
    * Poll for the instance's status when the instance is provisioning,
@@ -487,19 +491,13 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (
-      !user?.proxyURL ||
-      !user?.defaultUserNamespace ||
-      (instanceStatus.kind !== "deleting" &&
-        instanceStatus.kind !== "deleted" &&
-        instanceStatus.kind !== "provisioning" &&
-        instanceStatus.kind !== "unidling")
+      instanceStatus.kind !== "deleting" &&
+      instanceStatus.kind !== "deleted" &&
+      instanceStatus.kind !== "provisioning" &&
+      instanceStatus.kind !== "unidling"
     ) {
       return;
     }
-
-    // Narrowing after the type check to satisfy the TypeScript compiler.
-    const ns = user.defaultUserNamespace;
-    const proxy = user.proxyURL;
 
     let cancelled = false;
     const poll = async () => {
@@ -515,7 +513,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
         // status to something else than "deleting", which would stop the
         // polling.
         try {
-          const cr = await getAAP(proxy, ns);
+          const cr = await getAAP(proxyURL, userNamespace);
 
           if (!cr && instanceStatusRef.current.kind === "deleted") {
             updateInstanceStatus({ kind: "new" });
@@ -567,7 +565,7 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
       } else {
         const wasUnidling = instanceStatusRef.current.kind === "unidling";
         try {
-          await fetchCR(ns);
+          await fetchCR(userNamespace);
         } catch (err) {
           if (err instanceof ApiError) {
             if (isTransient(err) && pollTransientRetriesLeft.current > 0) {
@@ -629,8 +627,8 @@ export function AnsibleProvider({ children }: { children: ReactNode }) {
     instanceStatus.kind,
     updateInstanceCR,
     updateInstanceStatus,
-    user?.defaultUserNamespace,
-    user?.proxyURL,
+    userNamespace,
+    proxyURL,
   ]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
