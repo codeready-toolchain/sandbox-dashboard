@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -79,19 +80,21 @@ function renderGrid(
   render(
     <NotificationProvider>
       <UIConfigurationContext.Provider value={uiConfigCtx}>
-        <AnsibleContext.Provider value={ansibleCtx}>
-          <OpenClawContext.Provider value={openClawCtx}>
-            <UserContext.Provider value={ctx}>
-              <PhoneVerificationContext.Provider
-                value={{
-                  openPhoneVerificationModal: mockOpenPhoneVerificationModal,
-                }}
-              >
-                <CatalogGrid />
-              </PhoneVerificationContext.Provider>
-            </UserContext.Provider>
-          </OpenClawContext.Provider>
-        </AnsibleContext.Provider>
+        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+          <AnsibleContext.Provider value={ansibleCtx}>
+            <OpenClawContext.Provider value={openClawCtx}>
+              <UserContext.Provider value={ctx}>
+                <PhoneVerificationContext.Provider
+                  value={{
+                    openPhoneVerificationModal: mockOpenPhoneVerificationModal,
+                  }}
+                >
+                  <CatalogGrid />
+                </PhoneVerificationContext.Provider>
+              </UserContext.Provider>
+            </OpenClawContext.Provider>
+          </AnsibleContext.Provider>
+        </AnalyticsContext.Provider>
       </UIConfigurationContext.Provider>
     </NotificationProvider>,
   );

@@ -1,6 +1,7 @@
 import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
@@ -95,6 +96,7 @@ export function AnsibleCatalogCard({
   const { signupUser, userSignupPhase } = useUserContext();
   const { addAlert, addAlertFromError } = useNotifications();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
+  const { trackAnalytics } = useAnalyticsContext();
 
   const [deletionError, setDeletionError] = useState<
     UserFacingError | undefined
@@ -166,6 +168,7 @@ export function AnsibleCatalogCard({
     try {
       await handleAAPInstance();
 
+      trackAnalytics(product, "Catalog", undefined, "cta");
       setAnsibleInfoModalOpen(true);
       markProductAsTried(product);
     } catch (error) {
@@ -195,6 +198,7 @@ export function AnsibleCatalogCard({
     openPhoneVerificationModal,
     product,
     signupUser,
+    trackAnalytics,
     userSignupPhase,
   ]);
 

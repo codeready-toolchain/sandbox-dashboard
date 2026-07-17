@@ -24,6 +24,7 @@ import AnsibleIcon from "../../assets/logos/ansible.svg";
 import RedHatLogo from "../../assets/logos/red_hat_logo.svg";
 import { SUPPORT_EMAIL } from "../../const";
 import { UserFacingError } from "../../error/UserFacingError";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
 import type { AAPInstanceCredentials } from "../../types";
 import { ErrorModal } from "./ErrorModal";
@@ -99,6 +100,7 @@ export function AnsibleLaunchInfoModal({
   onClose,
   provisioningError,
 }: AnsibleLaunchInfoModalProps) {
+  const { trackAnalytics } = useAnalyticsContext();
   const { fetchInstanceCredentials, instanceStatus } = useAnsibleContext();
 
   // Keep track of the status of the instance credentials' fecthing to show
@@ -452,6 +454,14 @@ export function AnsibleLaunchInfoModal({
             icon={<ExternalLinkAltIcon />}
             iconPosition="end"
             data-testid="get-started-button"
+            onClick={() =>
+              trackAnalytics(
+                "Get Started - Ansible",
+                "Catalog",
+                instanceCredentialsStatus.credentials.url,
+                "cta",
+              )
+            }
           >
             Get started
           </Button>

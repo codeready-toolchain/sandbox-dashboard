@@ -1,6 +1,7 @@
 import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
 import { UserFacingError } from "../../error/UserFacingError";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
@@ -86,6 +87,7 @@ export function OpenClawCatalogCard({
   isGreenCornerVisible,
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
+  const { trackAnalytics } = useAnalyticsContext();
   const { signupUser, userSignupPhase } = useUserContext();
   const {
     deleteOpenClaw,
@@ -217,6 +219,7 @@ export function OpenClawCatalogCard({
         const success = await handleOpenClawInstance(credentials, false);
 
         if (success) {
+          trackAnalytics(product, "Catalog", undefined, "cta");
           markProductAsTried(product);
         }
 
@@ -238,6 +241,7 @@ export function OpenClawCatalogCard({
       markProductAsTried,
       openclawStatus,
       product,
+      trackAnalytics,
     ],
   );
 

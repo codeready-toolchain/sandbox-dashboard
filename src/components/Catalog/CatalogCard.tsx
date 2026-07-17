@@ -24,6 +24,7 @@ import {
   type Product,
   type ProductDescription,
 } from "../../types/product";
+import { Intcmp } from "./productData";
 
 /**
  * Defines the properties of the CatalogCard component.
@@ -189,6 +190,11 @@ export function CatalogCard({
               }
               iconPosition="end"
               data-testid="try-it-button"
+              data-analytics-linktype="cta"
+              data-analytics-text={primaryButtonLabel}
+              data-analytics-category={`Developer Sandbox|Catalog|${product.title}`}
+              data-analytics-region="sandbox-catalog"
+              data-analytics-offerid={Intcmp[product.type]}
             >
               <Flex
                 alignItems={{ default: "alignItemsCenter" }}

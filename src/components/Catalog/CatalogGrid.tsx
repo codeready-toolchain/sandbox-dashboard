@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { AnsibleProvider } from "../../hooks/AnsibleProvider";
 import { OpenClawProvider } from "../../hooks/OpenClawProvider";
 import { useUIConfigurationContext } from "../../hooks/UIConfigurationContext";
@@ -15,6 +16,7 @@ import { products } from "./productData";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 
 export function CatalogGrid() {
+  const { trackAnalytics } = useAnalyticsContext();
   const { getProductURL } = useProductURLResolver();
   const { disabledIntegrations } = useUIConfigurationContext();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
@@ -50,11 +52,12 @@ export function CatalogGrid() {
     (product: Product) => {
       const url = getProductURL(product);
       if (url) {
+        trackAnalytics(product, "Catalog", url, "cta");
         window.open(url, "_blank", "noopener,noreferrer");
         markProductAsTried(product);
       }
     },
-    [getProductURL, markProductAsTried],
+    [getProductURL, markProductAsTried, trackAnalytics],
   );
 
   /**
