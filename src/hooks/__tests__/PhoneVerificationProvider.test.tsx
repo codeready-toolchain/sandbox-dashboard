@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as registrationApi from "../../api/registration";
 import { readyUserFixture } from "../../mocks/fixtures";
+import { AnalyticsContext } from "../AnalyticsContext";
 import { usePhoneVerificationContext } from "../PhoneVerificationContext";
 import { PhoneVerificationProvider } from "../PhoneVerificationProvider";
 import {
@@ -41,11 +42,13 @@ function OpenModalButton() {
 function renderProvider(contextOverrides: Partial<UserContextType> = {}) {
   const ctx = makeUserContext(contextOverrides);
   render(
-    <UserContext.Provider value={ctx}>
-      <PhoneVerificationProvider>
-        <OpenModalButton />
-      </PhoneVerificationProvider>
-    </UserContext.Provider>,
+    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+      <UserContext.Provider value={ctx}>
+        <PhoneVerificationProvider>
+          <OpenModalButton />
+        </PhoneVerificationProvider>
+      </UserContext.Provider>
+    </AnalyticsContext.Provider>,
   );
   return ctx;
 }

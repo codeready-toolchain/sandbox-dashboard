@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { UserFacingError } from "../../../error/UserFacingError";
+import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -41,13 +42,15 @@ function renderModal(
   const { isOpen = true, provisioningError } = modalProps;
 
   const utils = render(
-    <AnsibleContext.Provider value={ctx}>
-      <AnsibleLaunchInfoModal
-        isOpen={isOpen}
-        onClose={mockOnClose}
-        provisioningError={provisioningError}
-      />
-    </AnsibleContext.Provider>,
+    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+      <AnsibleContext.Provider value={ctx}>
+        <AnsibleLaunchInfoModal
+          isOpen={isOpen}
+          onClose={mockOnClose}
+          provisioningError={provisioningError}
+        />
+      </AnsibleContext.Provider>
+    </AnalyticsContext.Provider>,
   );
 
   return { ...utils, ctx };
@@ -402,12 +405,12 @@ describe("AnsibleLaunchInfoModal", () => {
         setIsOpen(false);
       };
       return (
-        <>
+        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
           <AnsibleContext.Provider value={ctx}>
             <AnsibleLaunchInfoModal isOpen={isOpen} onClose={handleClose} />
           </AnsibleContext.Provider>
           <button data-testid="reopen" onClick={() => setIsOpen(true)} />
-        </>
+        </AnalyticsContext.Provider>
       );
     }
 

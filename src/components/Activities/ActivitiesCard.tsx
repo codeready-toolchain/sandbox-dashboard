@@ -1,4 +1,5 @@
 import { Card, CardBody, CardHeader, Content } from "@patternfly/react-core";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import "../common/Card.css";
 import type { Article } from "./articleData";
 
@@ -9,12 +10,15 @@ interface ActivitiesCardProps {
 export function ActivitiesCard({
   article: { img, title, description, link },
 }: ActivitiesCardProps) {
+  const { trackAnalytics } = useAnalyticsContext();
+
   return (
     <a
       href={link}
       target="_blank"
       rel="noopener noreferrer"
       style={{ textDecoration: "none" }}
+      onClick={() => trackAnalytics(title, "Activities", link, "cta")}
       data-analytics-linktype="cta"
       data-analytics-category="Developer Sandbox|Activities"
       data-analytics-text={title}

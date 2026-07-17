@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as registrationApi from "../../../api/registration";
+import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   UserContext,
   UserSignupPhase,
@@ -34,13 +35,15 @@ function renderModal(
   contextOverrides: Partial<UserContextType> = {},
 ) {
   return render(
-    <UserContext.Provider value={makeContext(contextOverrides)}>
-      <PhoneVerificationModal
-        isOpen={isOpen}
-        onClose={mockOnClose}
-        onVerified={mockOnVerified}
-      />
-    </UserContext.Provider>,
+    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+      <UserContext.Provider value={makeContext(contextOverrides)}>
+        <PhoneVerificationModal
+          isOpen={isOpen}
+          onClose={mockOnClose}
+          onVerified={mockOnVerified}
+        />
+      </UserContext.Provider>
+    </AnalyticsContext.Provider>,
   );
 }
 

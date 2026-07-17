@@ -18,6 +18,7 @@ import {
 } from "../../api/registration";
 import { SUPPORT_EMAIL } from "../../const";
 import { ApiError } from "../../error/ApiError";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { mapApiErrorMessage } from "../../error/mapApiErrorMessage";
 import logger from "../../utils/logger";
 import {
@@ -94,6 +95,7 @@ export function PhoneVerificationModal({
   onClose,
   onVerified,
 }: PhoneVerificationModalProps) {
+  const { trackAnalytics } = useAnalyticsContext();
   const [step, setStep] = useState<Step>("phone");
   const [countryCode, setCountryCode] = useState("+1");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -113,6 +115,7 @@ export function PhoneVerificationModal({
   };
 
   const handleClose = () => {
+    trackAnalytics("Cancel Verification", "Verification");
     resetState();
     onClose();
   };
@@ -134,6 +137,7 @@ export function PhoneVerificationModal({
 
     inFlightRef.current = true;
     setSubmitting(true);
+    trackAnalytics("Send Code", "Verification");
     try {
       await initiatePhoneVerification(countryCode, phoneNumber);
       setStep("code");
@@ -171,6 +175,7 @@ export function PhoneVerificationModal({
 
     inFlightRef.current = true;
     setSubmitting(true);
+    trackAnalytics("Start Trial", "Verification");
     try {
       await completePhoneVerification(verificationCode);
       resetState();

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
@@ -39,17 +40,19 @@ function renderCard(
   render(
     <NotificationProvider>
       <UserContext.Provider value={sandboxCtx}>
-        <OpenClawContext.Provider value={openClawCtx}>
-          <PhoneVerificationContext.Provider
-            value={{ openPhoneVerificationModal: vi.fn() }}
-          >
-            <OpenClawCatalogCard
-              product={openclawProduct}
-              isGreenCornerVisible={false}
-              markProductAsTried={defaultMarkTried}
-            />
-          </PhoneVerificationContext.Provider>
-        </OpenClawContext.Provider>
+        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+          <OpenClawContext.Provider value={openClawCtx}>
+            <PhoneVerificationContext.Provider
+              value={{ openPhoneVerificationModal: vi.fn() }}
+            >
+              <OpenClawCatalogCard
+                product={openclawProduct}
+                isGreenCornerVisible={false}
+                markProductAsTried={defaultMarkTried}
+              />
+            </PhoneVerificationContext.Provider>
+          </OpenClawContext.Provider>
+        </AnalyticsContext.Provider>
       </UserContext.Provider>
     </NotificationProvider>,
   );
@@ -224,17 +227,19 @@ describe("OpenClawCatalogCard", () => {
     render(
       <NotificationProvider>
         <UserContext.Provider value={sandboxCtx}>
-          <OpenClawContext.Provider value={openClawCtx}>
-            <PhoneVerificationContext.Provider
-              value={{ openPhoneVerificationModal }}
-            >
-              <OpenClawCatalogCard
-                product={openclawProduct}
-                isGreenCornerVisible={false}
-                markProductAsTried={vi.fn()}
-              />
-            </PhoneVerificationContext.Provider>
-          </OpenClawContext.Provider>
+          <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+            <OpenClawContext.Provider value={openClawCtx}>
+              <PhoneVerificationContext.Provider
+                value={{ openPhoneVerificationModal }}
+              >
+                <OpenClawCatalogCard
+                  product={openclawProduct}
+                  isGreenCornerVisible={false}
+                  markProductAsTried={vi.fn()}
+                />
+              </PhoneVerificationContext.Provider>
+            </OpenClawContext.Provider>
+          </AnalyticsContext.Provider>
         </UserContext.Provider>
       </NotificationProvider>,
     );

@@ -1,6 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UserFacingError } from "../../../error/UserFacingError";
+import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -58,17 +59,19 @@ function renderCard(
   render(
     <NotificationProvider>
       <UserContext.Provider value={sandboxCtx}>
-        <AnsibleContext.Provider value={ansibleCtx}>
-          <PhoneVerificationContext.Provider
-            value={{ openPhoneVerificationModal }}
-          >
-            <AnsibleCatalogCard
-              product={aapProduct}
-              isGreenCornerVisible={false}
-              markProductAsTried={defaultMarkTried}
-            />
-          </PhoneVerificationContext.Provider>
-        </AnsibleContext.Provider>
+        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+          <AnsibleContext.Provider value={ansibleCtx}>
+            <PhoneVerificationContext.Provider
+              value={{ openPhoneVerificationModal }}
+            >
+              <AnsibleCatalogCard
+                product={aapProduct}
+                isGreenCornerVisible={false}
+                markProductAsTried={defaultMarkTried}
+              />
+            </PhoneVerificationContext.Provider>
+          </AnsibleContext.Provider>
+        </AnalyticsContext.Provider>
       </UserContext.Provider>
     </NotificationProvider>,
   );

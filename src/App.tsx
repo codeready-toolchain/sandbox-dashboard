@@ -14,8 +14,8 @@ export function App() {
     <NotificationProvider>
       <ErrorBoundary>
         <UIConfigurationProvider>
-          <AnalyticsProvider>
-            <UserProvider>
+          <UserProvider>
+            <AnalyticsProvider>
               <PhoneVerificationProvider>
                 <BrowserRouter>
                   <Routes>
@@ -26,8 +26,8 @@ export function App() {
                   </Routes>
                 </BrowserRouter>
               </PhoneVerificationProvider>
-            </UserProvider>
-          </AnalyticsProvider>
+            </AnalyticsProvider>
+          </UserProvider>
         </UIConfigurationProvider>
       </ErrorBoundary>
     </NotificationProvider>

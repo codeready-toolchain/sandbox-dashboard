@@ -11,6 +11,15 @@ import {
   type URLTemplateVars,
 } from "../../types/product";
 
+export const Intcmp: Record<string, string> = {
+  [ProductType.OPENSHIFT_CONSOLE]: "701Pe00000dnCEYIA2",
+  [ProductType.DEVSPACES]: "701Pe00000doTQCIA2",
+  [ProductType.OPENSHIFT_AI]: "701Pe00000do2uiIAA",
+  [ProductType.OPENSHIFT_VIRTUALIZATION]: "701Pe00000dov6IIAQ",
+  [ProductType.AAP]: "701Pe00000dowQXIAY",
+  [ProductType.OPENCLAW]: "",
+};
+
 export const products: Product[] = [
   {
     type: ProductType.OPENSHIFT_CONSOLE,

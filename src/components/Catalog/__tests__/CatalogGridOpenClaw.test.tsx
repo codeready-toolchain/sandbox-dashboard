@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -56,17 +57,19 @@ function renderGrid(openClawOverrides: Partial<OpenClawContextType> = {}) {
   render(
     <NotificationProvider>
       <UIConfigurationContext.Provider value={{ disabledIntegrations: [] }}>
-        <AnsibleContext.Provider value={ansibleCtx}>
-          <OpenClawContext.Provider value={openClawCtx}>
-            <UserContext.Provider value={sandboxCtx}>
-              <PhoneVerificationContext.Provider
-                value={{ openPhoneVerificationModal: vi.fn() }}
-              >
-                <CatalogGrid />
-              </PhoneVerificationContext.Provider>
-            </UserContext.Provider>
-          </OpenClawContext.Provider>
-        </AnsibleContext.Provider>
+        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+          <AnsibleContext.Provider value={ansibleCtx}>
+            <OpenClawContext.Provider value={openClawCtx}>
+              <UserContext.Provider value={sandboxCtx}>
+                <PhoneVerificationContext.Provider
+                  value={{ openPhoneVerificationModal: vi.fn() }}
+                >
+                  <CatalogGrid />
+                </PhoneVerificationContext.Provider>
+              </UserContext.Provider>
+            </OpenClawContext.Provider>
+          </AnsibleContext.Provider>
+        </AnalyticsContext.Provider>
       </UIConfigurationContext.Provider>
     </NotificationProvider>,
   );
