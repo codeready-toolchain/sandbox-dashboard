@@ -1,4 +1,4 @@
-import type { OpenClawItem, SpaceRequestItem } from "../../types";
+import type { OpenClawCR, SpaceRequestItem } from "../../types";
 
 export const clawSpaceRequest: SpaceRequestItem = {
   metadata: {
@@ -30,7 +30,7 @@ export const openClawTerminatingSpaceRequest: SpaceRequestItem = {
   },
 };
 
-export const openClawProvisioning: OpenClawItem = {
+export const openClawProvisioning: OpenClawCR = {
   metadata: {
     name: "claw",
     creationTimestamp: "2025-01-15T00:00:00Z",
@@ -50,7 +50,7 @@ export const openClawProvisioning: OpenClawItem = {
   },
 };
 
-export const openClawIdledFixture: OpenClawItem = {
+export const openClawIdledFixture: OpenClawCR = {
   metadata: {
     name: "claw",
     creationTimestamp: "2025-01-15T00:00:00Z",
@@ -60,13 +60,18 @@ export const openClawIdledFixture: OpenClawItem = {
   },
   status: {
     conditions: [
-      { type: "Ready", status: "True", reason: "Provisioned", message: "" },
+      {
+        type: "Successful",
+        status: "True",
+        reason: "Provisioned",
+        message: "",
+      },
     ],
     url: "https://openclaw.apps.example.com",
   },
 };
 
-export const openClawFixture: OpenClawItem = {
+export const openClawFixture: OpenClawCR = {
   metadata: {
     name: "claw",
     creationTimestamp: "2025-01-15T00:00:00Z",
@@ -76,7 +81,12 @@ export const openClawFixture: OpenClawItem = {
   },
   status: {
     conditions: [
-      { type: "Ready", status: "True", reason: "Provisioned", message: "" },
+      {
+        type: "Successful",
+        status: "True",
+        reason: "Provisioned",
+        message: "",
+      },
     ],
     url: "https://openclaw.apps.example.com",
   },

@@ -16,9 +16,9 @@ import {
   getStatefulSets,
 } from "../api/kube";
 import { SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
-import { AAPProvisioningError } from "../error/AAPProvisioningError";
+import { ProvisioningError } from "../error/ProvisioningError";
 import { ApiError } from "../error/ApiError";
-import { DeletionError } from "../error/DeletionError";
+import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { UserFacingError } from "../error/UserFacingError";
 import { useNotifications } from "../notifications/useNotifications";
 import type {
@@ -197,7 +197,7 @@ export function AnsibleProviderConnected({
       const [ansibleStatus, matchedCondition] = mapAnsibleStatus(cr);
       if (ansibleStatus.kind === "error" && matchedCondition) {
         updateInstanceStatus(ansibleStatus);
-        throw new AAPProvisioningError(matchedCondition);
+        throw new ProvisioningError("AAP", matchedCondition);
       }
 
       updateInstanceStatus(ansibleStatus);
@@ -422,7 +422,7 @@ export function AnsibleProviderConnected({
 
     // Prepare the error structure so that the user can copy it nicely
     // for support.
-    const cleanupError = DeletionError.fromSettledResults(
+    const cleanupError = AggregatedOperationError.fromSettledResults(
       "Ansible Automation Platform",
       [
         "Delete deployment secrets/PVCs",
@@ -465,11 +465,11 @@ export function AnsibleProviderConnected({
         logger.error(
           `Unable to obtain the Ansible Automation Platform instance's status: ${error}`,
         );
-        // With an AAPProvisioningError we know there's a condition failure in
+        // With a ProvisioningError we know there's a condition failure in
         // the instance, so we want to preserve the error status that is set
         // by the fetch call. Any other errors we want to report them as an
         // initial fetch failure.
-        if (!(error instanceof AAPProvisioningError)) {
+        if (!(error instanceof ProvisioningError)) {
           updateInstanceStatus({
             kind: "error",
             errorType: AAPInstanceErrorType.INITIAL_FETCH_FAILED,
@@ -576,7 +576,7 @@ export function AnsibleProviderConnected({
             } else {
               cancelled = true;
             }
-          } else if (err instanceof AAPProvisioningError) {
+          } else if (err instanceof ProvisioningError) {
             cancelled = true;
 
             logger.error(
@@ -591,9 +591,9 @@ export function AnsibleProviderConnected({
           }
 
           if (cancelled) {
-            // AAPProvisioningError means fetchCR already set the
+            // ProvisioningError means fetchCR already set the
             // condition-specific error status — preserve it.
-            if (!(err instanceof AAPProvisioningError)) {
+            if (!(err instanceof ProvisioningError)) {
               updateInstanceStatus({
                 kind: "error",
                 errorType: wasUnidling

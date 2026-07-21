@@ -135,7 +135,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("calls handleOpenClawInstance and opens info modal when status is IDLED", async () => {
-    const handleOpenClawInstance = vi.fn().mockResolvedValue(true);
+    const handleOpenClawInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard({
       openclawStatus: OpenClawStatus.IDLED,
@@ -309,7 +309,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("does not call handleOpenClawInstance or open modal when status is USER_NOT_READY", async () => {
-    const handleOpenClawInstance = vi.fn().mockResolvedValue(true);
+    const handleOpenClawInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard({
       openclawStatus: OpenClawStatus.USER_NOT_READY,

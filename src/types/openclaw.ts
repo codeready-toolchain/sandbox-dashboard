@@ -54,7 +54,7 @@ export type OpenClawWorkspace = {
   files?: Record<string, string>;
 };
 
-export type OpenClawItem = {
+export type OpenClawCR = {
   metadata: {
     name: string;
     uid?: string;

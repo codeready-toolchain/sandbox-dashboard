@@ -14,6 +14,7 @@ import { OpenClawDeleteInstanceModal } from "../Modals/OpenClawDeletInstanceModa
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
+import { SUPPORT_EMAIL } from "../../const";
 
 /**
  * Obtains the main button's label.
@@ -98,6 +99,8 @@ export function OpenClawCatalogCard({
     openClawProvisioningErrorDetails,
     resetOpenClawDeletionErrorDetails,
     resetOpenClawProvisioningErrorDetails,
+    provisioningError,
+    startProvisioning,
   } = useOpenClawContext();
 
   const { addAlert, addAlertFromError } = useNotifications();
@@ -205,42 +208,36 @@ export function OpenClawCatalogCard({
    * Handles the provisioning of a new OpenClaw instance once the user signup
    * is available.
    */
-  const handleOpenClawProvision = useCallback(
-    async (credentials: AddedCredential[]): Promise<boolean> => {
+  const handleOnClickProvision = useCallback(
+    async (credentials: AddedCredential[]): Promise<void> => {
       if (
         openClawProvisionInFlight.current ||
         openclawStatus === OpenClawStatus.USER_NOT_READY
       ) {
-        return false;
+        return;
       }
 
       openClawProvisionInFlight.current = true;
       try {
-        const success = await handleOpenClawInstance(credentials, false);
-
-        if (success) {
-          trackAnalytics(product, "Catalog", undefined, "cta");
-          markProductAsTried(product);
-        }
-
-        return success;
+        await startProvisioning(credentials, false);
+        trackAnalytics(product, "Catalog", undefined, "cta");
+        markProductAsTried(product);
       } catch (error) {
         handleOpenClawApiError(
           error,
-          "OpenClaw provisioning failed",
-          "An unexpected error occurred while provisioning your OpenClaw instance. Please try again later.",
+          "Unable to provision your OpenClaw instance",
+          `An unexpected error occurred while provisioning your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}.`,
         );
-        return false;
       } finally {
         openClawProvisionInFlight.current = false;
       }
     },
     [
       handleOpenClawApiError,
-      handleOpenClawInstance,
       markProductAsTried,
       openclawStatus,
       product,
+      startProvisioning,
       trackAnalytics,
     ],
   );
@@ -299,12 +296,11 @@ export function OpenClawCatalogCard({
         isOpen={isOpenClawInfoModalOpen}
         onClose={() => setOpenClawInfoModalOpen(false)}
         product={product}
-        openclawStatus={openclawStatus}
-        openclawUILink={openclawUILink}
+        provisioningError={provisioningError}
         openClawProvisioningErrorDetails={openClawProvisioningErrorDetails}
-        onProvision={handleOpenClawProvision}
         onLaunch={markProductAsTried}
         onProvisioningErrorDismissed={resetOpenClawProvisioningErrorDetails}
+        onClickProvision={handleOnClickProvision}
       />
 
       <OpenClawDeleteInstanceModal

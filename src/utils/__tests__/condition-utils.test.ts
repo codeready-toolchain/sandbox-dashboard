@@ -1,9 +1,5 @@
 import type { StatusCondition } from "../../types";
-import {
-  anyConditionMatches,
-  isConditionFalse,
-  isConditionTrue,
-} from "../condition-utils";
+import { anyConditionMatches } from "../condition-utils";
 
 const makeCondition = (
   type: string,
@@ -89,67 +85,6 @@ describe("condition-utils", () => {
       const conditions = [makeCondition("Other", "False", "SpecificReason")];
       const result = anyConditionMatches("Unrelated", "Unrelated", conditions);
       expect(result).toBeUndefined();
-    });
-  });
-
-  describe("isConditionTrue", () => {
-    it("returns [true, condition] when condition type is found with status True", () => {
-      const conditions = [
-        makeCondition("Running", "True", "Running"),
-        makeCondition("Successful", "False"),
-      ];
-      const [found, condition] = isConditionTrue("Running", conditions);
-      expect(found).toBe(true);
-      expect(condition).toEqual(conditions[0]);
-    });
-
-    it("returns [false, null] when condition type is found but status is not True", () => {
-      const conditions = [makeCondition("Running", "False")];
-      const [found, condition] = isConditionTrue("Running", conditions);
-      expect(found).toBe(false);
-      expect(condition).toBeNull();
-    });
-
-    it("returns [false, null] when condition type is not found", () => {
-      const conditions = [makeCondition("Other", "True")];
-      const [found, condition] = isConditionTrue("Running", conditions);
-      expect(found).toBe(false);
-      expect(condition).toBeNull();
-    });
-
-    it("returns [false, null] for empty conditions", () => {
-      const [found, condition] = isConditionTrue("Running", []);
-      expect(found).toBe(false);
-      expect(condition).toBeNull();
-    });
-  });
-
-  describe("isConditionFalse", () => {
-    it("returns [true, condition] when condition type is found with status False", () => {
-      const conditions = [makeCondition("Running", "False", "Stopped")];
-      const [found, condition] = isConditionFalse("Running", conditions);
-      expect(found).toBe(true);
-      expect(condition).toEqual(conditions[0]);
-    });
-
-    it("returns [false, null] when condition type is found but status is True", () => {
-      const conditions = [makeCondition("Running", "True")];
-      const [found, condition] = isConditionFalse("Running", conditions);
-      expect(found).toBe(false);
-      expect(condition).toBeNull();
-    });
-
-    it("returns [false, null] when condition type is not found", () => {
-      const conditions = [makeCondition("Other", "False")];
-      const [found, condition] = isConditionFalse("Running", conditions);
-      expect(found).toBe(false);
-      expect(condition).toBeNull();
-    });
-
-    it("returns [false, null] for empty conditions", () => {
-      const [found, condition] = isConditionFalse("Running", []);
-      expect(found).toBe(false);
-      expect(condition).toBeNull();
     });
   });
 });
