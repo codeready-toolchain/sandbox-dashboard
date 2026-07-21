@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
@@ -151,5 +152,31 @@ describe("CatalogBanner", () => {
     expect(
       screen.getByText(/Your free trial expires in \d+ days/),
     ).toBeInTheDocument();
+  });
+
+  it("trial-expiration popover contains a documentation link with the correct href", async () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 5);
+    const user = {
+      ...readyUserFixture,
+      endDate: futureDate.toISOString(),
+    };
+    render(
+      <UserContext.Provider value={makeContext({ user })}>
+        <CatalogBanner />
+      </UserContext.Provider>,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show trial information" }),
+    );
+
+    const docLink = await screen.findByRole("link", {
+      name: /View documentation/,
+    });
+    expect(docLink).toHaveAttribute(
+      "href",
+      "https://developers.redhat.com/learn/openshift/move-your-developer-sandbox-objects-another-cluster",
+    );
   });
 });
