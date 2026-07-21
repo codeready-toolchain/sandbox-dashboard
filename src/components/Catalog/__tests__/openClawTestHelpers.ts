@@ -11,10 +11,10 @@ export function makeOpenClawContext(
     resetOpenClawProvisioningErrorDetails: vi.fn(),
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
-    handleOpenClawInstance: vi.fn().mockResolvedValue(undefined),
     deleteOpenClaw: vi.fn().mockResolvedValue(undefined),
     provisioningError: undefined,
     startProvisioning: vi.fn().mockResolvedValue(undefined),
+    unidleInstance: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

@@ -5,7 +5,6 @@ import type { OpenClawStatus } from "../utils/openclaw-utils";
 
 export interface OpenClawContextType {
   deleteOpenClaw: () => Promise<void>;
-  handleOpenClawInstance: () => Promise<void>;
   /**
    * Contains the raw error message when deleting the OpenClaw instance fails.
    */
@@ -38,6 +37,7 @@ export interface OpenClawContextType {
     credentials: AddedCredential[],
     isDevicePairingDisabled?: boolean,
   ) => Promise<void>;
+  unidleInstance: () => Promise<void>;
 }
 
 export const OpenClawContext = createContext<OpenClawContextType | undefined>(

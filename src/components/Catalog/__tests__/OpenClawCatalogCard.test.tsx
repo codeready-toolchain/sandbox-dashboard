@@ -134,17 +134,17 @@ describe("OpenClawCatalogCard", () => {
     windowOpenSpy.mockRestore();
   });
 
-  it("calls handleOpenClawInstance and opens info modal when status is IDLED", async () => {
-    const handleOpenClawInstance = vi.fn().mockResolvedValue(undefined);
+  it("calls unidleInstance and opens info modal when status is IDLED", async () => {
+    const unidleInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard({
       openclawStatus: OpenClawStatus.IDLED,
-      handleOpenClawInstance,
+      unidleInstance,
     });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleOpenClawInstance).toHaveBeenCalledWith();
+    expect(unidleInstance).toHaveBeenCalledWith();
     expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
   });
 
@@ -183,7 +183,7 @@ describe("OpenClawCatalogCard", () => {
     const windowOpenSpy = vi
       .spyOn(window, "open")
       .mockImplementation(() => null);
-    const handleOpenClawInstance = vi.fn();
+    const unidleInstance = vi.fn();
     const markProductAsTried = vi.fn();
     const signupUser = vi.fn();
 
@@ -191,7 +191,7 @@ describe("OpenClawCatalogCard", () => {
       {
         openclawStatus: OpenClawStatus.READY,
         openclawUILink: "https://openclaw.example.com",
-        handleOpenClawInstance,
+        unidleInstance,
       },
       markProductAsTried,
       {
@@ -205,14 +205,14 @@ describe("OpenClawCatalogCard", () => {
 
     expect(signupUser).toHaveBeenCalled();
     expect(windowOpenSpy).not.toHaveBeenCalled();
-    expect(handleOpenClawInstance).not.toHaveBeenCalled();
+    expect(unidleInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
 
     windowOpenSpy.mockRestore();
   });
 
   it("opens phone verification modal when signup phase is PENDING_PHONE_VERIFICATION", async () => {
-    const handleOpenClawInstance = vi.fn();
+    const unidleInstance = vi.fn();
     const openPhoneVerificationModal = vi.fn();
 
     const sandboxCtx = makeSandboxContext({
@@ -221,7 +221,7 @@ describe("OpenClawCatalogCard", () => {
     const openClawCtx = makeOpenClawContext({
       openclawStatus: OpenClawStatus.READY,
       openclawUILink: "https://openclaw.example.com",
-      handleOpenClawInstance,
+      unidleInstance,
     });
 
     render(
@@ -247,21 +247,21 @@ describe("OpenClawCatalogCard", () => {
     await userEvent.click(screen.getByTestId("try-it-button"));
 
     expect(openPhoneVerificationModal).toHaveBeenCalledTimes(1);
-    expect(handleOpenClawInstance).not.toHaveBeenCalled();
+    expect(unidleInstance).not.toHaveBeenCalled();
   });
 
   it("does not perform any action when signup phase is not READY or NOT_STARTED", async () => {
     const windowOpenSpy = vi
       .spyOn(window, "open")
       .mockImplementation(() => null);
-    const handleOpenClawInstance = vi.fn();
+    const unidleInstance = vi.fn();
     const markProductAsTried = vi.fn();
 
     renderCard(
       {
         openclawStatus: OpenClawStatus.READY,
         openclawUILink: "https://openclaw.example.com",
-        handleOpenClawInstance,
+        unidleInstance,
       },
       markProductAsTried,
       { userSignupPhase: UserSignupPhase.PROVISIONING },
@@ -270,7 +270,7 @@ describe("OpenClawCatalogCard", () => {
     await userEvent.click(screen.getByTestId("try-it-button"));
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
-    expect(handleOpenClawInstance).not.toHaveBeenCalled();
+    expect(unidleInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
 
     windowOpenSpy.mockRestore();
@@ -308,17 +308,17 @@ describe("OpenClawCatalogCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not call handleOpenClawInstance or open modal when status is USER_NOT_READY", async () => {
-    const handleOpenClawInstance = vi.fn().mockResolvedValue(undefined);
+  it("does not call unidleInstance or open modal when status is USER_NOT_READY", async () => {
+    const unidleInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard({
       openclawStatus: OpenClawStatus.USER_NOT_READY,
-      handleOpenClawInstance,
+      unidleInstance,
     });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleOpenClawInstance).not.toHaveBeenCalled();
+    expect(unidleInstance).not.toHaveBeenCalled();
     expect(
       screen.queryByTestId("openclaw-launch-modal"),
     ).not.toBeInTheDocument();
