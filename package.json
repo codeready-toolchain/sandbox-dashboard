@@ -23,7 +23,7 @@
     "@patternfly/react-icons": "^6.5.1",
     "@patternfly/react-styles": "^6.5.1",
     "@rhds/elements": "^4.1.2",
-    "@segment/analytics-next": "^1.84.0",
+    "@segment/analytics-next": "^1.84.1",
     "keycloak-js": "^26.2.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
