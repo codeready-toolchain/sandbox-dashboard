@@ -32,7 +32,7 @@ export function CatalogBanner() {
         instructions in our documentation.
       </Content>
       <a
-        href="https://developers.redhat.com/learn/openshift/export-your-application-sandbox-red-hat-openshift-service-aws?source=sso"
+        href="https://developers.redhat.com/learn/openshift/move-your-developer-sandbox-objects-another-cluster"
         target="_blank"
         rel="noopener noreferrer"
       >
