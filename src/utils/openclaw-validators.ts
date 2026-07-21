@@ -1,56 +1,59 @@
 import type { JsonCredentialSchema } from "../types";
-import Ajv from "ajv";
-import addFormats from "ajv-formats";
 
-const schema = {
-  type: "object",
-  discriminator: { propertyName: "type" },
-  oneOf: [
-    {
-      type: "object",
-      properties: {
-        type: { type: "string", const: "authorized_user" },
-        client_id: { type: "string" },
-        client_secret: { type: "string" },
-        refresh_token: { type: "string" },
-        quota_project_id: { type: "string" },
-      },
-      required: ["type", "client_id", "client_secret", "refresh_token"],
-    },
-    {
-      type: "object",
-      properties: {
-        type: { type: "string", const: "service_account" },
-        project_id: { type: "string" },
-        private_key_id: { type: "string" },
-        private_key: { type: "string" },
-        client_email: { type: "string", format: "email" },
-        client_id: { type: "string" },
-        auth_uri: { type: "string", format: "uri" },
-        token_uri: { type: "string", format: "uri" },
-      },
-      required: [
-        "type",
-        "project_id",
-        "private_key_id",
-        "private_key",
-        "client_email",
-        "client_id",
-        "auth_uri",
-        "token_uri",
-      ],
-    },
-  ],
+// RFC 5322-based email regex. It's the same pattern previously used by
+// ajv-formats.
+const EMAIL_RE =
+  /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
+
+// Required fields per credential type, mirroring the GCP credential JSON
+// structure. "type" is always required but validated separately as the
+// discriminator.
+const AUTHORIZED_USER_REQUIRED = [
+  "client_id",
+  "client_secret",
+  "refresh_token",
+] as const;
+
+const SERVICE_ACCOUNT_REQUIRED = [
+  "project_id",
+  "private_key_id",
+  "private_key",
+  "client_email",
+  "client_id",
+  "auth_uri",
+  "token_uri",
+] as const;
+
+/**
+ * Checks if the given value is a string.
+ * @param v the value to check.
+ * @returns `true` if the given value is a string.
+ */
+const isString = (v: unknown): v is string => typeof v === "string";
+
+// Uses the URL constructor as a spec-compliant URI validator,
+// replacing the ajv-formats "uri" format check.
+const isValidUri = (v: string): boolean => {
+  try {
+    new URL(v);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
-const ajv = new Ajv({ allErrors: true, discriminator: true, strict: true });
-addFormats(ajv);
-const schemaValidator = ajv.compile<JsonCredentialSchema>(schema);
-
-const stripLeadingSlash = (path: string): string =>
-  path.startsWith("/") ? path.slice(1) : path;
-
+/**
+ * Validates a raw JSON string as a GCP Vertex AI credential
+ * (authorized_user or service_account).
+ *
+ * This replaces the previous AJV-based validator to avoid runtime
+ * `new Function()` calls that are blocked by Content-Security-Policy.
+ *
+ * @returns An array of human-readable error messages, or an empty array if
+ * valid.
+ */
 export const openclawVertexJsonValidator = (rawJson: string): string[] => {
+  // Allow empty input without errors (field hasn't been filled yet)
   if (rawJson === "") {
     return [];
   }
@@ -66,86 +69,73 @@ export const openclawVertexJsonValidator = (rawJson: string): string[] => {
     return ["Please input a valid JSON object."];
   }
 
-  if (!schemaValidator(data)) {
-    if (schemaValidator.errors) {
-      const errMsgs: string[] = [];
-      const missingRequiredProperties: string[] = [];
-      const invalidFormatErrMsgs: string[] = [];
-      const invalidTypeErrMsgs: string[] = [];
-      const credType = (data as Record<string, unknown>).type;
+  const obj = data as unknown as Record<string, unknown>;
 
-      if (credType === undefined) {
-        return ['The "type" property is required'];
-      } else if (
-        credType !== "authorized_user" &&
-        credType !== "service_account"
-      ) {
-        return [
-          'The "type" property must be "authorized_user" or "service_account"',
-        ];
-      }
+  // Validate the discriminator field first because all other checks depend on
+  // it.
+  if (obj.type === undefined) {
+    return ['The "type" property is required'];
+  }
+  if (obj.type !== "authorized_user" && obj.type !== "service_account") {
+    return [
+      'The "type" property must be "authorized_user" or "service_account"',
+    ];
+  }
 
-      for (const err of schemaValidator.errors) {
-        switch (err.keyword) {
-          case "required":
-            missingRequiredProperties.push(err.params.missingProperty);
-            break;
-          case "type":
-            invalidTypeErrMsgs.push(
-              `The "${stripLeadingSlash(
-                err.instancePath,
-              )}" field must be of the "${err.params.type}" type.`,
-            );
-            break;
-          case "format":
-            switch (err.params.format) {
-              case "email":
-                invalidFormatErrMsgs.push(`Invalid email format specified.`);
-                break;
-              case "uri":
-                invalidFormatErrMsgs.push(
-                  `Invalid URI specified in "${stripLeadingSlash(
-                    err.instancePath,
-                  )}".`,
-                );
-                break;
-            }
-            break;
-          default:
-            errMsgs.push(
-              `Invalid property "${stripLeadingSlash(err.instancePath)}".`,
-            );
-        }
-      }
+  // Errors are grouped by category so they appear in a consistent order:
+  // missing required fields first, then type mismatches, then format issues.
+  const errMsgs: string[] = [];
+  const invalidTypeErrMsgs: string[] = [];
+  const invalidFormatErrMsgs: string[] = [];
 
-      if (missingRequiredProperties.length === 1) {
-        errMsgs.push(
-          `The "${missingRequiredProperties[0]}" property is required.`,
-        );
-      } else if (missingRequiredProperties.length > 1) {
-        const formatter = new Intl.ListFormat("en", {
-          style: "long",
-          type: "conjunction",
-        });
+  const requiredFields =
+    obj.type === "authorized_user"
+      ? AUTHORIZED_USER_REQUIRED
+      : SERVICE_ACCOUNT_REQUIRED;
 
-        errMsgs.push(
-          `The ${formatter.format(
-            missingRequiredProperties.map((property) => `"${property}"`),
-          )} properties are required.`,
-        );
-      }
+  // Check for missing required properties.
+  const missing = requiredFields.filter((f) => !(f in obj));
+  if (missing.length === 1) {
+    errMsgs.push(`The "${missing[0]}" property is required.`);
+  } else if (missing.length > 1) {
+    const formatter = new Intl.ListFormat("en", {
+      style: "long",
+      type: "conjunction",
+    });
+    errMsgs.push(
+      `The ${formatter.format(missing.map((property: string) => `"${property}"`))} properties are required.`,
+    );
+  }
 
-      if (invalidTypeErrMsgs.length > 0) {
-        errMsgs.push(invalidTypeErrMsgs.join(" "));
-      }
-
-      if (invalidFormatErrMsgs.length > 0) {
-        errMsgs.push(invalidFormatErrMsgs.join(" "));
-      }
-
-      return errMsgs;
+  // All credential fields must be strings.
+  for (const field of requiredFields) {
+    if (field in obj && !isString(obj[field])) {
+      invalidTypeErrMsgs.push(
+        `The "${field}" field must be of the "string" type.`,
+      );
     }
   }
 
-  return [];
+  // Service account credentials have additional format constraints. Check
+  // that both the emails and the provided URIs are valid.
+  if (obj.type === "service_account") {
+    if (isString(obj.client_email) && !EMAIL_RE.test(obj.client_email)) {
+      invalidFormatErrMsgs.push("Invalid email format specified.");
+    }
+    for (const uriField of ["auth_uri", "token_uri"] as const) {
+      if (isString(obj[uriField]) && !isValidUri(obj[uriField])) {
+        invalidFormatErrMsgs.push(`Invalid URI specified in "${uriField}".`);
+      }
+    }
+  }
+
+  if (invalidTypeErrMsgs.length > 0) {
+    errMsgs.push(invalidTypeErrMsgs.join(" "));
+  }
+
+  if (invalidFormatErrMsgs.length > 0) {
+    errMsgs.push(invalidFormatErrMsgs.join(" "));
+  }
+
+  return errMsgs;
 };
