@@ -1,12 +1,13 @@
 import type {
   JsonCredentialSchema,
+  OpenClawCR,
   OpenClawCustomProvider,
   OpenClawGcpConfig,
-  OpenClawItem,
   OpenClawWorkspace,
   SpaceRequestItem,
+  StatusCondition,
 } from "../types";
-import { isConditionTrue, isConditionFalse } from "./condition-utils";
+import { anyConditionMatches } from "./condition-utils";
 
 export enum OpenClawStatus {
   USER_NOT_READY = "userNotReady",
@@ -20,12 +21,12 @@ export enum OpenClawStatus {
   DELETING = "deleting",
 }
 
-export const getOpenClawReadyCondition = (
-  data: OpenClawItem | undefined,
-  setError: (errorDetails: string) => void,
+export const mapOpenClawStatus = (
+  data: OpenClawCR | undefined,
+  handleCondition: (errorCondition: StatusCondition) => void,
 ): OpenClawStatus => {
   if (!data) {
-    return OpenClawStatus.UNKNOWN;
+    return OpenClawStatus.NEW;
   }
 
   if (data.spec?.idle) {
@@ -40,24 +41,19 @@ export const getOpenClawReadyCondition = (
     return OpenClawStatus.NEW;
   }
 
-  const [isSuccessful] = isConditionTrue("Ready", conditions);
+  const isSuccessful = anyConditionMatches("Successful", "True", conditions);
   if (isSuccessful) {
     return OpenClawStatus.READY;
   }
 
-  const [hasFailed, conditionFailure] = isConditionTrue("Failure", conditions);
+  const hasFailed = anyConditionMatches("Failure", "True", conditions);
   if (hasFailed) {
-    if (conditionFailure) {
-      setError(conditionFailure.message);
-    }
+    handleCondition(hasFailed);
     return OpenClawStatus.FAILED;
   }
 
-  const [isProvisioning, conditionProvisioning] = isConditionFalse(
-    "Ready",
-    conditions,
-  );
-  if (isProvisioning && conditionProvisioning?.reason === "Provisioning") {
+  const isProvisioning = anyConditionMatches("Ready", "False", conditions);
+  if (isProvisioning && isProvisioning?.reason === "Provisioning") {
     return OpenClawStatus.PROVISIONING;
   }
 
@@ -86,8 +82,8 @@ export const isSpaceRequestTerminating = (
   if (!sr?.status?.conditions) {
     return false;
   }
-  const [notReady, condition] = isConditionFalse("Ready", sr.status.conditions);
-  return notReady && condition?.reason === "Terminating";
+  const notReady = anyConditionMatches("Ready", "False", sr.status.conditions);
+  return !!notReady && notReady?.reason === "Terminating";
 };
 
 export const isSpaceRequestReady = (
@@ -96,8 +92,8 @@ export const isSpaceRequestReady = (
   if (!sr?.status?.conditions) {
     return false;
   }
-  const [ready] = isConditionTrue("Ready", sr.status.conditions);
-  return ready;
+  const ready = anyConditionMatches("Ready", "True", sr.status.conditions);
+  return !!ready;
 };
 
 export const getSpaceRequestNamespace = (

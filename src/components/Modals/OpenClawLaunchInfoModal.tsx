@@ -14,7 +14,10 @@ import {
 import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import { useRef, useState } from "react";
+import type { UserFacingError } from "../../error/UserFacingError";
+import { useOpenClawContext } from "../../hooks/OpenClawContext";
 import type { Product } from "../../types/product";
+import type { AddedCredential } from "../../utils/openclaw-providers";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
 import {
   CredentialAccordion,
@@ -26,63 +29,83 @@ type OpenClawLaunchInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
   product: Product;
-  openclawStatus: OpenClawStatus;
-  openclawUILink: string | undefined;
   openClawProvisioningErrorDetails: string | null;
-  onProvision: (
-    credentials: import("../../utils/openclaw-providers").AddedCredential[],
-  ) => Promise<boolean>;
   onLaunch: (product: Product) => void;
   onProvisioningErrorDismissed: () => void;
+  onClickProvision: (credentials: AddedCredential[]) => Promise<void>;
+  provisioningError?: UserFacingError;
 };
 
 export function OpenClawLaunchInfoModal({
   isOpen,
   onClose,
   product,
-  openclawStatus,
-  openclawUILink,
   openClawProvisioningErrorDetails,
-  onProvision,
   onLaunch,
   onProvisioningErrorDismissed,
+  onClickProvision,
+  provisioningError,
 }: OpenClawLaunchInfoModalProps) {
+  const { openclawStatus, openclawUILink } = useOpenClawContext();
+
   const accordionRef = useRef<CredentialAccordionRef>(null);
+  const [previousStatus, setPreviousStatus] =
+    useState<OpenClawStatus>(openclawStatus);
   const [credentialCount, setCredentialCount] = useState(0);
   const [accordionKey, setAccordionKey] = useState(0);
-  const [provisioning, setProvisioning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const resetForm = () => {
+  // Reset the form in case that the status of the instance changes to
+  // "failed".
+  if (previousStatus !== openclawStatus) {
+    setPreviousStatus(openclawStatus);
+    if (openclawStatus === OpenClawStatus.FAILED) {
+      setCredentialCount(0);
+      setAccordionKey((k) => k + 1);
+    }
+  }
+
+  // Resets the form whe the modal is closed.
+  const handleClose = () => {
     setCredentialCount(0);
     setAccordionKey((k) => k + 1);
-  };
-
-  const handleClose = () => {
-    resetForm();
     onClose();
   };
 
-  const handleLaunch = () => {
-    onLaunch(product);
-    handleClose();
-  };
-
-  const handleProvision = async () => {
+  // Make sure the credentials are there before delegating the handle to the
+  // parent component.
+  const handleOnClickProvision = async () => {
     const credentials = accordionRef.current?.getValidatedCredentials();
     if (!credentials || credentials.length === 0) return;
 
-    setProvisioning(true);
+    setIsSubmitting(true);
     try {
-      const success = await onProvision(credentials);
-      if (success) {
-        resetForm();
-      }
+      await onClickProvision(credentials);
     } finally {
-      setProvisioning(false);
+      setIsSubmitting(false);
     }
   };
 
   // Show an error modal if any error has occurred during provisioning.
+  if (provisioningError) {
+    return (
+      <ErrorModal
+        headerTitle="Provision OpenClaw instance"
+        productName="OpenClaw"
+        alertTitle={provisioningError.title}
+        alertText={provisioningError.detail}
+        copyableTechnicalDetails={provisioningError.technicalDetails}
+        isErrorModalOpen
+        onErrorModalClose={() => {
+          onProvisioningErrorDismissed();
+          handleClose();
+        }}
+      />
+    );
+  }
+
+  // Show an error modal if any error has occurred during unidling or
+  // resolving the status of the instance.
   if (openClawProvisioningErrorDetails) {
     return (
       <ErrorModal
@@ -144,13 +167,20 @@ export function OpenClawLaunchInfoModal({
               rel="noopener noreferrer"
               icon={<ExternalLinkAltIcon />}
               iconPosition="end"
-              onClick={handleLaunch}
+              onClick={() => {
+                onLaunch(product);
+              }}
               data-testid="openclaw-launch-button"
             >
               Launch
             </Button>
           ) : (
-            <Button variant="secondary" onClick={handleLaunch}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                onLaunch(product);
+              }}
+            >
               Launch
             </Button>
           )}
@@ -257,9 +287,9 @@ export function OpenClawLaunchInfoModal({
         >
           <Button
             variant="primary"
-            onClick={handleProvision}
-            isDisabled={credentialCount === 0 || provisioning}
-            isLoading={provisioning}
+            onClick={handleOnClickProvision}
+            isDisabled={credentialCount === 0}
+            isLoading={isSubmitting}
             data-testid="openclaw-provision-button"
           >
             Provision

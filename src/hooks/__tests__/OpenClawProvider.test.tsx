@@ -2,11 +2,14 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import {
   cleanupWorkspaceEnvironment,
+  createOpenClaw,
   createSpaceRequest,
+  createWorkspaceKubeconfig,
   deleteOpenClawCR,
   deleteSpaceRequest,
   getOpenClaw,
   getSpaceRequest,
+  setupWorkspaceEnvironment,
   unIdleOpenClaw,
 } from "../../api/openclaw";
 import { ApiError } from "../../error/ApiError";
@@ -19,7 +22,7 @@ import {
   openClawProvisioning,
   openClawTerminatingSpaceRequest,
 } from "../../mocks/fixtures/openclaw-fixtures";
-import type { User } from "../../types";
+import type { OpenClawCR, User } from "../../types";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
 import { useOpenClawContext } from "../OpenClawContext";
 import { OpenClawProvider } from "../OpenClawProvider";
@@ -40,6 +43,9 @@ const mockedDeleteOpenClawCR = vi.mocked(deleteOpenClawCR);
 const mockedCleanupWorkspaceEnvironment = vi.mocked(
   cleanupWorkspaceEnvironment,
 );
+const mockedSetupWorkspaceEnvironment = vi.mocked(setupWorkspaceEnvironment);
+const mockedCreateWorkspaceKubeconfig = vi.mocked(createWorkspaceKubeconfig);
+const mockedCreateOpenClaw = vi.mocked(createOpenClaw);
 
 function makeUserContext(
   overrides: Partial<UserContextType> = {},
@@ -59,9 +65,9 @@ function makeUserContext(
  */
 function TestConsumer() {
   const ctx = useOpenClawContext();
-  const [handleResult, setHandleResult] = useState("");
   const [handleError, setHandleError] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [provisionError, setProvisionError] = useState("");
 
   return (
     <div>
@@ -73,11 +79,14 @@ function TestConsumer() {
       <span data-testid="deletion-error">
         {ctx.openClawDeletionErrorDetails ?? ""}
       </span>
+      <span data-testid="provisioning-error-title">
+        {ctx.provisioningError?.title ?? ""}
+      </span>
       <button
-        data-testid="handle-instance"
+        data-testid="start-provisioning"
         onClick={async () => {
           try {
-            const result = await ctx.handleOpenClawInstance(
+            await ctx.startProvisioning(
               [
                 {
                   provider: {
@@ -93,20 +102,18 @@ function TestConsumer() {
               ],
               false,
             );
-            setHandleResult(String(result));
           } catch (e) {
-            setHandleError(
+            setProvisionError(
               e instanceof UserFacingError ? "UserFacingError" : "other",
             );
           }
         }}
       />
       <button
-        data-testid="handle-instance-no-creds"
+        data-testid="handle-instance"
         onClick={async () => {
           try {
-            const result = await ctx.handleOpenClawInstance();
-            setHandleResult(String(result));
+            await ctx.handleOpenClawInstance();
           } catch (e) {
             setHandleError(
               e instanceof UserFacingError ? "UserFacingError" : "other",
@@ -134,9 +141,9 @@ function TestConsumer() {
         data-testid="reset-deletion-error"
         onClick={ctx.resetOpenClawDeletionErrorDetails}
       />
-      <span data-testid="handle-result">{handleResult}</span>
       <span data-testid="handle-error">{handleError}</span>
       <span data-testid="delete-error">{deleteError}</span>
+      <span data-testid="provision-error">{provisionError}</span>
     </div>
   );
 }
@@ -245,16 +252,13 @@ describe("OpenClawProvider", () => {
       );
     });
 
-    it("NOOP handleOpenClawInstance returns false", async () => {
+    it("NOOP handleOpenClawInstance resolves without error", async () => {
       renderProvider({ user: undefined });
 
       await act(async () => {
         screen.getByTestId("handle-instance").click();
       });
 
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-result").textContent).toBe("false"),
-      );
       expect(screen.getByTestId("handle-error").textContent).toBe("");
     });
 
@@ -268,6 +272,16 @@ describe("OpenClawProvider", () => {
       await waitFor(() =>
         expect(screen.getByTestId("delete-error").textContent).toBe("other"),
       );
+    });
+
+    it("NOOP startProvisioning resolves without error", async () => {
+      renderProvider({ user: undefined });
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      expect(screen.getByTestId("provision-error").textContent).toBe("");
     });
   });
 
@@ -361,11 +375,11 @@ describe("OpenClawProvider", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // handleOpenClawInstance
+  // startProvisioning
   // ---------------------------------------------------------------------------
 
-  describe("handleOpenClawInstance", () => {
-    it("creates a SpaceRequest when status is NEW and credentials are provided", async () => {
+  describe("startProvisioning", () => {
+    it("creates a SpaceRequest and transitions to PROVISIONING", async () => {
       mockedGetSpaceRequest.mockResolvedValue(undefined);
       mockedCreateSpaceRequest.mockResolvedValue(undefined);
 
@@ -373,7 +387,7 @@ describe("OpenClawProvider", () => {
       await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
 
       await act(async () => {
-        screen.getByTestId("handle-instance").click();
+        screen.getByTestId("start-provisioning").click();
       });
 
       await waitFor(() =>
@@ -382,25 +396,41 @@ describe("OpenClawProvider", () => {
           readyUserFixture.defaultUserNamespace,
         ),
       );
+      expect(screen.getByTestId("status").textContent).toBe(
+        OpenClawStatus.PROVISIONING,
+      );
     });
 
-    it("returns false when status is NEW and no credentials are provided", async () => {
+    it("throws UserFacingError when creating SpaceRequest fails", async () => {
       mockedGetSpaceRequest.mockResolvedValue(undefined);
+      mockedCreateSpaceRequest.mockRejectedValue(
+        new ApiError("create failed", 500, "Internal Server Error"),
+      );
 
       renderProvider();
       await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
 
       await act(async () => {
-        screen.getByTestId("handle-instance-no-creds").click();
+        screen.getByTestId("start-provisioning").click();
       });
 
       await waitFor(() =>
-        expect(screen.getByTestId("handle-result").textContent).toBe("false"),
+        expect(screen.getByTestId("provision-error").textContent).toBe(
+          "UserFacingError",
+        ),
       );
-      expect(mockedCreateSpaceRequest).not.toHaveBeenCalled();
+      expect(screen.getByTestId("status").textContent).toBe(
+        OpenClawStatus.FAILED,
+      );
     });
+  });
 
-    it("returns true when status is already READY", async () => {
+  // ---------------------------------------------------------------------------
+  // handleOpenClawInstance
+  // ---------------------------------------------------------------------------
+
+  describe("handleOpenClawInstance", () => {
+    it("does nothing when status is already READY", async () => {
       mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
       mockedGetOpenClaw.mockResolvedValue(openClawFixture);
 
@@ -415,9 +445,7 @@ describe("OpenClawProvider", () => {
         screen.getByTestId("handle-instance").click();
       });
 
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-result").textContent).toBe("true"),
-      );
+      expect(screen.getByTestId("handle-error").textContent).toBe("");
     });
 
     it("unidles the instance when status is IDLED", async () => {
@@ -473,26 +501,6 @@ describe("OpenClawProvider", () => {
         .mockRejectedValueOnce(
           new ApiError("fetch failed", 500, "Internal Server Error"),
         );
-
-      renderProvider();
-      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
-
-      await act(async () => {
-        screen.getByTestId("handle-instance").click();
-      });
-
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-error").textContent).toBe(
-          "UserFacingError",
-        ),
-      );
-    });
-
-    it("throws UserFacingError when creating SpaceRequest fails", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(undefined);
-      mockedCreateSpaceRequest.mockRejectedValue(
-        new ApiError("create failed", 500, "Internal Server Error"),
-      );
 
       renderProvider();
       await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
@@ -716,7 +724,7 @@ describe("OpenClawProvider", () => {
   // ---------------------------------------------------------------------------
 
   describe("handleOpenClawInstance with DELETING status", () => {
-    it("returns false when status is DELETING", async () => {
+    it("returns without action when status is DELETING", async () => {
       mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
       mockedGetOpenClaw.mockResolvedValue(openClawFixture);
       mockedDeleteOpenClawCR.mockResolvedValue(undefined);
@@ -730,7 +738,6 @@ describe("OpenClawProvider", () => {
         ),
       );
 
-      // Trigger deletion to set status to DELETING.
       await act(async () => {
         screen.getByTestId("delete-instance").click();
       });
@@ -741,66 +748,16 @@ describe("OpenClawProvider", () => {
         ),
       );
 
-      // Now the SpaceRequest is gone (deletion succeeded), so
-      // handleOpenClawInstance should get fresh state from the API.
-      // With no SpaceRequest, currentStatus becomes NEW and the code
-      // proceeds to the "no credentials" early return.
+      // handleOpenClawInstance re-fetches state; SpaceRequest is gone, so
+      // currentStatus becomes NEW and it returns immediately since there's
+      // nothing to unidle.
       mockedGetSpaceRequest.mockResolvedValue(undefined);
-
-      await act(async () => {
-        screen.getByTestId("handle-instance-no-creds").click();
-      });
-
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-result").textContent).toBe("false"),
-      );
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // handleOpenClawInstance — TERMINATING status
-  // ---------------------------------------------------------------------------
-
-  describe("handleOpenClawInstance with TERMINATING status", () => {
-    it("stores pending credentials and returns true when status is TERMINATING", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(openClawTerminatingSpaceRequest);
-
-      renderProvider();
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.TERMINATING,
-        ),
-      );
 
       await act(async () => {
         screen.getByTestId("handle-instance").click();
       });
 
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-result").textContent).toBe("true"),
-      );
-      expect(screen.getByTestId("status").textContent).toBe(
-        OpenClawStatus.TERMINATING,
-      );
-    });
-
-    it("returns false when status is TERMINATING but no credentials provided", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(openClawTerminatingSpaceRequest);
-
-      renderProvider();
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.TERMINATING,
-        ),
-      );
-
-      await act(async () => {
-        screen.getByTestId("handle-instance-no-creds").click();
-      });
-
-      await waitFor(() =>
-        expect(screen.getByTestId("handle-result").textContent).toBe("false"),
-      );
+      expect(screen.getByTestId("handle-error").textContent).toBe("");
     });
   });
 
@@ -823,7 +780,6 @@ describe("OpenClawProvider", () => {
         ),
       );
 
-      // Trigger deletion that partially fails.
       await act(async () => {
         screen.getByTestId("delete-instance").click();
       });
@@ -832,7 +788,6 @@ describe("OpenClawProvider", () => {
         expect(screen.getByTestId("deletion-error").textContent).toBeTruthy(),
       );
 
-      // Reset the error and verify refetch is triggered.
       const callCountBefore = mockedGetSpaceRequest.mock.calls.length;
       mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
       mockedGetOpenClaw.mockResolvedValue(openClawFixture);
@@ -868,7 +823,6 @@ describe("OpenClawProvider", () => {
         ).toBeTruthy(),
       );
 
-      // Reset the error and verify refetch is triggered.
       const callCountBefore = mockedGetSpaceRequest.mock.calls.length;
       mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
       mockedGetOpenClaw.mockResolvedValue(openClawFixture);
@@ -915,6 +869,340 @@ describe("OpenClawProvider", () => {
         );
         expect(screen.getByTestId("deletion-error").textContent).toBeTruthy();
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Multi-phase provisioning flow
+  // ---------------------------------------------------------------------------
+
+  describe("multi-phase provisioning flow", () => {
+    it("provisions through all phases: space request → instance → ready", async () => {
+      mockedGetSpaceRequest.mockResolvedValueOnce(undefined);
+      mockedCreateSpaceRequest.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+      expect(screen.getByTestId("status").textContent).toBe(OpenClawStatus.NEW);
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      expect(screen.getByTestId("status").textContent).toBe(
+        OpenClawStatus.PROVISIONING,
+      );
+
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedSetupWorkspaceEnvironment.mockResolvedValue(undefined);
+      mockedCreateWorkspaceKubeconfig.mockResolvedValue(undefined);
+      mockedCreateOpenClaw.mockResolvedValue(undefined);
+      mockedGetOpenClaw.mockResolvedValue(openClawFixture);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await waitFor(() => {
+        expect(mockedSetupWorkspaceEnvironment).toHaveBeenCalled();
+        expect(mockedCreateWorkspaceKubeconfig).toHaveBeenCalled();
+        expect(mockedCreateOpenClaw).toHaveBeenCalled();
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.READY,
+        );
+      });
+    });
+
+    it("stays in PROVISIONING when the space request namespace is not resolved yet", async () => {
+      mockedGetSpaceRequest.mockResolvedValueOnce(undefined);
+      mockedCreateSpaceRequest.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      expect(screen.getByTestId("status").textContent).toBe(
+        OpenClawStatus.PROVISIONING,
+      );
+
+      const pendingSpaceRequest = {
+        metadata: { name: "claw" },
+        spec: { tierName: "claw" },
+        status: {
+          conditions: [
+            {
+              type: "Ready",
+              message: "",
+              reason: "Provisioning",
+              status: "False",
+            },
+          ],
+        },
+      };
+      mockedGetSpaceRequest.mockResolvedValue(pendingSpaceRequest);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(screen.getByTestId("status").textContent).toBe(
+        OpenClawStatus.PROVISIONING,
+      );
+      expect(mockedSetupWorkspaceEnvironment).not.toHaveBeenCalled();
+    });
+
+    it("sets provisioningError when setupWorkspaceEnvironment fails", async () => {
+      mockedGetSpaceRequest.mockResolvedValueOnce(undefined);
+      mockedCreateSpaceRequest.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedSetupWorkspaceEnvironment.mockRejectedValue(
+        new Error("workspace setup failed"),
+      );
+      mockedCleanupWorkspaceEnvironment.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.FAILED,
+        );
+        expect(screen.getByTestId("provisioning-error-title").textContent).toBe(
+          "Unable to provision your OpenClaw instance",
+        );
+      });
+    });
+
+    it("sets provisioningError when createWorkspaceKubeconfig fails", async () => {
+      mockedGetSpaceRequest.mockResolvedValueOnce(undefined);
+      mockedCreateSpaceRequest.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedSetupWorkspaceEnvironment.mockResolvedValue(undefined);
+      mockedCreateWorkspaceKubeconfig.mockRejectedValue(
+        new ApiError("kubeconfig failed", 500, "Internal Server Error"),
+      );
+      mockedCleanupWorkspaceEnvironment.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.FAILED,
+        );
+        expect(screen.getByTestId("provisioning-error-title").textContent).toBe(
+          "Unable to provision your OpenClaw instance",
+        );
+      });
+    });
+
+    it("sets provisioningError when createOpenClaw fails", async () => {
+      mockedGetSpaceRequest.mockResolvedValueOnce(undefined);
+      mockedCreateSpaceRequest.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedSetupWorkspaceEnvironment.mockResolvedValue(undefined);
+      mockedCreateWorkspaceKubeconfig.mockResolvedValue(undefined);
+      mockedCreateOpenClaw.mockRejectedValue(
+        new ApiError("create failed", 500, "Internal Server Error"),
+      );
+      mockedCleanupWorkspaceEnvironment.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.FAILED,
+        );
+        expect(screen.getByTestId("provisioning-error-title").textContent).toBe(
+          "Unable to provision your OpenClaw instance",
+        );
+      });
+    });
+
+    it("attempts cleanup when a provisioning step fails", async () => {
+      mockedGetSpaceRequest.mockResolvedValueOnce(undefined);
+      mockedCreateSpaceRequest.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("start-provisioning").click();
+      });
+
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedSetupWorkspaceEnvironment.mockRejectedValue(
+        new Error("setup failed"),
+      );
+      mockedCleanupWorkspaceEnvironment.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await waitFor(() => {
+        expect(mockedCleanupWorkspaceEnvironment).toHaveBeenCalledWith(
+          MOCK_PROXY_URL,
+          readyUserFixture.defaultUserNamespace,
+        );
+      });
+    });
+
+    it("sets provisioningError when CR has a failure condition during polling", async () => {
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedGetOpenClaw.mockResolvedValueOnce(openClawProvisioning);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.PROVISIONING,
+        ),
+      );
+
+      const failedCR: OpenClawCR = {
+        metadata: {
+          name: "claw",
+          creationTimestamp: "2025-01-15T00:00:00Z",
+        },
+        spec: { idle: false },
+        status: {
+          conditions: [
+            {
+              type: "Failure",
+              status: "True",
+              reason: "ReconciliationFailed",
+              message: "Something went wrong",
+            },
+          ],
+        },
+      };
+      mockedGetOpenClaw.mockResolvedValue(failedCR);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.FAILED,
+        );
+        expect(screen.getByTestId("provisioning-error-title").textContent).toBe(
+          "Unable to provision your OpenClaw instance",
+        );
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // handleOpenClawInstance — 404 fallback
+  // ---------------------------------------------------------------------------
+
+  describe("handleOpenClawInstance — 404 fallback", () => {
+    it("treats a 404 from getSpaceRequest as NEW and returns without error", async () => {
+      mockedGetSpaceRequest
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new ApiError("not found", 404, "Not Found"));
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("handle-instance").click();
+      });
+
+      expect(screen.getByTestId("handle-error").textContent).toBe("");
+    });
+
+    it("returns without action when re-fetched status is PROVISIONING", async () => {
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedGetOpenClaw.mockResolvedValue(openClawProvisioning);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.PROVISIONING,
+        ),
+      );
+
+      await act(async () => {
+        screen.getByTestId("handle-instance").click();
+      });
+
+      expect(screen.getByTestId("handle-error").textContent).toBe("");
+      expect(mockedUnIdleOpenClaw).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // UI link with device pairing path
+  // ---------------------------------------------------------------------------
+
+  describe("UI link", () => {
+    it("appends device pairing path when disableDevicePairing is not set", async () => {
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedGetOpenClaw.mockResolvedValue(openClawFixture);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("ui-link").textContent).toContain(
+          "/integration/device-pairing/",
+        ),
+      );
+    });
+
+    it("does not append device pairing path when disableDevicePairing is true", async () => {
+      const crWithDisabledPairing: OpenClawCR = {
+        ...openClawFixture,
+        spec: {
+          ...openClawFixture.spec,
+          auth: { disableDevicePairing: true },
+        },
+      };
+      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
+      mockedGetOpenClaw.mockResolvedValue(crWithDisabledPairing);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("ui-link").textContent).not.toContain(
+          "/integration/device-pairing/",
+        ),
+      );
+      expect(screen.getByTestId("ui-link").textContent).toContain(
+        "openclaw.apps.example.com",
+      );
     });
   });
 });

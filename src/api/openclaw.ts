@@ -1,9 +1,6 @@
+import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
-import type {
-  OpenClawItem,
-  OpenClawWorkspace,
-  SpaceRequestItem,
-} from "../types";
+import type { OpenClawCR, OpenClawWorkspace, SpaceRequestItem } from "../types";
 import logger from "../utils/logger";
 import type {
   AddedCredential,
@@ -341,7 +338,7 @@ export async function deleteSpaceRequest(
 export async function getOpenClaw(
   proxyURL: string,
   namespace: string,
-): Promise<OpenClawItem | undefined> {
+): Promise<OpenClawCR | undefined> {
   const url = `/apis/claw.sandbox.redhat.com/v1alpha1/namespaces/${namespace}/claws/${CLAW_NAME}`;
   const response = await authFetch(`${proxyURL}${url}`, { method: "GET" });
 
@@ -535,7 +532,7 @@ export async function setupWorkspaceEnvironment(
     `service account ${SA_NAME}`,
   );
 
-  await Promise.all([
+  const creationResults = await Promise.allSettled([
     createIfAbsent(
       rbUrl,
       newEditRoleBindingObject(devNamespace),
@@ -552,6 +549,20 @@ export async function setupWorkspaceEnvironment(
       `network policy ${NETWORK_POLICY_NAME}`,
     ),
   ]);
+
+  const creationError = AggregatedOperationError.fromSettledResults(
+    "OpenClaw",
+    [
+      "Create Claw Workspace Edit rolebinding object",
+      "Create Claw Workspace RBAC edit rolebinding object",
+      "Create the network policy object",
+    ],
+    creationResults,
+  );
+
+  if (creationError) {
+    throw creationError;
+  }
 }
 
 /**
@@ -570,6 +581,10 @@ export async function createWorkspaceKubeconfig(
   clawNamespace: string,
   apiEndpoint: string,
 ): Promise<void> {
+  if (!apiEndpoint || !apiEndpoint.trim()) {
+    throw new Error("createWorkspaceKubeconfig: apiEndpoint must not be empty");
+  }
+
   let caData: string | undefined;
   try {
     const caUrl = `${proxyURL}/api/v1/namespaces/${devNamespace}/configmaps/kube-root-ca.crt`;
@@ -603,10 +618,6 @@ export async function createWorkspaceKubeconfig(
   const token: string = tokenData.status?.token;
   if (!token) {
     throw new Error("TokenRequest returned no token");
-  }
-
-  if (!apiEndpoint?.trim()) {
-    throw new Error("createWorkspaceKubeconfig: apiEndpoint is required");
   }
 
   const kubeconfigContent = buildKubeconfig({

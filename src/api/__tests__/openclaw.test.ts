@@ -8,6 +8,7 @@ import {
   createOpenClaw,
   deleteOpenClawCR,
   cleanupWorkspaceEnvironment,
+  createWorkspaceKubeconfig,
 } from "../openclaw";
 import type {
   ProviderConfig,
@@ -269,5 +270,35 @@ describe("cleanupWorkspaceEnvironment", () => {
     await expect(
       cleanupWorkspaceEnvironment(PROXY_URL, NS),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("createWorkspaceKubeconfig", () => {
+  it("throws when apiEndpoint is an empty string", async () => {
+    await expect(
+      createWorkspaceKubeconfig(PROXY_URL, NS, TARGET_NS, ""),
+    ).rejects.toThrow("apiEndpoint must not be empty");
+  });
+
+  it("throws when apiEndpoint is only whitespace", async () => {
+    await expect(
+      createWorkspaceKubeconfig(PROXY_URL, NS, TARGET_NS, "   "),
+    ).rejects.toThrow("apiEndpoint must not be empty");
+  });
+
+  it("does not make any network calls when apiEndpoint is blank", async () => {
+    const spy = vi.fn();
+    server.use(
+      http.all("*", () => {
+        spy();
+        return HttpResponse.json({});
+      }),
+    );
+
+    await expect(
+      createWorkspaceKubeconfig(PROXY_URL, NS, TARGET_NS, ""),
+    ).rejects.toThrow("apiEndpoint must not be empty");
+
+    expect(spy).not.toHaveBeenCalled();
   });
 });
