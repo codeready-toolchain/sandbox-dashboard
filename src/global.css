@@ -1,0 +1,4 @@
+/* Make sure that the ReCaptcha badge stays on top. */
+.grecaptcha-badge {
+  z-index: 9999 !important;
+}
