@@ -85,7 +85,6 @@ export function OpenClawProviderNoop({ children }: { children: ReactNode }) {
       value={{
         deleteOpenClaw: async () =>
           Promise.reject(new Error("User not signed up")),
-        handleOpenClawInstance: async () => {},
         openClawDeletionErrorDetails: null,
         openClawProvisioningErrorDetails: null,
         openclawStatus: OpenClawStatus.USER_NOT_READY,
@@ -94,6 +93,7 @@ export function OpenClawProviderNoop({ children }: { children: ReactNode }) {
         resetOpenClawDeletionErrorDetails: () => {},
         resetOpenClawProvisioningErrorDetails: () => {},
         startProvisioning: async (): Promise<void> => {},
+        unidleInstance: async (): Promise<void> => {},
       }}
     >
       {children}
@@ -524,65 +524,37 @@ export function OpenClawProviderConnected({
   }, [getOpenClawData, userNamespace]);
 
   /**
-   * Unidles the already provisioned instance if it exists, and if not, it
-   * creates it.
-   * @throws {UserFacingError} if an error occurred during the fetching or
-   * "unidling" of the instance.
+   * Unidles the already provisioned instance.
+   * @throws {UserFacingError} if an error occurred during the unidling of the
+   * instance.
    */
-  const handleOpenClawInstance = useCallback(async (): Promise<void> => {
-    // Fetch current state first.
-    let currentStatus = status;
-    let resolvedNamespace: string | undefined;
+  const unidleInstance = useCallback(async (): Promise<void> => {
+    let cause: unknown;
+    let technicalDetails: string | undefined;
 
-    try {
-      const sr = await getSpaceRequest(proxyURL, userNamespace);
-      if (sr) {
-        const ns = getSpaceRequestNamespace(sr);
-        if (ns) {
-          resolvedNamespace = ns;
-          const data = await getOpenClaw(proxyURL, ns);
-          currentStatus = mapOpenClawStatus(data, () => {});
-        }
-      } else {
-        currentStatus = OpenClawStatus.NEW;
-      }
-    } catch (apiError) {
-      if (apiError instanceof ApiError && apiError.statusCode === 404) {
-        currentStatus = OpenClawStatus.NEW;
-      } else {
-        throw new UserFacingError(
-          "Unable to get your OpenClaw instance's information",
-          "We were unable to obtain the status of your OpenClaw instance. Please try again later.",
-          apiError,
-        );
-      }
-    }
-
-    if (
-      currentStatus === OpenClawStatus.PROVISIONING ||
-      currentStatus === OpenClawStatus.READY
-    ) {
-      return;
-    }
-
-    if (currentStatus === OpenClawStatus.DELETING) {
-      return;
-    }
-
-    if (currentStatus === OpenClawStatus.IDLED && resolvedNamespace) {
+    if (openClawNamespaceRef.current) {
       try {
-        await unIdleOpenClaw(proxyURL, resolvedNamespace);
-        updateInstanceStatus(OpenClawStatus.PROVISIONING);
+        await unIdleOpenClaw(proxyURL, openClawNamespaceRef.current);
+        updateInstanceStatus(OpenClawStatus.UNIDLING);
         provisioningPhase.current = "waiting_for_readiness";
-      } catch (apiError) {
-        throw new UserFacingError(
-          "Unable to reprovision your OpenClaw instance",
-          "We were unable to reprovision your OpenClaw instance. Please try again later.",
-          apiError,
-        );
+        return;
+      } catch (error) {
+        cause = error;
+        if (error instanceof ApiError) {
+          technicalDetails = error.body;
+        } else {
+          technicalDetails = `${error}`;
+        }
       }
     }
-  }, [proxyURL, status, updateInstanceStatus, userNamespace]);
+
+    throw new UserFacingError(
+      "Unable to reprovision your OpenClaw instance",
+      `We were unable to reprovision your OpenClaw instance. Please try again later, and if the issue persists, contact ${SUPPORT_EMAIL}`,
+      cause,
+      technicalDetails,
+    );
+  }, [proxyURL, updateInstanceStatus]);
 
   /**
    * Deletes the OpenClaw instance and all its related resources.
@@ -644,7 +616,9 @@ export function OpenClawProviderConnected({
 
   // Helper variable to determine if the polling loop should be working or
   // not.
-  const shouldBePolling = status === OpenClawStatus.PROVISIONING;
+  const shouldBePolling =
+    status === OpenClawStatus.PROVISIONING ||
+    status === OpenClawStatus.UNIDLING;
 
   /**
    * Polling effect that keeps polling when:
@@ -763,9 +737,10 @@ export function OpenClawProviderConnected({
       }
 
       if (
-        statusRef.current === OpenClawStatus.PROVISIONING &&
-        provisioningPhase.current === "waiting_for_readiness" &&
-        openClawNamespaceRef.current
+        openClawNamespaceRef.current &&
+        (statusRef.current === OpenClawStatus.UNIDLING ||
+          (statusRef.current === OpenClawStatus.PROVISIONING &&
+            provisioningPhase.current === "waiting_for_readiness"))
       ) {
         try {
           await fetchCR(openClawNamespaceRef.current);
@@ -839,7 +814,6 @@ export function OpenClawProviderConnected({
   const contextValue = useMemo(
     () => ({
       deleteOpenClaw,
-      handleOpenClawInstance,
       openClawDeletionErrorDetails,
       openClawProvisioningErrorDetails,
       openclawStatus: status,
@@ -848,10 +822,10 @@ export function OpenClawProviderConnected({
       resetOpenClawDeletionErrorDetails,
       resetOpenClawProvisioningErrorDetails,
       startProvisioning,
+      unidleInstance,
     }),
     [
       deleteOpenClaw,
-      handleOpenClawInstance,
       openClawDeletionErrorDetails,
       openClawProvisioningErrorDetails,
       status,
@@ -860,6 +834,7 @@ export function OpenClawProviderConnected({
       resetOpenClawDeletionErrorDetails,
       resetOpenClawProvisioningErrorDetails,
       startProvisioning,
+      unidleInstance,
     ],
   );
 

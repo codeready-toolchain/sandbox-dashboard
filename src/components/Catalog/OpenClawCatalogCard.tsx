@@ -28,6 +28,7 @@ function getButtonLabel(status: OpenClawStatus): ButtonLabel {
       return ButtonLabel.PROVISION;
 
     case OpenClawStatus.PROVISIONING:
+    case OpenClawStatus.UNIDLING:
       return ButtonLabel.PROVISIONING;
 
     case OpenClawStatus.READY:
@@ -58,6 +59,8 @@ function getStatusLabel(status: OpenClawStatus): StatusLabel | undefined {
       return { label: "Ready", color: StatusColor.GREEN };
     case OpenClawStatus.IDLED:
       return { label: "Idled", color: StatusColor.ORANGE };
+    case OpenClawStatus.UNIDLING:
+      return { label: "Provisioning", color: StatusColor.BLUE };
     case OpenClawStatus.TERMINATING:
     case OpenClawStatus.DELETING:
       return { label: "Deleting", color: StatusColor.RED };
@@ -92,7 +95,6 @@ export function OpenClawCatalogCard({
   const { signupUser, userSignupPhase } = useUserContext();
   const {
     deleteOpenClaw,
-    handleOpenClawInstance,
     openclawStatus,
     openclawUILink,
     openClawDeletionErrorDetails,
@@ -101,6 +103,7 @@ export function OpenClawCatalogCard({
     resetOpenClawProvisioningErrorDetails,
     provisioningError,
     startProvisioning,
+    unidleInstance,
   } = useOpenClawContext();
 
   const { addAlert, addAlertFromError } = useNotifications();
@@ -124,6 +127,7 @@ export function OpenClawCatalogCard({
     openclawStatus !== OpenClawStatus.USER_NOT_READY &&
     openclawStatus !== OpenClawStatus.NEW &&
     openclawStatus !== OpenClawStatus.DELETING &&
+    openclawStatus !== OpenClawStatus.UNIDLING &&
     openclawStatus !== OpenClawStatus.TERMINATING &&
     openclawStatus !== OpenClawStatus.UNKNOWN;
 
@@ -178,12 +182,12 @@ export function OpenClawCatalogCard({
 
         openClawUnidleInFlight.current = true;
         try {
-          await handleOpenClawInstance();
+          await unidleInstance();
         } catch (error) {
           handleOpenClawApiError(
             error,
-            "OpenClaw operation failed",
-            "An unexpected error occurred while handling your OpenClaw instance. Please try again later.",
+            "Unable to reprovision your instance",
+            `An unexpected error occurred while reprovisioning your OpenClaw instance. Please try again later, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
           );
         } finally {
           openClawUnidleInFlight.current = false;
@@ -197,11 +201,11 @@ export function OpenClawCatalogCard({
     }
   }, [
     handleOpenClawApiError,
-    handleOpenClawInstance,
     openclawStatus,
     openPhoneVerificationModal,
     signupUser,
     userSignupPhase,
+    unidleInstance,
   ]);
 
   /**

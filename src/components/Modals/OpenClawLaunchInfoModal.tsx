@@ -220,29 +220,33 @@ export function OpenClawLaunchInfoModal({
     );
   }
 
-  if (openclawStatus === OpenClawStatus.PROVISIONING) {
+  if (
+    openclawStatus === OpenClawStatus.PROVISIONING ||
+    openclawStatus === OpenClawStatus.UNIDLING
+  ) {
+    const verb =
+      openclawStatus === OpenClawStatus.PROVISIONING
+        ? "Provisioning"
+        : "Reprovisioning";
+
     return (
       <Modal
         isOpen={isOpen}
         onClose={handleClose}
-        aria-label="Provisioning OpenClaw instance"
+        aria-label={`${verb} your OpenClaw instance`}
         variant="medium"
         data-testid="openclaw-launch-modal"
       >
-        <ModalHeader title="Provisioning OpenClaw instance" />
+        <ModalHeader title={`${verb} OpenClaw instance`} />
         <ModalBody>
           <Content component="p" style={{ marginBottom: "24px" }}>
-            Provisioning is in progress. When ready, your instance will be
-            available for use.
+            {verb} is in progress. When ready, your instance will be available
+            for use.
           </Content>
           <div style={{ textAlign: "center", padding: "24px 0" }}>
             <Spinner size="xl" />
           </div>
-          <Alert
-            variant="info"
-            isInline
-            title="Provisioning can take 1-5 minutes"
-          >
+          <Alert variant="info" isInline title={`${verb} can take 1-5 minutes`}>
             You can close this modal in the meantime, and follow the status of
             your instance on the OpenClaw sandbox card.
           </Alert>

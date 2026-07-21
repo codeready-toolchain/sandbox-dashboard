@@ -110,10 +110,10 @@ function TestConsumer() {
         }}
       />
       <button
-        data-testid="handle-instance"
+        data-testid="unidle-instance"
         onClick={async () => {
           try {
-            await ctx.handleOpenClawInstance();
+            await ctx.unidleInstance();
           } catch (e) {
             setHandleError(
               e instanceof UserFacingError ? "UserFacingError" : "other",
@@ -252,11 +252,11 @@ describe("OpenClawProvider", () => {
       );
     });
 
-    it("NOOP handleOpenClawInstance resolves without error", async () => {
+    it("NOOP unidleInstance resolves without error", async () => {
       renderProvider({ user: undefined });
 
       await act(async () => {
-        screen.getByTestId("handle-instance").click();
+        screen.getByTestId("unidle-instance").click();
       });
 
       expect(screen.getByTestId("handle-error").textContent).toBe("");
@@ -426,29 +426,11 @@ describe("OpenClawProvider", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // handleOpenClawInstance
+  // unidleInstance
   // ---------------------------------------------------------------------------
 
-  describe("handleOpenClawInstance", () => {
-    it("does nothing when status is already READY", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
-      mockedGetOpenClaw.mockResolvedValue(openClawFixture);
-
-      renderProvider();
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.READY,
-        ),
-      );
-
-      await act(async () => {
-        screen.getByTestId("handle-instance").click();
-      });
-
-      expect(screen.getByTestId("handle-error").textContent).toBe("");
-    });
-
-    it("unidles the instance when status is IDLED", async () => {
+  describe("unidleInstance", () => {
+    it("unidles the instance and transitions to UNIDLING", async () => {
       mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
       mockedGetOpenClaw.mockResolvedValue(openClawIdledFixture);
       mockedUnIdleOpenClaw.mockResolvedValue(undefined);
@@ -461,16 +443,16 @@ describe("OpenClawProvider", () => {
       );
 
       await act(async () => {
-        screen.getByTestId("handle-instance").click();
+        screen.getByTestId("unidle-instance").click();
       });
 
       await waitFor(() => expect(mockedUnIdleOpenClaw).toHaveBeenCalled());
       expect(screen.getByTestId("status").textContent).toBe(
-        OpenClawStatus.PROVISIONING,
+        OpenClawStatus.UNIDLING,
       );
     });
 
-    it("throws UserFacingError when unidling fails", async () => {
+    it("throws UserFacingError when the unIdleOpenClaw API call fails", async () => {
       mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
       mockedGetOpenClaw.mockResolvedValue(openClawIdledFixture);
       mockedUnIdleOpenClaw.mockRejectedValue(
@@ -485,7 +467,7 @@ describe("OpenClawProvider", () => {
       );
 
       await act(async () => {
-        screen.getByTestId("handle-instance").click();
+        screen.getByTestId("unidle-instance").click();
       });
 
       await waitFor(() =>
@@ -495,18 +477,18 @@ describe("OpenClawProvider", () => {
       );
     });
 
-    it("throws UserFacingError when the initial state fetch fails unexpectedly", async () => {
-      mockedGetSpaceRequest
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(
-          new ApiError("fetch failed", 500, "Internal Server Error"),
-        );
+    it("throws UserFacingError when the namespace ref is not set", async () => {
+      mockedGetSpaceRequest.mockResolvedValue(undefined);
 
       renderProvider();
-      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.NEW,
+        ),
+      );
 
       await act(async () => {
-        screen.getByTestId("handle-instance").click();
+        screen.getByTestId("unidle-instance").click();
       });
 
       await waitFor(() =>
@@ -716,48 +698,6 @@ describe("OpenClawProvider", () => {
           OpenClawStatus.READY,
         ),
       );
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // handleOpenClawInstance — DELETING status
-  // ---------------------------------------------------------------------------
-
-  describe("handleOpenClawInstance with DELETING status", () => {
-    it("returns without action when status is DELETING", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
-      mockedGetOpenClaw.mockResolvedValue(openClawFixture);
-      mockedDeleteOpenClawCR.mockResolvedValue(undefined);
-      mockedDeleteSpaceRequest.mockResolvedValue(undefined);
-      mockedCleanupWorkspaceEnvironment.mockResolvedValue(undefined);
-
-      renderProvider();
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.READY,
-        ),
-      );
-
-      await act(async () => {
-        screen.getByTestId("delete-instance").click();
-      });
-
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.DELETING,
-        ),
-      );
-
-      // handleOpenClawInstance re-fetches state; SpaceRequest is gone, so
-      // currentStatus becomes NEW and it returns immediately since there's
-      // nothing to unidle.
-      mockedGetSpaceRequest.mockResolvedValue(undefined);
-
-      await act(async () => {
-        screen.getByTestId("handle-instance").click();
-      });
-
-      expect(screen.getByTestId("handle-error").textContent).toBe("");
     });
   });
 
@@ -1121,46 +1061,6 @@ describe("OpenClawProvider", () => {
           "Unable to provision your OpenClaw instance",
         );
       });
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // handleOpenClawInstance — 404 fallback
-  // ---------------------------------------------------------------------------
-
-  describe("handleOpenClawInstance — 404 fallback", () => {
-    it("treats a 404 from getSpaceRequest as NEW and returns without error", async () => {
-      mockedGetSpaceRequest
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new ApiError("not found", 404, "Not Found"));
-
-      renderProvider();
-      await waitFor(() => expect(mockedGetSpaceRequest).toHaveBeenCalled());
-
-      await act(async () => {
-        screen.getByTestId("handle-instance").click();
-      });
-
-      expect(screen.getByTestId("handle-error").textContent).toBe("");
-    });
-
-    it("returns without action when re-fetched status is PROVISIONING", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(clawSpaceRequest);
-      mockedGetOpenClaw.mockResolvedValue(openClawProvisioning);
-
-      renderProvider();
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.PROVISIONING,
-        ),
-      );
-
-      await act(async () => {
-        screen.getByTestId("handle-instance").click();
-      });
-
-      expect(screen.getByTestId("handle-error").textContent).toBe("");
-      expect(mockedUnIdleOpenClaw).not.toHaveBeenCalled();
     });
   });
 
