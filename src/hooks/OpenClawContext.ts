@@ -6,20 +6,22 @@ import type { OpenClawStatus } from "../utils/openclaw-utils";
 export interface OpenClawContextType {
   /** Clears the deletion error. */
   clearDeletionError: () => void;
+
   /** Clears the provisioning error. */
   clearProvisioningError: () => void;
+
   /**
    * Deletes the OpenClaw instance.
    * @throws {UserFacingError} if the scheduling of the deletion fails.
    */
   deleteInstance: () => Promise<void>;
+
   /**
    * Contains a user facing error with the appropriate user friendly message,
    * and the technical details to be coiped if needed.
    */
   deletionError: UserFacingError | undefined;
-  openclawStatus: OpenClawStatus;
-  openclawUILink: string | undefined;
+
   /**
    * Contains a user facing error with the appropriate user friendly message,
    * and the technical details to be copied if needed.
@@ -38,6 +40,16 @@ export interface OpenClawContextType {
     credentials: AddedCredential[],
     isDevicePairingDisabled?: boolean,
   ) => Promise<void>;
+
+  /**
+   * Holds the current status of the OpenClaw instance.
+   */
+  status: OpenClawStatus;
+
+  /**
+   * Holds the URL for the OpenClaw user interface.
+   */
+  uiURL: string | undefined;
 
   /**
    * Unidles the instance.

@@ -1,3 +1,4 @@
+import { AlertVariant } from "@patternfly/react-core";
 import {
   useCallback,
   useEffect,
@@ -23,12 +24,12 @@ import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
 import { ProvisioningError } from "../error/ProvisioningError";
 import { UserFacingError } from "../error/UserFacingError";
-import type { OpenClawCR, StatusCondition } from "../types";
+import { useNotifications } from "../notifications/useNotifications";
+import type { OpenClawCR, SpaceRequestItem } from "../types";
 import logger from "../utils/logger";
 import type { AddedCredential } from "../utils/openclaw-providers";
 import {
   getSpaceRequestNamespace,
-  isSpaceRequestReady,
   isSpaceRequestTerminating,
   mapOpenClawStatus,
   OpenClawStatus,
@@ -37,21 +38,9 @@ import {
   defaultOpenClawSkills,
   defaultOpenClawWorkspace,
 } from "../utils/openclaw-workspace-content";
-import { isTransient } from "../utils/retry";
+import { isTransient, withRetry } from "../utils/retry";
 import { OpenClawContext } from "./OpenClawContext";
 import { useUserContext } from "./UserContext";
-
-function resolveOpenClawError(err: unknown, fallbackPrefix: string): string {
-  if (err instanceof ApiError) {
-    return err.body;
-  }
-  if (err instanceof Error) {
-    logger.error(fallbackPrefix, err);
-    return `${fallbackPrefix}: ${err.message}`;
-  }
-  logger.error(fallbackPrefix, err);
-  return fallbackPrefix;
-}
 
 export function OpenClawProvider({ children }: { children: ReactNode }) {
   const { user } = useUserContext();
@@ -87,10 +76,10 @@ export function OpenClawProviderNoop({ children }: { children: ReactNode }) {
         deleteInstance: async () =>
           Promise.reject(new Error("User not signed up")),
         deletionError: undefined,
-        openclawStatus: OpenClawStatus.USER_NOT_READY,
-        openclawUILink: undefined,
         provisioningError: undefined,
         startProvisioning: async (): Promise<void> => {},
+        status: OpenClawStatus.USER_NOT_READY,
+        uiURL: undefined,
         unidleInstance: async (): Promise<void> => {},
       }}
     >
@@ -115,6 +104,12 @@ export function OpenClawProviderConnected({
   proxyURL: string;
   userNamespace: string;
 }) {
+  const { addAlert } = useNotifications();
+
+  /**
+   * A reference to track down if the instance is being currently deleted, to
+   * be able to provide proper user feedback if it is.
+   */
   const deletingOpenClaw = useRef<boolean>(false);
 
   /**
@@ -136,7 +131,7 @@ export function OpenClawProviderConnected({
   const statusRef = useRef<OpenClawStatus>(OpenClawStatus.NEW);
 
   const [status, setStatus] = useState<OpenClawStatus>(OpenClawStatus.NEW);
-  const [openclawUILink, setOpenclawUILink] = useState<string | undefined>();
+  const [uiURL, setUiURL] = useState<string | undefined>();
   const [deletionError, setDeletionError] = useState<
     UserFacingError | undefined
   >();
@@ -190,181 +185,140 @@ export function OpenClawProviderConnected({
   );
 
   /**
-   * Polls the current state of the OpenClaw instance and drives the
-   * provisioning state machine forward.
-   *
-   * @param userNamespace the user's home namespace used to locate the
-   *   SpaceRequest and workspace resources.
-   * @deprecated to be removed soon in favor of smaller and more organized
-   * functions.
-   */
-  const getOpenClawData = useCallback(
-    async (namespace: string) => {
-      try {
-        const sr = await getSpaceRequest(proxyURL, namespace);
-
-        if (!sr) {
-          if (deletingOpenClaw.current) {
-            deletingOpenClaw.current = false;
-            openClawNamespaceRef.current = undefined;
-            instanceCRRef.current = undefined;
-            updateInstanceStatus(OpenClawStatus.NEW);
-            setOpenclawUILink(undefined);
-            setProvisioningError(undefined);
-            setDeletionError(undefined);
-            return;
-          }
-
-          updateInstanceStatus(OpenClawStatus.NEW);
-          return;
-        }
-
-        if (isSpaceRequestTerminating(sr)) {
-          if (deletingOpenClaw.current) return;
-          updateInstanceStatus(OpenClawStatus.DELETING);
-          return;
-        }
-
-        if (deletingOpenClaw.current) return;
-
-        // Accounts for the case in which the user starts provisioning and
-        // refreshes the page before the namespace appears. Repolling could
-        // find the space request without a namespace yet.
-        const targetNamespace = getSpaceRequestNamespace(sr);
-        if (!targetNamespace) {
-          updateInstanceStatus(OpenClawStatus.PROVISIONING);
-          provisioningPhase.current = "creating_space_request";
-          return;
-        }
-
-        openClawNamespaceRef.current = targetNamespace;
-
-        const data = await getOpenClaw(proxyURL, targetNamespace);
-        instanceCRRef.current = data;
-
-        let conditionFailed = false;
-        const st = mapOpenClawStatus(data, (conditionMessage) => {
-          logger.error("OpenClaw CR reported failure:", conditionMessage);
-          conditionFailed = true;
-          setProvisioningError(
-            new UserFacingError(
-              "Unable to provision your OpenClaw instance",
-              `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact "${SUPPORT_EMAIL}".`,
-              undefined,
-              `The OpenClaw CR reported a failure: ${conditionMessage}`,
-            ),
-          );
-        });
-        if (!conditionFailed) {
-          setProvisioningError(undefined);
-        }
-        updateInstanceStatus(st);
-        if (st === OpenClawStatus.PROVISIONING) {
-          provisioningPhase.current = "waiting_for_readiness";
-        }
-
-        if (data?.status?.url) {
-          try {
-            const url = new URL(data.status.url);
-            if (!data.spec?.auth?.disableDevicePairing) {
-              url.pathname = `${url.pathname.replace(
-                /\/$/,
-                "",
-              )}/integration/device-pairing/`;
-            }
-            setOpenclawUILink(url.toString());
-          } catch {
-            setOpenclawUILink(data.status.url);
-          }
-        }
-
-        if (st === OpenClawStatus.UNKNOWN && isSpaceRequestReady(sr)) {
-          updateInstanceStatus(OpenClawStatus.PROVISIONING);
-          provisioningPhase.current = "waiting_for_readiness";
-        }
-      } catch (e) {
-        const detail = resolveOpenClawError(
-          e,
-          "Unable to fetch OpenClaw instance status",
-        );
-        if (deletingOpenClaw.current) {
-          setDeletionError(
-            new UserFacingError(
-              "Unable to delete your OpenClaw instance",
-              `We were unable to delete your OpenClaw instance. Please try again later, and if the issue persists, please contact "${SUPPORT_EMAIL}".`,
-              e,
-              detail,
-            ),
-          );
-        } else {
-          setProvisioningError(
-            new UserFacingError(
-              "Unable to provision your OpenClaw instance",
-              `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact "${SUPPORT_EMAIL}".`,
-              e,
-              detail,
-            ),
-          );
-        }
-      }
-    },
-    [proxyURL, updateInstanceStatus],
-  );
-
-  /**
    * Fetches the OpenClaw CR and updates the references and the status
    * variables. When the instance is ready, it grabs the UI link from the
    * status.
    * @param openClawNamespace the namespace in which the OpenClaw instance
    * should be.
+   * @throws {ApiError} if the network calls to fetch the space request or the
+   * instance's resource itself fail.
+   * @throws {UserFacingError}
    */
-  const fetchCR = useCallback(
-    async (openClawNamespace: string) => {
-      // Fetch the CR and update its status.
-      const fetchedCR = await getOpenClaw(proxyURL, openClawNamespace);
-      const currentStatus = mapOpenClawStatus(
-        fetchedCR,
-        (errorCondition: StatusCondition) => {
-          updateInstanceStatus(OpenClawStatus.FAILED);
-          throw new ProvisioningError("OpenClaw", errorCondition);
-        },
-      );
+  const refreshInstanceStatus = useCallback(async () => {
+    const spaceRequest: SpaceRequestItem | undefined = await getSpaceRequest(
+      proxyURL,
+      userNamespace,
+    );
+
+    // Not having a space request either means that we were deleting it
+    // before, or that it didn't exit in the first place.
+    if (!spaceRequest) {
+      if (statusRef.current === OpenClawStatus.DELETING) {
+        deletingOpenClaw.current = false;
+        instanceCRRef.current = undefined;
+        openClawNamespaceRef.current = undefined;
+        setDeletionError(undefined);
+        setUiURL(undefined);
+        setProvisioningError(undefined);
+      }
+
+      updateInstanceStatus(OpenClawStatus.NEW);
+      return;
+    }
+
+    // When the space request is terminating, that means that we're in the
+    // deletion process.
+    if (isSpaceRequestTerminating(spaceRequest)) {
+      if (statusRef.current !== OpenClawStatus.DELETING) {
+        updateInstanceStatus(OpenClawStatus.DELETING);
+      }
+
+      return;
+    }
+
+    // Get OpenClaw's namespace from the space request.
+    const openClawNamespace: string | undefined =
+      getSpaceRequestNamespace(spaceRequest);
+
+    // The space request might not have the namespace ready yet, or we
+    // haven't had time to extract it. This could happen if the user starts
+    // provisioning the instance but refreshes before the namespace appears.
+    if (!openClawNamespace) {
+      updateInstanceStatus(OpenClawStatus.PROVISIONING);
+      provisioningPhase.current = "creating_space_request";
+      return;
+    }
+
+    // Update the namespace we have for OpenClaw.
+    openClawNamespaceRef.current = openClawNamespace;
+
+    // Fetch the CR and update its status.
+    const fetchedCR = await getOpenClaw(proxyURL, openClawNamespace);
+    const [currentStatus, failedCondition] = mapOpenClawStatus(fetchedCR);
+
+    // Is the instance in a "failed" condition?
+    if (failedCondition) {
+      updateInstanceStatus(OpenClawStatus.FAILED);
+      throw new ProvisioningError("OpenClaw", failedCondition);
+    }
+
+    // If the CR does not exist yet, but we are actively provisioning, don't
+    // override the current status with "NEW". The polling should keep calling
+    // this function and eventually we'll transition to a new state.
+    if (
+      currentStatus === OpenClawStatus.NEW &&
+      statusRef.current === OpenClawStatus.PROVISIONING &&
+      provisioningPhase.current !== "not_started"
+    ) {
+      return;
+    }
+
+    // If for some reason we haven't been able to determine the status, but
+    // the provisioning has started, map it to provisioning.
+    //
+    if (
+      currentStatus === OpenClawStatus.UNKNOWN &&
+      provisioningPhase.current !== "not_started"
+    ) {
+      updateInstanceStatus(OpenClawStatus.PROVISIONING);
+    } else {
+      // Update the instance's status for any other condition.
       updateInstanceStatus(currentStatus);
+    }
 
-      // If it happens to be ready, extract all the necessary bits for the
-      // integration to work.
-      if (currentStatus === OpenClawStatus.READY && fetchedCR) {
-        if (fetchedCR.status?.url) {
-          try {
-            const url = new URL(fetchedCR.status.url);
-            if (!fetchedCR.spec?.auth?.disableDevicePairing) {
-              url.pathname = `${url.pathname.replace(
-                /\/$/,
-                "",
-              )}/integration/device-pairing/`;
-            }
-            setOpenclawUILink(url.toString());
-          } catch {
-            setOpenclawUILink(fetchedCR.status.url);
+    // At this point we know there's no provisioning error so we can reset
+    // it.
+    setProvisioningError(undefined);
+
+    // If it happens to be ready, extract all the necessary bits for the
+    // integration to work.
+    if (currentStatus === OpenClawStatus.READY && fetchedCR) {
+      if (fetchedCR.status?.url) {
+        try {
+          const url = new URL(fetchedCR.status.url);
+          if (!fetchedCR.spec?.auth?.disableDevicePairing) {
+            url.pathname = `${url.pathname.replace(
+              /\/$/,
+              "",
+            )}/integration/device-pairing/`;
           }
-        } else {
-          updateInstanceStatus(OpenClawStatus.FAILED);
+          setUiURL(url.toString());
+        } catch {
+          setUiURL(fetchedCR.status.url);
         }
-
-        instanceCRRef.current = fetchedCR;
+      } else {
+        updateInstanceStatus(OpenClawStatus.FAILED);
+        throw new ProvisioningError("OpenClaw", {
+          type: "Failure",
+          status: "True",
+          reason: "MissingURL",
+          message:
+            "The OpenClaw instance is ready but did not provide an access URL.",
+        });
       }
 
-      // When the instance is provisioning and we are just waiting for
-      // readiness, the CR is there so we can just set it in the reference.
-      if (
-        currentStatus === OpenClawStatus.PROVISIONING &&
-        provisioningPhase.current === "waiting_for_readiness"
-      ) {
-        instanceCRRef.current = fetchedCR;
-      }
-    },
-    [proxyURL, updateInstanceStatus],
-  );
+      instanceCRRef.current = fetchedCR;
+    }
+
+    // When the instance is provisioning and we are just waiting for
+    // readiness, the CR is there so we can just set it in the reference.
+    if (
+      currentStatus === OpenClawStatus.PROVISIONING &&
+      provisioningPhase.current === "waiting_for_readiness"
+    ) {
+      instanceCRRef.current = fetchedCR;
+    }
+  }, [proxyURL, updateInstanceStatus, userNamespace]);
 
   /**
    * Starts the provisioning process for the OpenClaw instance.
@@ -521,29 +475,19 @@ export function OpenClawProviderConnected({
     [apiEndpoint, handleProvisioningStepFailure, proxyURL, userNamespace],
   );
 
-  // Initial OpenClaw fetch
-  useEffect(() => {
-    void (async () => {
-      await getOpenClawData(userNamespace);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proxyURL, userNamespace]);
-
   /**
    * Clears the deletion error.
    */
   const clearDeletionError = useCallback((): void => {
     setDeletionError(undefined);
-    getOpenClawData(userNamespace);
-  }, [getOpenClawData, userNamespace]);
+  }, []);
 
   /**
    * Clears the provisioning error.
    */
   const clearProvisioningError = useCallback((): void => {
     setProvisioningError(undefined);
-    getOpenClawData(userNamespace);
-  }, [getOpenClawData, userNamespace]);
+  }, []);
 
   /**
    * Unidles the already provisioned instance.
@@ -584,11 +528,11 @@ export function OpenClawProviderConnected({
    * @throws {UserFacingError} if the deletion of any of the resources fail.
    */
   const deleteInstance = useCallback(async () => {
-    const previousUILink = openclawUILink;
+    const previousUILink = uiURL;
 
     deletingOpenClaw.current = true;
     updateInstanceStatus(OpenClawStatus.DELETING);
-    setOpenclawUILink(undefined);
+    setUiURL(undefined);
     setDeletionError(undefined);
 
     // Delete the OpenClaw resource and all of its related resources. Any
@@ -612,7 +556,7 @@ export function OpenClawProviderConnected({
     if (aggregatedError) {
       deletingOpenClaw.current = false;
       updateInstanceStatus(OpenClawStatus.FAILED);
-      setOpenclawUILink(previousUILink);
+      setUiURL(previousUILink);
       const error = new UserFacingError(
         "Unable to delete your OpenClaw instance",
         `We have been unable to delete your OpenClaw instance. Please try again later, and if the issue persists, contact "${SUPPORT_EMAIL}".`,
@@ -625,23 +569,45 @@ export function OpenClawProviderConnected({
 
     openClawNamespaceRef.current = undefined;
     instanceCRRef.current = undefined;
-  }, [openclawUILink, proxyURL, updateInstanceStatus, userNamespace]);
+  }, [uiURL, proxyURL, updateInstanceStatus, userNamespace]);
 
-  // Poll OpenClaw status during deleting
+  // Initial fetch of the OpenClaw resource to determine its status. On
+  // non-transient errors we notify the user that something went wrong.
+  const hasFetchedOnMount = useRef<boolean>(false);
   useEffect(() => {
-    if (status === OpenClawStatus.DELETING) {
-      const handle = setInterval(
-        () => getOpenClawData(userNamespace),
-        SHORT_INTERVAL,
-      );
-      return () => clearInterval(handle);
-    }
-    return undefined;
-  }, [getOpenClawData, status, userNamespace]);
+    void (async () => {
+      if (!hasFetchedOnMount.current) {
+        // The reference is updated here to avoid any more executions if the
+        // "instanceStatus" changes while "withRetry" is in flight.
+        hasFetchedOnMount.current = true;
+
+        await withRetry(() => refreshInstanceStatus(), 3, 3_000).catch(
+          (error) => {
+            logger.error(
+              `Unable to obtain the OpenClaw instance's status: ${error}`,
+            );
+            // With a ProvisioningError we know there's a condition failure in
+            // the instance, so we want to preserve the error status that is set
+            // by the fetch call. Any other errors we want to report them as an
+            // initial fetch failure.
+            if (!(error instanceof ProvisioningError)) {
+              updateInstanceStatus(OpenClawStatus.INITIAL_FETCH_FAILED);
+            }
+            addAlert(
+              AlertVariant.danger,
+              "Unable to determine your OpenClaw instance's status",
+              `We have been unable to determine the status of your OpenClaw instance. Please refresh the page, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+            );
+          },
+        );
+      }
+    })();
+  }, [addAlert, refreshInstanceStatus, updateInstanceStatus]);
 
   // Helper variable to determine if the polling loop should be working or
   // not.
   const shouldBePolling =
+    status === OpenClawStatus.DELETING ||
     status === OpenClawStatus.PROVISIONING ||
     status === OpenClawStatus.UNIDLING;
 
@@ -659,39 +625,50 @@ export function OpenClawProviderConnected({
 
     let cancelled = false;
     const poll = async () => {
-      if (
-        statusRef.current === OpenClawStatus.PROVISIONING &&
-        provisioningPhase.current === "creating_space_request"
-      ) {
-        let resolvedNamespace: string | undefined;
-        try {
-          // Attempt fetching the space request and if its not there or we
-          // cannot get the namespace from it, keep polling.
-          const spaceRequest = await getSpaceRequest(proxyURL, userNamespace);
-          resolvedNamespace = getSpaceRequestNamespace(spaceRequest);
-          if (resolvedNamespace) {
-            openClawNamespaceRef.current = resolvedNamespace;
+      try {
+        await refreshInstanceStatus();
+        pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      } catch (error) {
+        if (error instanceof ProvisioningError) {
+          setProvisioningError(
+            new UserFacingError(
+              "Unable to provision your OpenClaw instance",
+              `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+              error,
+              error.getFormattedErrorMessage(),
+            ),
+          );
+          return;
+        } else if (isTransient(error) && pollTransientRetriesLeft.current > 0) {
+          pollTransientRetriesLeft.current--;
+          logger.warn(
+            `Unexpected transient error received while polling to check if the OpenClaw's CR is ready: ${error}`,
+          );
+        } else {
+          let technicalDetails: string;
+          if (error instanceof ApiError) {
+            technicalDetails = error.body;
+          } else {
+            technicalDetails = `${error}`;
           }
 
-          pollTransientRetriesLeft.current = maxTransientErrorRetries;
-        } catch (error) {
-          if (isTransient(error) && pollTransientRetriesLeft.current > 0) {
-            pollTransientRetriesLeft.current--;
-            logger.warn(
-              `Unexpected transient error received while polling to check if the OpenClaw's space request is ready: ${error}`,
+          logger.error(
+            `Unexpected error received while polling to check if the OpenClaw's CR is ready: ${error}`,
+          );
+          updateInstanceStatus(OpenClawStatus.FAILED);
+
+          if (deletingOpenClaw.current) {
+            deletingOpenClaw.current = false;
+
+            setDeletionError(
+              new UserFacingError(
+                "Unable to delete your OpenClaw instance",
+                `We were unable to delete your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+                error,
+                technicalDetails,
+              ),
             );
           } else {
-            let technicalDetails: string;
-            if (error instanceof ApiError) {
-              technicalDetails = error.body;
-            } else {
-              technicalDetails = `${error}`;
-            }
-
-            logger.error(
-              `Unexpected error received while polling to check if the OpenClaw's space request is ready: ${error}`,
-            );
-            updateInstanceStatus(OpenClawStatus.FAILED);
             setProvisioningError(
               new UserFacingError(
                 "Unable to provision your OpenClaw instance",
@@ -700,105 +677,34 @@ export function OpenClawProviderConnected({
                 technicalDetails,
               ),
             );
-            return;
           }
-        }
-
-        // The namespace is ready but the instance is not created yet, or we
-        // lost the in-memory state after the user refreshed the page.
-        //
-        // - With provisioning settings, we just continue and create the
-        // instance.
-        // - Without them, the credentials are gone. So if the CR was created
-        // before losing the credentials, we can resume waiting for the
-        // instance's readiness. Otherwise we reset the state to "NEW" and let
-        // the user to reprovision again, since creating the space request
-        // is idempotent and will not fail.
-        if (!instanceCRRef.current && resolvedNamespace) {
-          if (provisioningSettings.current) {
-            await provisionInstance(resolvedNamespace);
-          } else {
-            let fetchedCR: OpenClawCR | undefined;
-            try {
-              fetchedCR = await getOpenClaw(proxyURL, resolvedNamespace);
-              if (fetchedCR) {
-                instanceCRRef.current = fetchedCR;
-                provisioningPhase.current = "waiting_for_readiness";
-              } else {
-                provisioningPhase.current = "not_started";
-                updateInstanceStatus(OpenClawStatus.NEW);
-              }
-            } catch (error) {
-              if (isTransient(error) && pollTransientRetriesLeft.current > 0) {
-                pollTransientRetriesLeft.current--;
-                logger.warn(
-                  `Unexpected transient error received while polling to check if the OpenClaw's CR is ready: ${error}`,
-                );
-              } else {
-                let technicalDetails: string;
-                if (error instanceof ApiError) {
-                  technicalDetails = error.body;
-                } else {
-                  technicalDetails = `${error}`;
-                }
-
-                logger.error(
-                  `Unexpected error received while polling to check if the OpenClaw's CR is ready: ${error}`,
-                );
-                updateInstanceStatus(OpenClawStatus.FAILED);
-                setProvisioningError(
-                  new UserFacingError(
-                    "Unable to provision your OpenClaw instance",
-                    `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
-                    error,
-                    technicalDetails,
-                  ),
-                );
-                return;
-              }
-            }
-          }
+          return;
         }
       }
 
+      // The namespace is ready but the instance is not created yet, or we
+      // lost the in-memory state after the user refreshed the page.
+      //
+      // - With provisioning settings, we just continue and create the
+      // instance.
+      // - Without them, the credentials are gone. So if the CR was created
+      // before losing the credentials, we can resume waiting for the
+      // instance's readiness. Otherwise we reset the state to "NEW" and let
+      // the user to reprovision again, since creating the space request
+      // is idempotent and will not fail.
       if (
+        statusRef.current === OpenClawStatus.PROVISIONING &&
+        provisioningPhase.current === "creating_space_request" &&
         openClawNamespaceRef.current &&
-        (statusRef.current === OpenClawStatus.UNIDLING ||
-          (statusRef.current === OpenClawStatus.PROVISIONING &&
-            provisioningPhase.current === "waiting_for_readiness"))
+        !instanceCRRef.current
       ) {
-        try {
-          await fetchCR(openClawNamespaceRef.current);
-          pollTransientRetriesLeft.current = maxTransientErrorRetries;
-        } catch (error) {
-          if (error instanceof ProvisioningError) {
-            setProvisioningError(
-              new UserFacingError(
-                "Unable to provision your OpenClaw instance",
-                `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
-                error,
-                error.getFormattedErrorMessage(),
-              ),
-            );
-            return;
-          } else if (
-            isTransient(error) &&
-            pollTransientRetriesLeft.current > 0
-          ) {
-            pollTransientRetriesLeft.current--;
-            logger.warn(
-              `Unexpected transient error received while polling to check if the OpenClaw's CR is ready: ${error}`,
-            );
-          } else {
-            let technicalDetails: string;
-            if (error instanceof ApiError) {
-              technicalDetails = error.body;
-            } else {
-              technicalDetails = `${error}`;
-            }
-
+        if (provisioningSettings.current) {
+          try {
+            await provisionInstance(openClawNamespaceRef.current);
+          } catch (error) {
             logger.error(
-              `Unexpected error received while polling to check if the OpenClaw's CR is ready: ${error}`,
+              "Unexpected error during instance provisioning",
+              error,
             );
             updateInstanceStatus(OpenClawStatus.FAILED);
             setProvisioningError(
@@ -806,11 +712,18 @@ export function OpenClawProviderConnected({
                 "Unable to provision your OpenClaw instance",
                 `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
                 error,
-                technicalDetails,
+                `${error}`,
               ),
             );
             return;
           }
+        } else {
+          // With no CR and no provisioning settings, we assume that the user
+          // refreshed the page mid-provisioning. And without those lost
+          // credentials we cannot provision the instance. Reset the status to
+          // NEW so that the user can start over.
+          provisioningPhase.current = "not_started";
+          updateInstanceStatus(OpenClawStatus.NEW);
         }
       }
 
@@ -826,7 +739,7 @@ export function OpenClawProviderConnected({
       clearTimeout(timerId);
     };
   }, [
-    fetchCR,
+    refreshInstanceStatus,
     provisionInstance,
     proxyURL,
     shouldBePolling,
@@ -842,10 +755,10 @@ export function OpenClawProviderConnected({
       clearProvisioningError,
       deleteInstance,
       deletionError,
-      openclawStatus: status,
-      openclawUILink,
       provisioningError,
       startProvisioning,
+      status,
+      uiURL,
       unidleInstance,
     }),
     [
@@ -853,10 +766,10 @@ export function OpenClawProviderConnected({
       clearProvisioningError,
       deleteInstance,
       deletionError,
-      status,
-      openclawUILink,
       provisioningError,
       startProvisioning,
+      status,
+      uiURL,
       unidleInstance,
     ],
   );

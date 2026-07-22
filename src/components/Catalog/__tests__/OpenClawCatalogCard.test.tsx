@@ -73,8 +73,8 @@ describe("OpenClawCatalogCard", () => {
 
     renderCard(
       {
-        openclawStatus: OpenClawStatus.READY,
-        openclawUILink: "https://openclaw.example.com",
+        status: OpenClawStatus.READY,
+        uiURL: "https://openclaw.example.com",
       },
       markProductAsTried,
     );
@@ -96,8 +96,8 @@ describe("OpenClawCatalogCard", () => {
 
     renderCard(
       {
-        openclawStatus: OpenClawStatus.READY,
-        openclawUILink: undefined,
+        status: OpenClawStatus.READY,
+        uiURL: undefined,
       },
       markProductAsTried,
     );
@@ -119,8 +119,8 @@ describe("OpenClawCatalogCard", () => {
 
     renderCard(
       {
-        openclawStatus: OpenClawStatus.READY,
-        openclawUILink: "",
+        status: OpenClawStatus.READY,
+        uiURL: "",
       },
       markProductAsTried,
     );
@@ -138,7 +138,7 @@ describe("OpenClawCatalogCard", () => {
     const unidleInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard({
-      openclawStatus: OpenClawStatus.IDLED,
+      status: OpenClawStatus.IDLED,
       unidleInstance,
     });
 
@@ -149,7 +149,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("opens info modal when status is PROVISIONING", async () => {
-    renderCard({ openclawStatus: OpenClawStatus.PROVISIONING });
+    renderCard({ status: OpenClawStatus.PROVISIONING });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
@@ -157,7 +157,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("opens info modal when status is NEW (provision flow)", async () => {
-    renderCard({ openclawStatus: OpenClawStatus.NEW });
+    renderCard({ status: OpenClawStatus.NEW });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
@@ -165,7 +165,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("opens info modal when status is FAILED", async () => {
-    renderCard({ openclawStatus: OpenClawStatus.FAILED });
+    renderCard({ status: OpenClawStatus.FAILED });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
@@ -182,8 +182,8 @@ describe("OpenClawCatalogCard", () => {
 
     renderCard(
       {
-        openclawStatus: OpenClawStatus.READY,
-        openclawUILink: "https://openclaw.example.com",
+        status: OpenClawStatus.READY,
+        uiURL: "https://openclaw.example.com",
         unidleInstance,
       },
       markProductAsTried,
@@ -212,8 +212,8 @@ describe("OpenClawCatalogCard", () => {
       userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION,
     });
     const openClawCtx = makeOpenClawContext({
-      openclawStatus: OpenClawStatus.READY,
-      openclawUILink: "https://openclaw.example.com",
+      status: OpenClawStatus.READY,
+      uiURL: "https://openclaw.example.com",
       unidleInstance,
     });
 
@@ -252,8 +252,8 @@ describe("OpenClawCatalogCard", () => {
 
     renderCard(
       {
-        openclawStatus: OpenClawStatus.READY,
-        openclawUILink: "https://openclaw.example.com",
+        status: OpenClawStatus.READY,
+        uiURL: "https://openclaw.example.com",
         unidleInstance,
       },
       markProductAsTried,
@@ -270,7 +270,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("opens the delete confirmation modal when delete button is clicked", async () => {
-    renderCard({ openclawStatus: OpenClawStatus.READY });
+    renderCard({ status: OpenClawStatus.READY });
 
     const deleteButton = screen.getByTestId("delete-instance-button");
     await userEvent.click(deleteButton);
@@ -281,7 +281,7 @@ describe("OpenClawCatalogCard", () => {
   it("calls deleteInstance when delete is confirmed", async () => {
     const deleteInstance = vi.fn().mockResolvedValue(undefined);
 
-    renderCard({ openclawStatus: OpenClawStatus.READY, deleteInstance });
+    renderCard({ status: OpenClawStatus.READY, deleteInstance });
 
     await userEvent.click(screen.getByTestId("delete-instance-button"));
 
@@ -294,7 +294,7 @@ describe("OpenClawCatalogCard", () => {
   });
 
   it("hides delete button when status is USER_NOT_READY", () => {
-    renderCard({ openclawStatus: OpenClawStatus.USER_NOT_READY });
+    renderCard({ status: OpenClawStatus.USER_NOT_READY });
 
     expect(
       screen.queryByTestId("delete-instance-button"),
@@ -305,7 +305,7 @@ describe("OpenClawCatalogCard", () => {
     const unidleInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard({
-      openclawStatus: OpenClawStatus.USER_NOT_READY,
+      status: OpenClawStatus.USER_NOT_READY,
       unidleInstance,
     });
 

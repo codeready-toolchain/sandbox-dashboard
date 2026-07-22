@@ -96,10 +96,10 @@ export function OpenClawCatalogCard({
     clearProvisioningError,
     deleteInstance,
     deletionError,
-    openclawStatus,
-    openclawUILink,
+    uiURL,
     provisioningError,
     startProvisioning,
+    status,
     unidleInstance,
   } = useOpenClawContext();
 
@@ -118,14 +118,14 @@ export function OpenClawCatalogCard({
 
   // Determine the labels and statuses if applicable, and whether we should be
   // showing the delete button or not.
-  const buttonLabel = getButtonLabel(openclawStatus);
-  const statusLabel = getStatusLabel(openclawStatus);
+  const buttonLabel = getButtonLabel(status);
+  const statusLabel = getStatusLabel(status);
   const isDeleteButtonVisible =
-    openclawStatus !== OpenClawStatus.USER_NOT_READY &&
-    openclawStatus !== OpenClawStatus.NEW &&
-    openclawStatus !== OpenClawStatus.DELETING &&
-    openclawStatus !== OpenClawStatus.UNIDLING &&
-    openclawStatus !== OpenClawStatus.UNKNOWN;
+    status !== OpenClawStatus.USER_NOT_READY &&
+    status !== OpenClawStatus.NEW &&
+    status !== OpenClawStatus.DELETING &&
+    status !== OpenClawStatus.UNIDLING &&
+    status !== OpenClawStatus.UNKNOWN;
 
   /**
    * Routes caught errors to the appropriate notification mechanism: user-facing
@@ -166,7 +166,7 @@ export function OpenClawCatalogCard({
         return;
     }
 
-    switch (openclawStatus) {
+    switch (status) {
       case OpenClawStatus.USER_NOT_READY:
         return;
       case OpenClawStatus.IDLED:
@@ -196,9 +196,9 @@ export function OpenClawCatalogCard({
     }
   }, [
     handleOpenClawApiError,
-    openclawStatus,
     openPhoneVerificationModal,
     signupUser,
+    status,
     userSignupPhase,
     unidleInstance,
   ]);
@@ -211,7 +211,7 @@ export function OpenClawCatalogCard({
     async (credentials: AddedCredential[]): Promise<void> => {
       if (
         openClawProvisionInFlight.current ||
-        openclawStatus === OpenClawStatus.USER_NOT_READY
+        status === OpenClawStatus.USER_NOT_READY
       ) {
         return;
       }
@@ -234,9 +234,9 @@ export function OpenClawCatalogCard({
     [
       handleOpenClawApiError,
       markProductAsTried,
-      openclawStatus,
       product,
       startProvisioning,
+      status,
       trackAnalytics,
     ],
   );
@@ -248,7 +248,7 @@ export function OpenClawCatalogCard({
   const handleOpenClawDelete = useCallback(async () => {
     if (
       openClawDeleteInFlight.current ||
-      openclawStatus === OpenClawStatus.USER_NOT_READY
+      status === OpenClawStatus.USER_NOT_READY
     ) {
       return;
     }
@@ -269,7 +269,7 @@ export function OpenClawCatalogCard({
       setOpenClawBeingDeleted(false);
       setOpenClawDeleteModalOpen(false);
     }
-  }, [deleteInstance, handleOpenClawApiError, openclawStatus]);
+  }, [deleteInstance, handleOpenClawApiError, status]);
 
   return (
     <>
@@ -285,7 +285,7 @@ export function OpenClawCatalogCard({
         }
         isPrimaryButtonExtIconVisible={
           buttonLabel === ButtonLabel.LAUNCH ||
-          (buttonLabel === ButtonLabel.TRY_IT && !!openclawUILink)
+          (buttonLabel === ButtonLabel.TRY_IT && !!uiURL)
         }
         isDeleteButtonVisible={isDeleteButtonVisible}
         onClickPrimaryButton={handleOnClickPrimaryButton}
