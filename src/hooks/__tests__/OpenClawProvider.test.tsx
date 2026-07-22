@@ -20,7 +20,6 @@ import {
   openClawFixture,
   openClawIdledFixture,
   openClawProvisioning,
-  openClawTerminatingSpaceRequest,
 } from "../../mocks/fixtures/openclaw-fixtures";
 import type { OpenClawCR, User } from "../../types";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
@@ -74,10 +73,10 @@ function TestConsumer() {
       <span data-testid="status">{ctx.openclawStatus}</span>
       <span data-testid="ui-link">{ctx.openclawUILink ?? ""}</span>
       <span data-testid="provisioning-error">
-        {ctx.openClawProvisioningErrorDetails ?? ""}
+        {ctx.provisioningError?.technicalDetails ?? ""}
       </span>
       <span data-testid="deletion-error">
-        {ctx.openClawDeletionErrorDetails ?? ""}
+        {ctx.deletionError?.technicalDetails ?? ""}
       </span>
       <span data-testid="provisioning-error-title">
         {ctx.provisioningError?.title ?? ""}
@@ -125,7 +124,7 @@ function TestConsumer() {
         data-testid="delete-instance"
         onClick={async () => {
           try {
-            await ctx.deleteOpenClaw();
+            await ctx.deleteInstance();
           } catch (e) {
             setDeleteError(
               e instanceof UserFacingError ? "UserFacingError" : "other",
@@ -135,11 +134,11 @@ function TestConsumer() {
       />
       <button
         data-testid="reset-provisioning-error"
-        onClick={ctx.resetOpenClawProvisioningErrorDetails}
+        onClick={ctx.clearProvisioningError}
       />
       <button
         data-testid="reset-deletion-error"
-        onClick={ctx.resetOpenClawDeletionErrorDetails}
+        onClick={ctx.clearDeletionError}
       />
       <span data-testid="handle-error">{handleError}</span>
       <span data-testid="delete-error">{deleteError}</span>
@@ -343,18 +342,6 @@ describe("OpenClawProvider", () => {
       await waitFor(() =>
         expect(screen.getByTestId("status").textContent).toBe(
           OpenClawStatus.IDLED,
-        ),
-      );
-    });
-
-    it("sets status to TERMINATING when SpaceRequest is terminating", async () => {
-      mockedGetSpaceRequest.mockResolvedValue(openClawTerminatingSpaceRequest);
-
-      renderProvider();
-
-      await waitFor(() =>
-        expect(screen.getByTestId("status").textContent).toBe(
-          OpenClawStatus.TERMINATING,
         ),
       );
     });

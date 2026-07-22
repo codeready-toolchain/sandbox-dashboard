@@ -1,8 +1,10 @@
 import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
+import { SUPPORT_EMAIL } from "../../const";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
+import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { useNotifications } from "../../notifications/useNotifications";
 import type { Product } from "../../types/product";
@@ -13,8 +15,6 @@ import { OpenClawLaunchInfoModal } from "../Modals";
 import { OpenClawDeleteInstanceModal } from "../Modals/OpenClawDeletInstanceModal";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
-import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
-import { SUPPORT_EMAIL } from "../../const";
 
 /**
  * Obtains the main button's label.
@@ -37,7 +37,6 @@ function getButtonLabel(status: OpenClawStatus): ButtonLabel {
     case OpenClawStatus.IDLED:
       return ButtonLabel.REPROVISION;
 
-    case OpenClawStatus.TERMINATING:
     case OpenClawStatus.DELETING:
       return ButtonLabel.DELETING;
 
@@ -61,7 +60,6 @@ function getStatusLabel(status: OpenClawStatus): StatusLabel | undefined {
       return { label: "Idled", color: StatusColor.ORANGE };
     case OpenClawStatus.UNIDLING:
       return { label: "Provisioning", color: StatusColor.BLUE };
-    case OpenClawStatus.TERMINATING:
     case OpenClawStatus.DELETING:
       return { label: "Deleting", color: StatusColor.RED };
     case OpenClawStatus.FAILED:
@@ -94,13 +92,12 @@ export function OpenClawCatalogCard({
   const { trackAnalytics } = useAnalyticsContext();
   const { signupUser, userSignupPhase } = useUserContext();
   const {
-    deleteOpenClaw,
+    clearDeletionError,
+    clearProvisioningError,
+    deleteInstance,
+    deletionError,
     openclawStatus,
     openclawUILink,
-    openClawDeletionErrorDetails,
-    openClawProvisioningErrorDetails,
-    resetOpenClawDeletionErrorDetails,
-    resetOpenClawProvisioningErrorDetails,
     provisioningError,
     startProvisioning,
     unidleInstance,
@@ -128,7 +125,6 @@ export function OpenClawCatalogCard({
     openclawStatus !== OpenClawStatus.NEW &&
     openclawStatus !== OpenClawStatus.DELETING &&
     openclawStatus !== OpenClawStatus.UNIDLING &&
-    openclawStatus !== OpenClawStatus.TERMINATING &&
     openclawStatus !== OpenClawStatus.UNKNOWN;
 
   /**
@@ -195,7 +191,6 @@ export function OpenClawCatalogCard({
         return;
       case OpenClawStatus.READY:
       case OpenClawStatus.PROVISIONING:
-      case OpenClawStatus.TERMINATING:
       default:
         setOpenClawInfoModalOpen(true);
     }
@@ -262,19 +257,19 @@ export function OpenClawCatalogCard({
     setOpenClawBeingDeleted(true);
 
     try {
-      await deleteOpenClaw();
+      await deleteInstance();
     } catch (error) {
       handleOpenClawApiError(
         error,
-        "OpenClaw deletion failed",
-        "An unexpected error occurred while deleting your OpenClaw instance. Please try again later.",
+        "Unable to delete your OpenClaw instance",
+        `We were unable to delete your OpenClaw instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
       );
     } finally {
       openClawDeleteInFlight.current = false;
       setOpenClawBeingDeleted(false);
       setOpenClawDeleteModalOpen(false);
     }
-  }, [deleteOpenClaw, handleOpenClawApiError, openclawStatus]);
+  }, [deleteInstance, handleOpenClawApiError, openclawStatus]);
 
   return (
     <>
@@ -301,17 +296,16 @@ export function OpenClawCatalogCard({
         onClose={() => setOpenClawInfoModalOpen(false)}
         product={product}
         provisioningError={provisioningError}
-        openClawProvisioningErrorDetails={openClawProvisioningErrorDetails}
         onLaunch={markProductAsTried}
-        onProvisioningErrorDismissed={resetOpenClawProvisioningErrorDetails}
+        onProvisioningErrorDismissed={clearProvisioningError}
         onClickProvision={handleOnClickProvision}
       />
 
       <OpenClawDeleteInstanceModal
+        deletionError={deletionError}
         isOpenClawBeingDeleted={isOpenClawBeingDeleted}
         isOpenClawDeleteModalOpen={isOpenClawDeleteModalOpen}
-        onErrorModalClose={resetOpenClawDeletionErrorDetails}
-        openClawDeletionErrorDetails={openClawDeletionErrorDetails}
+        onErrorModalClose={clearDeletionError}
         onDeleteModalClose={() => setOpenClawDeleteModalOpen(false)}
         onDeleteButtonClicked={handleOpenClawDelete}
       />

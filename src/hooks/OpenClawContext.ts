@@ -4,16 +4,20 @@ import type { AddedCredential } from "../utils/openclaw-providers";
 import type { OpenClawStatus } from "../utils/openclaw-utils";
 
 export interface OpenClawContextType {
-  deleteOpenClaw: () => Promise<void>;
+  /** Clears the deletion error. */
+  clearDeletionError: () => void;
+  /** Clears the provisioning error. */
+  clearProvisioningError: () => void;
   /**
-   * Contains the raw error message when deleting the OpenClaw instance fails.
+   * Deletes the OpenClaw instance.
+   * @throws {UserFacingError} if the scheduling of the deletion fails.
    */
-  openClawDeletionErrorDetails: string | null;
+  deleteInstance: () => Promise<void>;
   /**
-   * Contains the raw error message when provisioning the OpenClaw instance
-   * fails.
+   * Contains a user facing error with the appropriate user friendly message,
+   * and the technical details to be coiped if needed.
    */
-  openClawProvisioningErrorDetails: string | null;
+  deletionError: UserFacingError | undefined;
   openclawStatus: OpenClawStatus;
   openclawUILink: string | undefined;
   /**
@@ -21,10 +25,7 @@ export interface OpenClawContextType {
    * and the technical details to be copied if needed.
    */
   provisioningError: UserFacingError | undefined;
-  /** Resets the OpenClaw deletion error details. */
-  resetOpenClawDeletionErrorDetails: () => void;
-  /** Resets the OpenClaw provisioning error details. */
-  resetOpenClawProvisioningErrorDetails: () => void;
+
   /**
    * Starts the provisioning flow for the instance.
    * @param credentials The credentials to be created along the instance.
@@ -37,6 +38,12 @@ export interface OpenClawContextType {
     credentials: AddedCredential[],
     isDevicePairingDisabled?: boolean,
   ) => Promise<void>;
+
+  /**
+   * Unidles the instance.
+   * @throws {UserFacingError} if the unidling process could not be
+   * started.
+   */
   unidleInstance: () => Promise<void>;
 }
 

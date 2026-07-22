@@ -110,22 +110,6 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
     expect(mainButton).toBeDisabled();
   });
 
-  it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is TERMINATING", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.TERMINATING });
-
-    const openclawCard = getOpenClawCard();
-
-    expect(
-      openclawCard.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
-
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Deleting...");
-    expect(mainButton).toBeDisabled();
-  });
-
   it("shows 'Provisioning...' on main button when OpenClaw status is PROVISIONING", () => {
     renderGrid({ openclawStatus: OpenClawStatus.PROVISIONING });
 

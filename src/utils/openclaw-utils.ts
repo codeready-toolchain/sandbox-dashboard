@@ -18,7 +18,6 @@ export enum OpenClawStatus {
   FAILED = "failed",
   IDLED = "idled",
   UNIDLING = "unidling",
-  TERMINATING = "terminating",
   DELETING = "deleting",
 }
 
