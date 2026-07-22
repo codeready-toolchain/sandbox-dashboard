@@ -156,13 +156,6 @@ describe("OpenClawCatalogCard", () => {
     expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
   });
 
-  it("disables button when status is TERMINATING", async () => {
-    renderCard({ openclawStatus: OpenClawStatus.TERMINATING });
-
-    const button = screen.getByTestId("try-it-button");
-    expect(button).toBeDisabled();
-  });
-
   it("opens info modal when status is NEW (provision flow)", async () => {
     renderCard({ openclawStatus: OpenClawStatus.NEW });
 
@@ -285,10 +278,10 @@ describe("OpenClawCatalogCard", () => {
     expect(screen.getByTestId("delete-instance-modal")).toBeInTheDocument();
   });
 
-  it("calls deleteOpenClaw when delete is confirmed", async () => {
-    const deleteOpenClaw = vi.fn().mockResolvedValue(undefined);
+  it("calls deleteInstance when delete is confirmed", async () => {
+    const deleteInstance = vi.fn().mockResolvedValue(undefined);
 
-    renderCard({ openclawStatus: OpenClawStatus.READY, deleteOpenClaw });
+    renderCard({ openclawStatus: OpenClawStatus.READY, deleteInstance });
 
     await userEvent.click(screen.getByTestId("delete-instance-button"));
 
@@ -296,7 +289,7 @@ describe("OpenClawCatalogCard", () => {
     await userEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(deleteOpenClaw).toHaveBeenCalledWith();
+      expect(deleteInstance).toHaveBeenCalledWith();
     });
   });
 

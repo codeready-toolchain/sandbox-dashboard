@@ -1,3 +1,4 @@
+import type { UserFacingError } from "../../error/UserFacingError";
 import { DeleteInstanceModal } from "./DeleteInstanceModal";
 import { ErrorModal } from "./ErrorModal";
 
@@ -6,7 +7,7 @@ import { ErrorModal } from "./ErrorModal";
  */
 export type OpenClawDeleteInstanceModalProps = {
   /** The deletion error details. */
-  openClawDeletionErrorDetails: string | null;
+  deletionError?: UserFacingError;
   /** Signals if OpenClaw is currently being deleted. */
   isOpenClawBeingDeleted: boolean;
   /** SIgnals if the delete modal should be open. */
@@ -23,21 +24,21 @@ export type OpenClawDeleteInstanceModalProps = {
  * A deletion instance modal or an error one if there is any to report.
  */
 export function OpenClawDeleteInstanceModal({
+  deletionError,
   isOpenClawBeingDeleted,
   isOpenClawDeleteModalOpen,
-  openClawDeletionErrorDetails,
   onDeleteButtonClicked,
   onErrorModalClose,
   onDeleteModalClose,
 }: OpenClawDeleteInstanceModalProps) {
-  if (openClawDeletionErrorDetails) {
+  if (deletionError) {
     return (
       <ErrorModal
         headerTitle="Delete OpenClaw instance"
         productName="OpenClaw"
-        alertTitle="Unable to delete your OpenClaw instance"
-        alertText="An error occurred while deleting your OpenClaw instance."
-        copyableTechnicalDetails={openClawDeletionErrorDetails}
+        alertTitle={deletionError.title}
+        alertText={deletionError.detail}
+        copyableTechnicalDetails={deletionError.technicalDetails}
         isErrorModalOpen
         onErrorModalClose={onErrorModalClose}
       />

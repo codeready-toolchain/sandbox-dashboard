@@ -5,13 +5,12 @@ export function makeOpenClawContext(
   overrides: Partial<OpenClawContextType> = {},
 ): OpenClawContextType {
   return {
-    openClawDeletionErrorDetails: null,
-    resetOpenClawDeletionErrorDetails: vi.fn(),
-    openClawProvisioningErrorDetails: null,
-    resetOpenClawProvisioningErrorDetails: vi.fn(),
+    clearDeletionError: vi.fn(),
+    clearProvisioningError: vi.fn(),
+    deleteInstance: vi.fn().mockResolvedValue(undefined),
+    deletionError: undefined,
     openclawStatus: OpenClawStatus.NEW,
     openclawUILink: undefined,
-    deleteOpenClaw: vi.fn().mockResolvedValue(undefined),
     provisioningError: undefined,
     startProvisioning: vi.fn().mockResolvedValue(undefined),
     unidleInstance: vi.fn().mockResolvedValue(undefined),

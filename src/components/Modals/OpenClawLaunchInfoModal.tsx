@@ -29,22 +29,20 @@ type OpenClawLaunchInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
   product: Product;
-  openClawProvisioningErrorDetails: string | null;
+  provisioningError?: UserFacingError;
   onLaunch: (product: Product) => void;
   onProvisioningErrorDismissed: () => void;
   onClickProvision: (credentials: AddedCredential[]) => Promise<void>;
-  provisioningError?: UserFacingError;
 };
 
 export function OpenClawLaunchInfoModal({
   isOpen,
   onClose,
   product,
-  openClawProvisioningErrorDetails,
+  provisioningError,
   onLaunch,
   onProvisioningErrorDismissed,
   onClickProvision,
-  provisioningError,
 }: OpenClawLaunchInfoModalProps) {
   const { openclawStatus, openclawUILink } = useOpenClawContext();
 
@@ -86,7 +84,8 @@ export function OpenClawLaunchInfoModal({
     }
   };
 
-  // Show an error modal if any error has occurred during provisioning.
+  // Show an error modal if any error has occurred during the provisioning or
+  // the unidling of the instance.
   if (provisioningError) {
     return (
       <ErrorModal
@@ -95,25 +94,6 @@ export function OpenClawLaunchInfoModal({
         alertTitle={provisioningError.title}
         alertText={provisioningError.detail}
         copyableTechnicalDetails={provisioningError.technicalDetails}
-        isErrorModalOpen
-        onErrorModalClose={() => {
-          onProvisioningErrorDismissed();
-          handleClose();
-        }}
-      />
-    );
-  }
-
-  // Show an error modal if any error has occurred during unidling or
-  // resolving the status of the instance.
-  if (openClawProvisioningErrorDetails) {
-    return (
-      <ErrorModal
-        headerTitle="Provision OpenClaw instance"
-        productName="OpenClaw"
-        alertTitle="Unable to provision your OpenClaw instance"
-        alertText="An error occurred while provisioning your OpenClaw instance."
-        copyableTechnicalDetails={openClawProvisioningErrorDetails}
         isErrorModalOpen
         onErrorModalClose={() => {
           onProvisioningErrorDismissed();
@@ -184,37 +164,6 @@ export function OpenClawLaunchInfoModal({
               Launch
             </Button>
           )}
-        </ModalFooter>
-      </Modal>
-    );
-  }
-
-  if (openclawStatus === OpenClawStatus.TERMINATING) {
-    return (
-      <Modal
-        isOpen={isOpen}
-        onClose={handleClose}
-        aria-label="Cleaning up previous OpenClaw instance"
-        variant="medium"
-        data-testid="openclaw-launch-modal"
-      >
-        <ModalHeader title="Cleaning up previous OpenClaw instance" />
-        <ModalBody>
-          <Content component="p" style={{ marginBottom: "24px" }}>
-            Waiting for the previous instance to be fully removed before
-            provisioning a new one.
-          </Content>
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <Spinner size="xl" />
-          </div>
-          <Alert variant="info" isInline title="You can close this modal">
-            Follow the status of your instance on the OpenClaw sandbox card.
-          </Alert>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="link" onClick={handleClose}>
-            Close
-          </Button>
         </ModalFooter>
       </Modal>
     );

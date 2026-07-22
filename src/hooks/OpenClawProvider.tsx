@@ -24,7 +24,6 @@ import { ApiError } from "../error/ApiError";
 import { ProvisioningError } from "../error/ProvisioningError";
 import { UserFacingError } from "../error/UserFacingError";
 import type { OpenClawCR, StatusCondition } from "../types";
-import { errorMessage } from "../utils/common";
 import logger from "../utils/logger";
 import type { AddedCredential } from "../utils/openclaw-providers";
 import {
@@ -83,15 +82,14 @@ export function OpenClawProviderNoop({ children }: { children: ReactNode }) {
   return (
     <OpenClawContext.Provider
       value={{
-        deleteOpenClaw: async () =>
+        clearDeletionError: () => {},
+        clearProvisioningError: () => {},
+        deleteInstance: async () =>
           Promise.reject(new Error("User not signed up")),
-        openClawDeletionErrorDetails: null,
-        openClawProvisioningErrorDetails: null,
+        deletionError: undefined,
         openclawStatus: OpenClawStatus.USER_NOT_READY,
         openclawUILink: undefined,
         provisioningError: undefined,
-        resetOpenClawDeletionErrorDetails: () => {},
-        resetOpenClawProvisioningErrorDetails: () => {},
         startProvisioning: async (): Promise<void> => {},
         unidleInstance: async (): Promise<void> => {},
       }}
@@ -139,15 +137,12 @@ export function OpenClawProviderConnected({
 
   const [status, setStatus] = useState<OpenClawStatus>(OpenClawStatus.NEW);
   const [openclawUILink, setOpenclawUILink] = useState<string | undefined>();
-  const [openClawDeletionErrorDetails, setOpenClawDeletionErrorDetails] =
-    useState<string | null>(null);
+  const [deletionError, setDeletionError] = useState<
+    UserFacingError | undefined
+  >();
   const [provisioningError, setProvisioningError] = useState<
     UserFacingError | undefined
   >();
-  const [
-    openClawProvisioningErrorDetails,
-    setOpenClawProvisioningErrorDetails,
-  ] = useState<string | null>(null);
 
   /**
    * Defines how many times we are going to retry fetching for the instance's
@@ -215,7 +210,8 @@ export function OpenClawProviderConnected({
             instanceCRRef.current = undefined;
             updateInstanceStatus(OpenClawStatus.NEW);
             setOpenclawUILink(undefined);
-            setOpenClawProvisioningErrorDetails(null);
+            setProvisioningError(undefined);
+            setDeletionError(undefined);
             return;
           }
 
@@ -225,7 +221,7 @@ export function OpenClawProviderConnected({
 
         if (isSpaceRequestTerminating(sr)) {
           if (deletingOpenClaw.current) return;
-          updateInstanceStatus(OpenClawStatus.TERMINATING);
+          updateInstanceStatus(OpenClawStatus.DELETING);
           return;
         }
 
@@ -250,10 +246,17 @@ export function OpenClawProviderConnected({
         const st = mapOpenClawStatus(data, (conditionMessage) => {
           logger.error("OpenClaw CR reported failure:", conditionMessage);
           conditionFailed = true;
-          setOpenClawProvisioningErrorDetails(errorMessage(conditionMessage));
+          setProvisioningError(
+            new UserFacingError(
+              "Unable to provision your OpenClaw instance",
+              `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact "${SUPPORT_EMAIL}".`,
+              undefined,
+              `The OpenClaw CR reported a failure: ${conditionMessage}`,
+            ),
+          );
         });
         if (!conditionFailed) {
-          setOpenClawProvisioningErrorDetails(null);
+          setProvisioningError(undefined);
         }
         updateInstanceStatus(st);
         if (st === OpenClawStatus.PROVISIONING) {
@@ -285,9 +288,23 @@ export function OpenClawProviderConnected({
           "Unable to fetch OpenClaw instance status",
         );
         if (deletingOpenClaw.current) {
-          setOpenClawDeletionErrorDetails(detail);
+          setDeletionError(
+            new UserFacingError(
+              "Unable to delete your OpenClaw instance",
+              `We were unable to delete your OpenClaw instance. Please try again later, and if the issue persists, please contact "${SUPPORT_EMAIL}".`,
+              e,
+              detail,
+            ),
+          );
         } else {
-          setOpenClawProvisioningErrorDetails(detail);
+          setProvisioningError(
+            new UserFacingError(
+              "Unable to provision your OpenClaw instance",
+              `We were unable to provision your OpenClaw instance. Please try again later, and if the issue persists, please contact "${SUPPORT_EMAIL}".`,
+              e,
+              detail,
+            ),
+          );
         }
       }
     },
@@ -512,13 +529,18 @@ export function OpenClawProviderConnected({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proxyURL, userNamespace]);
 
-  const resetOpenClawDeletionErrorDetails = useCallback((): void => {
-    setOpenClawDeletionErrorDetails(null);
+  /**
+   * Clears the deletion error.
+   */
+  const clearDeletionError = useCallback((): void => {
+    setDeletionError(undefined);
     getOpenClawData(userNamespace);
   }, [getOpenClawData, userNamespace]);
 
-  const resetOpenClawProvisioningErrorDetails = useCallback((): void => {
-    setOpenClawProvisioningErrorDetails(null);
+  /**
+   * Clears the provisioning error.
+   */
+  const clearProvisioningError = useCallback((): void => {
     setProvisioningError(undefined);
     getOpenClawData(userNamespace);
   }, [getOpenClawData, userNamespace]);
@@ -561,13 +583,13 @@ export function OpenClawProviderConnected({
    * @param userNamespace the user namespace to delete OpenClaw from.
    * @throws {UserFacingError} if the deletion of any of the resources fail.
    */
-  const deleteOpenClaw = useCallback(async () => {
+  const deleteInstance = useCallback(async () => {
     const previousUILink = openclawUILink;
 
     deletingOpenClaw.current = true;
     updateInstanceStatus(OpenClawStatus.DELETING);
     setOpenclawUILink(undefined);
-    setOpenClawDeletionErrorDetails(null);
+    setDeletionError(undefined);
 
     // Delete the OpenClaw resource and all of its related resources. Any
     // errors are caught by "allSettled".
@@ -581,30 +603,33 @@ export function OpenClawProviderConnected({
 
     // Prepare an error structure to make it easy to copy for the users in
     // case they seek support.
-    const deletionError = AggregatedOperationError.fromSettledResults(
+    const aggregatedError = AggregatedOperationError.fromSettledResults(
       "OpenClaw",
       ["Delete CR", "Delete SpaceRequest", "Cleanup workspace"],
       results,
     );
 
-    if (deletionError) {
+    if (aggregatedError) {
       deletingOpenClaw.current = false;
       updateInstanceStatus(OpenClawStatus.FAILED);
       setOpenclawUILink(previousUILink);
-      setOpenClawDeletionErrorDetails(deletionError.toString());
-      return;
+      const error = new UserFacingError(
+        "Unable to delete your OpenClaw instance",
+        `We have been unable to delete your OpenClaw instance. Please try again later, and if the issue persists, contact "${SUPPORT_EMAIL}".`,
+        aggregatedError.cause,
+        aggregatedError.toString(),
+      );
+      setDeletionError(error);
+      throw error;
     }
 
     openClawNamespaceRef.current = undefined;
     instanceCRRef.current = undefined;
   }, [openclawUILink, proxyURL, updateInstanceStatus, userNamespace]);
 
-  // Poll OpenClaw status during provisioning/terminating/deleting
+  // Poll OpenClaw status during deleting
   useEffect(() => {
-    if (
-      status === OpenClawStatus.TERMINATING ||
-      status === OpenClawStatus.DELETING
-    ) {
+    if (status === OpenClawStatus.DELETING) {
       const handle = setInterval(
         () => getOpenClawData(userNamespace),
         SHORT_INTERVAL,
@@ -813,26 +838,24 @@ export function OpenClawProviderConnected({
   // function changes.
   const contextValue = useMemo(
     () => ({
-      deleteOpenClaw,
-      openClawDeletionErrorDetails,
-      openClawProvisioningErrorDetails,
+      clearDeletionError,
+      clearProvisioningError,
+      deleteInstance,
+      deletionError,
       openclawStatus: status,
       openclawUILink,
       provisioningError,
-      resetOpenClawDeletionErrorDetails,
-      resetOpenClawProvisioningErrorDetails,
       startProvisioning,
       unidleInstance,
     }),
     [
-      deleteOpenClaw,
-      openClawDeletionErrorDetails,
-      openClawProvisioningErrorDetails,
+      clearDeletionError,
+      clearProvisioningError,
+      deleteInstance,
+      deletionError,
       status,
       openclawUILink,
       provisioningError,
-      resetOpenClawDeletionErrorDetails,
-      resetOpenClawProvisioningErrorDetails,
       startProvisioning,
       unidleInstance,
     ],
