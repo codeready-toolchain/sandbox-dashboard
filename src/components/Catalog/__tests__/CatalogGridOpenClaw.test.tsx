@@ -85,7 +85,7 @@ function getOpenClawCard(): HTMLElement {
 
 describe("CatalogGrid – OpenClaw card rendering", () => {
   it("does not show delete button when OpenClaw status is UNKNOWN", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.UNKNOWN });
+    renderGrid({ status: OpenClawStatus.UNKNOWN });
 
     const openclawCard = getOpenClawCard();
     expect(
@@ -94,7 +94,7 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   });
 
   it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is DELETING", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.DELETING });
+    renderGrid({ status: OpenClawStatus.DELETING });
 
     const openclawCard = getOpenClawCard();
 
@@ -111,7 +111,7 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   });
 
   it("shows 'Provisioning...' on main button when OpenClaw status is PROVISIONING", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.PROVISIONING });
+    renderGrid({ status: OpenClawStatus.PROVISIONING });
 
     const openclawCard = getOpenClawCard();
 
@@ -122,7 +122,7 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   });
 
   it("renders 'Ready' status label on OpenClaw card when status is READY", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.READY });
+    renderGrid({ status: OpenClawStatus.READY });
 
     const openclawCard = getOpenClawCard();
     expect(openclawCard.textContent).toContain("Ready");
@@ -134,7 +134,7 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   });
 
   it("renders 'Idled' status label on OpenClaw card when status is IDLED", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.IDLED });
+    renderGrid({ status: OpenClawStatus.IDLED });
 
     const openclawCard = getOpenClawCard();
     expect(openclawCard.textContent).toContain("Idled");
@@ -146,7 +146,7 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   });
 
   it("renders 'Failed' status label and 'Provision' button on OpenClaw card when status is FAILED", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.FAILED });
+    renderGrid({ status: OpenClawStatus.FAILED });
 
     const openclawCard = getOpenClawCard();
     expect(openclawCard.textContent).toContain("Failed");
@@ -163,14 +163,14 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   });
 
   it("renders 'Deleting' status label on OpenClaw card when status is DELETING", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.DELETING });
+    renderGrid({ status: OpenClawStatus.DELETING });
 
     const openclawCard = getOpenClawCard();
     expect(openclawCard.textContent).toContain("Deleting");
   });
 
   it("does not disable the main button when OpenClaw status is PROVISIONING", () => {
-    renderGrid({ openclawStatus: OpenClawStatus.PROVISIONING });
+    renderGrid({ status: OpenClawStatus.PROVISIONING });
 
     const openclawCard = getOpenClawCard();
 

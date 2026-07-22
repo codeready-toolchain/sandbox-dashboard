@@ -11,6 +11,7 @@ import { anyConditionMatches } from "./condition-utils";
 
 export enum OpenClawStatus {
   USER_NOT_READY = "userNotReady",
+  INITIAL_FETCH_FAILED = "initialFetchFailed",
   NEW = "new",
   PROVISIONING = "provisioning",
   UNKNOWN = "unknown",
@@ -21,43 +22,47 @@ export enum OpenClawStatus {
   DELETING = "deleting",
 }
 
+/**
+ * Interprets the status of the given CR.
+ * @param cr the CR to map the status from.
+ * @returns the status the CR is in, and potentially the failing condition if
+ * the instance happens to be in a failing state.
+ */
 export const mapOpenClawStatus = (
-  data: OpenClawCR | undefined,
-  handleCondition: (errorCondition: StatusCondition) => void,
-): OpenClawStatus => {
-  if (!data) {
-    return OpenClawStatus.NEW;
+  cr: OpenClawCR | undefined,
+): [OpenClawStatus, StatusCondition | undefined] => {
+  if (!cr) {
+    return [OpenClawStatus.NEW, undefined];
   }
 
-  if (data.spec?.idle) {
-    return OpenClawStatus.IDLED;
+  if (cr.spec?.idle) {
+    return [OpenClawStatus.IDLED, undefined];
   }
 
-  const conditions = data.status?.conditions;
+  const conditions = cr.status?.conditions;
   if (!conditions?.length) {
-    if (data.metadata?.creationTimestamp) {
-      return OpenClawStatus.PROVISIONING;
+    if (cr.metadata?.creationTimestamp) {
+      return [OpenClawStatus.PROVISIONING, undefined];
     }
-    return OpenClawStatus.NEW;
+    return [OpenClawStatus.NEW, undefined];
   }
 
   const isSuccessful = anyConditionMatches("Successful", "True", conditions);
   if (isSuccessful) {
-    return OpenClawStatus.READY;
+    return [OpenClawStatus.READY, undefined];
   }
 
   const hasFailed = anyConditionMatches("Failure", "True", conditions);
   if (hasFailed) {
-    handleCondition(hasFailed);
-    return OpenClawStatus.FAILED;
+    return [OpenClawStatus.FAILED, hasFailed];
   }
 
   const isProvisioning = anyConditionMatches("Ready", "False", conditions);
   if (isProvisioning && isProvisioning?.reason === "Provisioning") {
-    return OpenClawStatus.PROVISIONING;
+    return [OpenClawStatus.PROVISIONING, undefined];
   }
 
-  return OpenClawStatus.UNKNOWN;
+  return [OpenClawStatus.UNKNOWN, undefined];
 };
 
 export const newSpaceRequestObject = (namespace: string): string =>
@@ -82,8 +87,14 @@ export const isSpaceRequestTerminating = (
   if (!sr?.status?.conditions) {
     return false;
   }
-  const notReady = anyConditionMatches("Ready", "False", sr.status.conditions);
-  return !!notReady && notReady?.reason === "Terminating";
+  const terminating = anyConditionMatches(
+    "Ready",
+    "False",
+    sr.status.conditions,
+    "Terminating",
+  );
+
+  return !!terminating;
 };
 
 export const isSpaceRequestReady = (

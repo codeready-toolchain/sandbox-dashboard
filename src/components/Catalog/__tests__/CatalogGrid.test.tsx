@@ -155,7 +155,7 @@ describe("CatalogGrid", () => {
     renderGrid(
       makeContext(),
       { instanceStatus: { kind: "ready" } },
-      { openclawStatus: OpenClawStatus.READY },
+      { status: OpenClawStatus.READY },
     );
 
     const { card: openshiftCard, tryItButton: mainButton } =

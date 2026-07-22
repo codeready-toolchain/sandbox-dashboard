@@ -44,20 +44,19 @@ export function OpenClawLaunchInfoModal({
   onProvisioningErrorDismissed,
   onClickProvision,
 }: OpenClawLaunchInfoModalProps) {
-  const { openclawStatus, openclawUILink } = useOpenClawContext();
+  const { status, uiURL } = useOpenClawContext();
 
   const accordionRef = useRef<CredentialAccordionRef>(null);
-  const [previousStatus, setPreviousStatus] =
-    useState<OpenClawStatus>(openclawStatus);
+  const [previousStatus, setPreviousStatus] = useState<OpenClawStatus>(status);
   const [credentialCount, setCredentialCount] = useState(0);
   const [accordionKey, setAccordionKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset the form in case that the status of the instance changes to
   // "failed".
-  if (previousStatus !== openclawStatus) {
-    setPreviousStatus(openclawStatus);
-    if (openclawStatus === OpenClawStatus.FAILED) {
+  if (previousStatus !== status) {
+    setPreviousStatus(status);
+    if (status === OpenClawStatus.FAILED) {
       setCredentialCount(0);
       setAccordionKey((k) => k + 1);
     }
@@ -103,7 +102,7 @@ export function OpenClawLaunchInfoModal({
     );
   }
 
-  if (openclawStatus === OpenClawStatus.READY) {
+  if (status === OpenClawStatus.READY) {
     return (
       <Modal
         isOpen={isOpen}
@@ -138,11 +137,11 @@ export function OpenClawLaunchInfoModal({
           </Content>
         </ModalBody>
         <ModalFooter>
-          {openclawUILink ? (
+          {uiURL ? (
             <Button
               variant="primary"
               component="a"
-              href={openclawUILink}
+              href={uiURL}
               target="_blank"
               rel="noopener noreferrer"
               icon={<ExternalLinkAltIcon />}
@@ -170,11 +169,11 @@ export function OpenClawLaunchInfoModal({
   }
 
   if (
-    openclawStatus === OpenClawStatus.PROVISIONING ||
-    openclawStatus === OpenClawStatus.UNIDLING
+    status === OpenClawStatus.PROVISIONING ||
+    status === OpenClawStatus.UNIDLING
   ) {
     const verb =
-      openclawStatus === OpenClawStatus.PROVISIONING
+      status === OpenClawStatus.PROVISIONING
         ? "Provisioning"
         : "Reprovisioning";
 
