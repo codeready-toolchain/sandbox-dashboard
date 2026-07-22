@@ -8,6 +8,16 @@ import {
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { CatalogFooter } from "../CatalogFooter";
 
+vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
+  RhIcon: { resolve: vi.fn() },
+}));
+
+vi.mock("@rhds/icons/social/linkedin.js", () => ({ default: null }));
+vi.mock("@rhds/icons/social/youtube.js", () => ({ default: null }));
+vi.mock("@rhds/icons/social/facebook.js", () => ({ default: null }));
+vi.mock("@rhds/icons/social/x.js", () => ({ default: null }));
+vi.mock("@rhds/icons/ui/arrow-right.js", () => ({ default: null }));
+
 vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
   Footer: (
     props: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>,
