@@ -61,7 +61,7 @@ export const openClawIdledFixture: OpenClawCR = {
   status: {
     conditions: [
       {
-        type: "Successful",
+        type: "Ready",
         status: "True",
         reason: "Provisioned",
         message: "",
@@ -82,7 +82,7 @@ export const openClawFixture: OpenClawCR = {
   status: {
     conditions: [
       {
-        type: "Successful",
+        type: "Ready",
         status: "True",
         reason: "Provisioned",
         message: "",

@@ -1173,7 +1173,7 @@ describe("OpenClawProvider", () => {
         status: {
           conditions: [
             {
-              type: "Successful",
+              type: "Ready",
               status: "True",
               reason: "Provisioned",
               message: "",

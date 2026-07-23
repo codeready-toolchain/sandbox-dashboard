@@ -47,8 +47,8 @@ export const mapOpenClawStatus = (
     return [OpenClawStatus.NEW, undefined];
   }
 
-  const isSuccessful = anyConditionMatches("Successful", "True", conditions);
-  if (isSuccessful) {
+  const isReady = anyConditionMatches("Ready", "True", conditions);
+  if (isReady) {
     return [OpenClawStatus.READY, undefined];
   }
 
