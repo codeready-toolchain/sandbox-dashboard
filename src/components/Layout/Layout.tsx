@@ -19,14 +19,14 @@ import {
   ToolbarGroup,
   ToolbarItem,
 } from "@patternfly/react-core";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import { useAuth } from "../../auth/useAuth";
-import { Environment, getConfig } from "../../config/config";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { WorkspaceResetModal } from "../Modals";
 import "./Layout.css";
+import { PageFooter } from "./PageFooter";
 
 export function Layout() {
   const { logout } = useAuth();
@@ -36,30 +36,6 @@ export function Layout() {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
-
-  useEffect(() => {
-    let isProd: boolean;
-    try {
-      isProd = getConfig().environment === Environment.PRODUCTION;
-    } catch {
-      return;
-    }
-    if (!isProd) return;
-
-    if (!document.getElementById("trustarc")) {
-      const script = document.createElement("script");
-      script.id = "trustarc";
-      script.src =
-        "//static.redhat.com/libs/redhat/marketing/latest/trustarc/trustarc.js";
-      document.body.appendChild(script);
-    }
-    if (!document.getElementById("dpal")) {
-      const script = document.createElement("script");
-      script.id = "dpal";
-      script.src = "https://www.redhat.com/ma/dpal.js";
-      document.body.appendChild(script);
-    }
-  }, []);
 
   const displayName =
     user?.givenName && user?.familyName
@@ -158,12 +134,9 @@ export function Layout() {
 
   return (
     <Page masthead={masthead}>
-      <PageSection
-        hasBodyWrapper={false}
-        isFilled
-        padding={{ default: "noPadding" }}
-      >
+      <PageSection hasBodyWrapper={false} padding={{ default: "noPadding" }}>
         <Outlet />
+        <PageFooter />
       </PageSection>
       <WorkspaceResetModal
         isOpen={isResetModalOpen}

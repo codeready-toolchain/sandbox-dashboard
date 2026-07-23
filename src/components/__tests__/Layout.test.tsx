@@ -12,6 +12,43 @@ import {
   type UserContextType,
 } from "../../hooks/UserContext";
 import { readyUserFixture } from "../../mocks/fixtures";
+import React from "react";
+
+vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
+  RhIcon: { resolve: vi.fn() },
+}));
+
+vi.mock("@rhds/icons/social/linkedin.js", () => ({ default: null }));
+vi.mock("@rhds/icons/social/youtube.js", () => ({ default: null }));
+vi.mock("@rhds/icons/social/facebook.js", () => ({ default: null }));
+vi.mock("@rhds/icons/social/x.js", () => ({ default: null }));
+vi.mock("@rhds/icons/ui/arrow-right.js", () => ({ default: null }));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
+  Footer: (
+    props: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>,
+  ) =>
+    React.createElement("div", {
+      ...props,
+      "data-testid":
+        (props as Record<string, unknown>)["data-testid"] ?? "rh-footer",
+    }),
+}));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer-block.js", () => ({
+  FooterBlock: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-footer/rh-footer-social-link.js", () => ({
+  FooterSocialLink: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
+
+vi.mock("@rhds/elements/react/rh-cta/rh-cta.js", () => ({
+  Cta: (props: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement("div", props),
+}));
 
 const mockLogout = vi.fn();
 

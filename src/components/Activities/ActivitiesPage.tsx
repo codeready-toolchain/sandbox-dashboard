@@ -1,5 +1,4 @@
 import { Grid, GridItem } from "@patternfly/react-core";
-import { CatalogFooter } from "../Catalog/CatalogFooter";
 import { ActivitiesCard } from "./ActivitiesCard";
 import { articleData, type Article } from "./articleData";
 
@@ -15,7 +14,6 @@ export function ActivitiesPage() {
           ))}
         </Grid>
       </div>
-      <CatalogFooter />
     </>
   );
 }

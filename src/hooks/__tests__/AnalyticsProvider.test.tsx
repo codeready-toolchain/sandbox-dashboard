@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnalyticsBrowser } from "@segment/analytics-next";
 import { http, HttpResponse } from "msw";
@@ -467,6 +467,91 @@ describe("AnalyticsProvider", () => {
     expect(marketoCalls).toHaveLength(0);
 
     fetchSpy.mockRestore();
+  });
+});
+
+describe("AnalyticsProvider consent revocation", () => {
+  it("tears down Segment and blocks events after consent is revoked", async () => {
+    const mockTrack = vi.fn();
+    const mockReset = vi.fn();
+    (AnalyticsBrowser.load as ReturnType<typeof vi.fn>).mockReturnValue({
+      track: mockTrack,
+      identify: vi.fn(),
+      group: vi.fn(),
+      reset: mockReset,
+    });
+
+    server.use(
+      http.get(
+        "https://registration.example.com/api/v1/analytics/segment-write-key",
+        () => HttpResponse.text("key-revoke-test"),
+      ),
+    );
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(AnalyticsBrowser.load).toHaveBeenCalled();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("track-catalog"));
+    expect(mockTrack).toHaveBeenCalledTimes(1);
+
+    // Revoke consent: clear cookie and fire postMessage to trigger listener.
+    document.cookie =
+      "cmapi_cookie_privacy=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    window.dispatchEvent(new MessageEvent("message"));
+
+    await waitFor(() => {
+      expect(mockReset).toHaveBeenCalled();
+    });
+
+    // Events should be blocked after revocation.
+    mockTrack.mockClear();
+    await user.click(screen.getByTestId("track-catalog"));
+    expect(mockTrack).not.toHaveBeenCalled();
+  });
+
+  it("does not initialize Segment if consent is revoked during key retrieval", async () => {
+    let resolveKey: (value: string) => void;
+    const keyPromise = new Promise<string>((r) => {
+      resolveKey = r;
+    });
+
+    server.use(
+      http.get(
+        "https://registration.example.com/api/v1/analytics/segment-write-key",
+        async () => {
+          const key = await keyPromise;
+          return HttpResponse.text(key);
+        },
+      ),
+    );
+
+    (AnalyticsBrowser.load as ReturnType<typeof vi.fn>).mockReturnValue({
+      track: vi.fn(),
+      identify: vi.fn(),
+      group: vi.fn(),
+      reset: vi.fn(),
+    });
+
+    renderProvider();
+
+    // Revoke consent while the key fetch is still in-flight.
+    await act(async () => {
+      document.cookie =
+        "cmapi_cookie_privacy=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      window.dispatchEvent(new MessageEvent("message"));
+    });
+
+    // Now let the key arrive after consent is already revoked.
+    await act(async () => {
+      resolveKey!("late-key");
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(AnalyticsBrowser.load).not.toHaveBeenCalled();
   });
 });
 
