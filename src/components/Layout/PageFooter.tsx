@@ -71,7 +71,7 @@ function CookieConsentElement() {
   return <li ref={consentRef} />;
 }
 
-export function CatalogFooter() {
+export function PageFooter() {
   return (
     <>
       <Footer data-testid="rh-footer">

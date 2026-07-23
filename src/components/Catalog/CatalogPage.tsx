@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useUserContext } from "../../hooks/UserContext";
 import { AccessCodeInputModal } from "../Modals";
 import { CatalogBanner } from "./CatalogBanner";
-import { CatalogFooter } from "./CatalogFooter";
 import { CatalogGrid } from "./CatalogGrid";
 
 export function CatalogPage() {
@@ -39,7 +38,6 @@ export function CatalogPage() {
         </Content>
         <div id="consent_blackbar" />
       </div>
-      <CatalogFooter />
       <AccessCodeInputModal
         isOpen={isAccessCodeModalOpen}
         onClose={() => setIsAccessCodeModalOpen(false)}

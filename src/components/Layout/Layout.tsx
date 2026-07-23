@@ -27,6 +27,7 @@ import { Environment, getConfig } from "../../config/config";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { WorkspaceResetModal } from "../Modals";
 import "./Layout.css";
+import { PageFooter } from "./PageFooter";
 
 export function Layout() {
   const { logout } = useAuth();
@@ -158,12 +159,9 @@ export function Layout() {
 
   return (
     <Page masthead={masthead}>
-      <PageSection
-        hasBodyWrapper={false}
-        isFilled
-        padding={{ default: "noPadding" }}
-      >
+      <PageSection hasBodyWrapper={false} padding={{ default: "noPadding" }}>
         <Outlet />
+        <PageFooter />
       </PageSection>
       <WorkspaceResetModal
         isOpen={isResetModalOpen}

@@ -4,9 +4,9 @@ import {
   UserContext,
   UserSignupPhase,
   type UserContextType,
-} from "../../../hooks/UserContext";
-import { readyUserFixture } from "../../../mocks/fixtures";
-import { CatalogFooter } from "../CatalogFooter";
+} from "../../hooks/UserContext";
+import { readyUserFixture } from "../../mocks/fixtures";
+import { PageFooter } from "../Layout/PageFooter";
 
 vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
   RhIcon: { resolve: vi.fn() },
@@ -59,7 +59,7 @@ function makeSandboxContext(
 function renderFooter() {
   return render(
     <UserContext.Provider value={makeSandboxContext()}>
-      <CatalogFooter />
+      <PageFooter />
     </UserContext.Provider>,
   );
 }
