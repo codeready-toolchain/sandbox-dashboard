@@ -36,7 +36,6 @@ export function CatalogPage() {
             Click here
           </Button>
         </Content>
-        <div id="consent_blackbar" />
       </div>
       <AccessCodeInputModal
         isOpen={isAccessCodeModalOpen}

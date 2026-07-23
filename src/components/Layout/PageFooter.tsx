@@ -11,8 +11,9 @@ import iconLinkedin from "@rhds/icons/social/linkedin.js";
 import iconX from "@rhds/icons/social/x.js";
 import iconYoutube from "@rhds/icons/social/youtube.js";
 import iconArrowRight from "@rhds/icons/ui/arrow-right.js";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import RedHatLogo from "../../assets/logos/red_hat_logo_on_dark.svg";
+import { Environment, getConfig } from "../../config/config";
 
 // Pre-bundled icons needed by rh-footer-social-link and rh-cta. We specify
 // here so that Vite bundles them and so that we can access them when
@@ -47,33 +48,43 @@ RhIcon.resolve = (set: string, icon: string) => {
   throw new Error(`rh-icon: no icon "${icon}" registered in set "${set}"`);
 };
 
-let trustArcElement: HTMLSpanElement | null = null;
-
-const createTrustArcElement = () => {
-  if (!trustArcElement) {
-    trustArcElement = document.createElement("span");
-    trustArcElement.id = "teconsent";
-    trustArcElement.style.display = "none";
-  }
-  return trustArcElement;
-};
-
+/**
+ * Loads the TrustArc "cookie preferences" script and renders the anchor
+ * element that TrustArc populates with a preferences link. The script is
+ * only injected in stage and production environments.
+ */
 function CookieConsentElement() {
-  const consentRef = useRef<HTMLLIElement>(null);
-
   useEffect(() => {
-    const spanElement = createTrustArcElement();
-    if (consentRef.current && !consentRef.current.contains(spanElement)) {
-      consentRef.current.appendChild(spanElement);
+    let environment: Environment;
+    try {
+      environment = getConfig().environment;
+    } catch {
+      return;
     }
-  });
 
-  return <li ref={consentRef} />;
+    if (
+      environment !== Environment.STAGE &&
+      environment !== Environment.PRODUCTION
+    ) {
+      return;
+    }
+
+    if (!document.getElementById("trustarc")) {
+      const script = document.createElement("script");
+      script.id = "trustarc";
+      script.src =
+        "//static.redhat.com/libs/redhat/marketing/latest/trustarc/trustarc.js";
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  return <li id="teconsent" />;
 }
 
 export function PageFooter() {
   return (
     <>
+      <div id="consent_blackbar" />
       <Footer data-testid="rh-footer">
         <a slot="logo" href="https://redhat.com/en">
           <img alt="Red Hat logo" src={RedHatLogo} loading="lazy" />

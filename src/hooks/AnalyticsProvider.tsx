@@ -43,35 +43,93 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   // Listen for TrustArc consent changes (fires postMessage on decision).
   useEffect(() => {
-    if (!isProd || consentGranted) return;
+    if (!isProd) return;
 
     const checkConsent = () => {
-      if (hasAnalyticsConsent()) {
-        setConsentGranted(true);
-      }
+      const granted = hasAnalyticsConsent();
+      setConsentGranted((prev) => (prev !== granted ? granted : prev));
     };
 
     window.addEventListener("message", checkConsent);
     return () => window.removeEventListener("message", checkConsent);
-  }, [isProd, consentGranted]);
+  }, [isProd]);
+
+  // Include the Adobe Analytics in the page if we have permission for it.
+  useEffect(() => {
+    // Is the consent revoked or not granted? Invoke the Adobe Analyitics
+    // teardown and attempt removing the script.
+    if (!consentGranted) {
+      // Adobe Analytics global tracker, injected at runtime by dpal.js.
+      const s = window.s;
+      if (s) {
+        s.abort = true;
+      }
+
+      const existing = document.getElementById("dpal");
+      if (existing) {
+        existing.remove();
+      }
+      return;
+    }
+
+    // Guard to avoid injecting it twice, just in case.
+    if (document.getElementById("dpal")) return;
+
+    const script = document.createElement("script");
+    script.id = "dpal";
+    script.src = "https://www.redhat.com/ma/dpal.js";
+    document.body.appendChild(script);
+
+    return () => {
+      const s = window.s;
+      if (s) {
+        s.abort = true;
+      }
+      const el = document.getElementById("dpal");
+      if (el) {
+        el.remove();
+      }
+    };
+  }, [consentGranted]);
+
+  // Tear down Segment when consent is revoked.
+  useEffect(() => {
+    if (consentGranted) return;
+    if (analyticsRef.current) {
+      analyticsRef.current.reset();
+      analyticsRef.current = null;
+    }
+    hasIdentifiedRef.current = false;
+    hasGroupedRef.current = false;
+    lastIdentifiedUserIdRef.current = undefined;
+  }, [consentGranted]);
 
   // Fetch the Segment key only in production after consent is granted.
   useEffect(() => {
     if (!isProd || !consentGranted) return;
+    // The stale flag is needed because the "getSegmentWriteKey" is async. If
+    // consent is revoked while there is a network request in-flight, React
+    // will run the effect's cleanup but the "await" could resolve afterwards.
+    let stale = false;
     const fetchKey = async () => {
       try {
         const writeKey = await getSegmentWriteKey();
-        setSegmentWriteKey(writeKey);
+        if (!stale) {
+          setSegmentWriteKey(writeKey);
+        }
       } catch {
         // Continue without Segment tracking
       }
     };
     fetchKey();
+    return () => {
+      stale = true;
+    };
   }, [isProd, consentGranted]);
 
-  // Initialize Segment when write key arrives
+  // Initialize Segment when write key arrives (only while consent holds).
   useEffect(() => {
-    if (!segmentWriteKey) return;
+    if (!segmentWriteKey || !consentGranted) return;
     try {
       analyticsRef.current = AnalyticsBrowser.load({
         writeKey: segmentWriteKey,
@@ -79,7 +137,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     } catch {
       // Initialization failed — continue without Segment
     }
-  }, [segmentWriteKey]);
+  }, [segmentWriteKey, consentGranted]);
 
   // Segment's identify() and group() associate all subsequent track() calls
   // with the current user and their Red Hat account. We only need to call
@@ -126,7 +184,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         // ignore group errors
       }
     }
-  }, [segmentWriteKey, user]);
+  }, [consentGranted, segmentWriteKey, user]);
 
   // Tracks a user interaction by with both Segment and Marketo.
   //
@@ -140,6 +198,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       href?: string,
       linkType: "cta" | "default" = "default",
     ) => {
+      if (!consentGranted) return;
+
       const isProduct =
         typeof itemNameOrProduct === "object" && "type" in itemNameOrProduct;
       const itemName = isProduct ? itemNameOrProduct.title : itemNameOrProduct;
@@ -163,7 +223,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         trackMarketoEvent(user, internalCampaign, marketoWebhookURL);
       }
     },
-    [marketoWebhookURL, user],
+    [consentGranted, marketoWebhookURL, user],
   );
 
   return (

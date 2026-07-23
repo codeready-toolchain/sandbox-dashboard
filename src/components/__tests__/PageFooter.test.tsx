@@ -1,11 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import {
-  UserContext,
-  UserSignupPhase,
-  type UserContextType,
-} from "../../hooks/UserContext";
-import { readyUserFixture } from "../../mocks/fixtures";
+import { Environment } from "../../config/config";
 import { PageFooter } from "../Layout/PageFooter";
 
 vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
@@ -44,35 +39,92 @@ vi.mock("@rhds/elements/react/rh-cta/rh-cta.js", () => ({
     React.createElement("div", props),
 }));
 
-function makeSandboxContext(
-  overrides: Partial<UserContextType> = {},
-): UserContextType {
-  return {
-    user: readyUserFixture,
-    userSignupPhase: UserSignupPhase.READY,
-    refetchUserData: vi.fn(),
-    signupUser: vi.fn(),
-    ...overrides,
-  };
-}
+vi.mock("../../config/config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../config/config")>();
+  return { ...actual, getConfig: vi.fn() };
+});
 
-function renderFooter() {
-  return render(
-    <UserContext.Provider value={makeSandboxContext()}>
-      <PageFooter />
-    </UserContext.Provider>,
-  );
-}
+import { getConfig } from "../../config/config";
+const mockedGetConfig = vi.mocked(getConfig);
 
-describe("CatalogFooter", () => {
+describe("PageFooter", () => {
+  beforeEach(() => {
+    mockedGetConfig.mockReturnValue({
+      environment: Environment.DEVELOPMENT,
+      registrationServiceURL: "http://localhost",
+      recaptchaSiteKey: "key",
+    });
+  });
+
+  afterEach(() => {
+    document.getElementById("trustarc")?.remove();
+  });
+
   it("renders the full Red Hat footer", () => {
-    renderFooter();
+    render(<PageFooter />);
     expect(screen.getByTestId("rh-footer")).toBeInTheDocument();
     expect(screen.getByTestId("rh-footer-universal")).toBeInTheDocument();
   });
 
   it("renders footer copyright", () => {
-    renderFooter();
+    render(<PageFooter />);
     expect(screen.getByTestId("rh-footer-copyright")).toBeInTheDocument();
+  });
+
+  it("renders the consent_blackbar anchor", () => {
+    render(<PageFooter />);
+    expect(document.getElementById("consent_blackbar")).toBeInTheDocument();
+  });
+
+  it("renders the teconsent anchor element", () => {
+    render(<PageFooter />);
+    expect(document.getElementById("teconsent")).toBeInTheDocument();
+  });
+
+  it("loads the TrustArc script in production", () => {
+    mockedGetConfig.mockReturnValue({
+      environment: Environment.PRODUCTION,
+      registrationServiceURL: "https://api.redhat.com",
+      recaptchaSiteKey: "key",
+    });
+
+    render(<PageFooter />);
+
+    const script = document.getElementById("trustarc") as HTMLScriptElement;
+    expect(script).toBeInTheDocument();
+    expect(script.src).toContain("trustarc/trustarc.js");
+  });
+
+  it("loads the TrustArc script in stage", () => {
+    mockedGetConfig.mockReturnValue({
+      environment: Environment.STAGE,
+      registrationServiceURL: "https://api.stage.redhat.com",
+      recaptchaSiteKey: "key",
+    });
+
+    render(<PageFooter />);
+
+    const script = document.getElementById("trustarc") as HTMLScriptElement;
+    expect(script).toBeInTheDocument();
+    expect(script.src).toContain("trustarc/trustarc.js");
+  });
+
+  it("does not load the TrustArc script in development", () => {
+    render(<PageFooter />);
+    expect(document.getElementById("trustarc")).not.toBeInTheDocument();
+  });
+
+  it("does not inject the script twice on re-render", () => {
+    mockedGetConfig.mockReturnValue({
+      environment: Environment.PRODUCTION,
+      registrationServiceURL: "https://api.redhat.com",
+      recaptchaSiteKey: "key",
+    });
+
+    const { rerender } = render(<PageFooter />);
+    rerender(<PageFooter />);
+
+    const scripts = document.querySelectorAll("#trustarc");
+    expect(scripts).toHaveLength(1);
   });
 });
