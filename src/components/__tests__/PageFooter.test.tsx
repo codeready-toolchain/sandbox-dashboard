@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 import { Environment } from "../../config/config";
 import { PageFooter } from "../Layout/PageFooter";
@@ -126,5 +127,35 @@ describe("PageFooter", () => {
 
     const scripts = document.querySelectorAll("#trustarc");
     expect(scripts).toHaveLength(1);
+  });
+
+  it("opens the browser support modal when the link is clicked", async () => {
+    const user = userEvent.setup();
+    render(<PageFooter />);
+
+    await user.click(screen.getByText("Browser support"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("browser-support-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("closes the browser support modal when dismissed", async () => {
+    const user = userEvent.setup();
+    render(<PageFooter />);
+
+    await user.click(screen.getByText("Browser support"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("browser-support-modal")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByLabelText("Close"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("browser-support-modal"),
+      ).not.toBeInTheDocument();
+    });
   });
 });

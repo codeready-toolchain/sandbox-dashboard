@@ -11,9 +11,10 @@ import iconLinkedin from "@rhds/icons/social/linkedin.js";
 import iconX from "@rhds/icons/social/x.js";
 import iconYoutube from "@rhds/icons/social/youtube.js";
 import iconArrowRight from "@rhds/icons/ui/arrow-right.js";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import RedHatLogo from "../../assets/logos/red_hat_logo_on_dark.svg";
 import { Environment, getConfig } from "../../config/config";
+import { Content, Modal, ModalBody, ModalHeader } from "@patternfly/react-core";
 
 // Pre-bundled icons needed by rh-footer-social-link and rh-cta. We specify
 // here so that Vite bundles them and so that we can access them when
@@ -81,7 +82,68 @@ function CookieConsentElement() {
   return <li id="teconsent" />;
 }
 
+/**
+ * A small modal which includes the information about Red Hat's browser
+ * support.
+ */
+export function BrowserSupportModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      aria-label="Browser support"
+      variant="small"
+      data-testid="browser-support-modal"
+    >
+      <ModalHeader title="Browser support" />
+      <ModalBody>
+        <Content>
+          <p>
+            Red Hat captures and regularly reviews statistical data from our
+            actual web visitors and registered users, rather than generic
+            industry data, to identify the browsers we need to support in
+            alignment with our customers’ needs. Additionally, to safeguard
+            customer data, only browsers which receive security updates from the
+            browser manufacturer are considered for support. We have implemented
+            this policy to ensure that we can provide an excellent experience to
+            a wide user base.
+          </p>
+          <h2>Cookies and Javascript</h2>
+          <p>
+            To successfully interact with our websites and services, your
+            browser must meet the following feature requirements:
+          </p>
+          <ul>
+            <li>The browser must be configured to accept cookies</li>
+            <li>The browser must be configured to execute JavaScript</li>
+          </ul>
+          <h2>Specific browser support</h2>
+          <p>
+            We validate against and fully support our customers&#39; use of the
+            past two major releases of the following browsers:
+          </p>
+          <ul>
+            <li>Mozilla Firefox</li>
+            <li>Google Chrome</li>
+            <li>Apple Safari</li>
+            <li>Microsoft Edge</li>
+          </ul>
+        </Content>
+      </ModalBody>
+    </Modal>
+  );
+}
+
 export function PageFooter() {
+  const [isBrowserSupportModalOpen, setBrowserSupportModalOpen] =
+    useState<boolean>(false);
+
   return (
     <>
       <div id="consent_blackbar" />
@@ -295,7 +357,15 @@ export function PageFooter() {
               </a>
             </li>
             <li>
-              <a href="#">Browser support</a>
+              <a
+                href="#"
+                onClick={(event: React.MouseEvent) => {
+                  event.preventDefault();
+                  setBrowserSupportModalOpen(true);
+                }}
+              >
+                Browser support
+              </a>
             </li>
             <CookieConsentElement />
           </ul>
@@ -308,6 +378,10 @@ export function PageFooter() {
           </FooterCopyright>
         </FooterUniversal>
       </Footer>
+      <BrowserSupportModal
+        isOpen={isBrowserSupportModalOpen}
+        onClose={() => setBrowserSupportModalOpen(false)}
+      />
     </>
   );
 }
