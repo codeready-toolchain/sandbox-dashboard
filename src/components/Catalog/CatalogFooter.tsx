@@ -1,4 +1,3 @@
-import { Button, Content } from "@patternfly/react-core";
 import { Cta } from "@rhds/elements/react/rh-cta/rh-cta.js";
 import { FooterBlock } from "@rhds/elements/react/rh-footer/rh-footer-block.js";
 import { FooterCopyright } from "@rhds/elements/react/rh-footer/rh-footer-copyright.js";
@@ -12,10 +11,8 @@ import iconLinkedin from "@rhds/icons/social/linkedin.js";
 import iconX from "@rhds/icons/social/x.js";
 import iconYoutube from "@rhds/icons/social/youtube.js";
 import iconArrowRight from "@rhds/icons/ui/arrow-right.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import RedHatLogo from "../../assets/logos/red_hat_logo_on_dark.svg";
-import { useUserContext } from "../../hooks/UserContext";
-import { AccessCodeInputModal } from "../Modals";
 
 // Pre-bundled icons needed by rh-footer-social-link and rh-cta. We specify
 // here so that Vite bundles them and so that we can access them when
@@ -75,30 +72,8 @@ function CookieConsentElement() {
 }
 
 export function CatalogFooter() {
-  const { refetchUserData } = useUserContext();
-  const [isAccessCodeModalOpen, setIsAccessCodeModalOpen] = useState(false);
-
-  const handleActivationCodeVerified = async () => {
-    setIsAccessCodeModalOpen(false);
-    await refetchUserData();
-  };
-
   return (
     <>
-      <div style={{ padding: "16px", textAlign: "center" }}>
-        <Content component="p">
-          Have an activation code?{" "}
-          <Button
-            variant="link"
-            isInline
-            onClick={() => setIsAccessCodeModalOpen(true)}
-            data-testid="activation-code-link"
-          >
-            Click here
-          </Button>
-        </Content>
-        <div id="consent_blackbar" />
-      </div>
       <Footer data-testid="rh-footer">
         <a slot="logo" href="https://redhat.com/en">
           <img alt="Red Hat logo" src={RedHatLogo} loading="lazy" />
@@ -322,12 +297,6 @@ export function CatalogFooter() {
           </FooterCopyright>
         </FooterUniversal>
       </Footer>
-
-      <AccessCodeInputModal
-        isOpen={isAccessCodeModalOpen}
-        onClose={() => setIsAccessCodeModalOpen(false)}
-        onVerified={handleActivationCodeVerified}
-      />
     </>
   );
 }

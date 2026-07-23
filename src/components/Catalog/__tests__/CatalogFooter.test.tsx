@@ -65,12 +65,6 @@ function renderFooter() {
 }
 
 describe("CatalogFooter", () => {
-  it("renders activation code link", () => {
-    renderFooter();
-    expect(screen.getByText("Have an activation code?")).toBeInTheDocument();
-    expect(screen.getByText("Click here")).toBeInTheDocument();
-  });
-
   it("renders the full Red Hat footer", () => {
     renderFooter();
     expect(screen.getByTestId("rh-footer")).toBeInTheDocument();
