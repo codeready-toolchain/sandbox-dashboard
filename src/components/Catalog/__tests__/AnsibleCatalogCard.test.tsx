@@ -40,8 +40,9 @@ function makeAnsibleContext(
       password: "secret",
       url: "https://aap.example.com",
     }),
-    handleAAPInstance: vi.fn().mockResolvedValue(undefined),
     instanceStatus: { kind: "new" },
+    provisionInstance: vi.fn().mockResolvedValue(undefined),
+    unidleInstance: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -85,26 +86,26 @@ function renderCard(
 }
 
 describe("AnsibleCatalogCard", () => {
-  it("calls handleAAPInstance and opens info modal on primary button click when user is ready", async () => {
-    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+  it("calls provisionInstance and opens info modal on primary button click when user is ready", async () => {
+    const provisionInstance = vi.fn().mockResolvedValue(undefined);
     const markProductAsTried = vi.fn();
 
     renderCard(
       {},
-      { handleAAPInstance, instanceStatus: { kind: "new" } },
+      { provisionInstance, instanceStatus: { kind: "new" } },
       markProductAsTried,
     );
 
     const button = screen.getByTestId("try-it-button");
     await userEvent.click(button);
 
-    expect(handleAAPInstance).toHaveBeenCalled();
+    expect(provisionInstance).toHaveBeenCalled();
     expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
     expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
   });
 
   it("calls signupUser when signup phase is NOT_STARTED instead of provisioning", async () => {
-    const handleAAPInstance = vi.fn();
+    const provisionInstance = vi.fn();
     const signupUser = vi.fn();
 
     renderCard(
@@ -113,44 +114,44 @@ describe("AnsibleCatalogCard", () => {
         user: undefined,
         signupUser,
       },
-      { handleAAPInstance, instanceStatus: { kind: "new" } },
+      { provisionInstance, instanceStatus: { kind: "new" } },
     );
 
     const button = screen.getByTestId("try-it-button");
     await userEvent.click(button);
 
     expect(signupUser).toHaveBeenCalled();
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
   });
 
   it("opens phone verification modal when signup phase is PENDING_PHONE_VERIFICATION", async () => {
-    const handleAAPInstance = vi.fn();
+    const provisionInstance = vi.fn();
 
     const { openPhoneVerificationModal } = renderCard(
       { userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION },
-      { handleAAPInstance, instanceStatus: { kind: "new" } },
+      { provisionInstance, instanceStatus: { kind: "new" } },
     );
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
     expect(openPhoneVerificationModal).toHaveBeenCalledTimes(1);
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
   });
 
-  it("does not call handleAAPInstance when signup phase is not READY", async () => {
-    const handleAAPInstance = vi.fn();
+  it("does not call provisionInstance when signup phase is not READY", async () => {
+    const provisionInstance = vi.fn();
     const markProductAsTried = vi.fn();
 
     renderCard(
       { userSignupPhase: UserSignupPhase.PROVISIONING },
-      { handleAAPInstance, instanceStatus: { kind: "new" } },
+      { provisionInstance, instanceStatus: { kind: "new" } },
       markProductAsTried,
     );
 
     const button = screen.getByTestId("try-it-button");
     await userEvent.click(button);
 
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
   });
 
@@ -182,19 +183,19 @@ describe("AnsibleCatalogCard", () => {
     expect(mainButton.textContent).not.toContain("Provisioning");
   });
 
-  it("does not call handleAAPInstance or open modal when instanceStatus is 'userNotReady'", async () => {
-    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+  it("does not call provisionInstance or open modal when instanceStatus is 'userNotReady'", async () => {
+    const provisionInstance = vi.fn().mockResolvedValue(undefined);
     const markProductAsTried = vi.fn();
 
     renderCard(
       {},
-      { handleAAPInstance, instanceStatus: { kind: "userNotReady" } },
+      { provisionInstance, instanceStatus: { kind: "userNotReady" } },
       markProductAsTried,
     );
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
     expect(
       screen.queryByTestId("ansible-launch-info-modal"),
@@ -334,57 +335,57 @@ describe("AnsibleCatalogCard", () => {
     expect(mainButton.textContent).toContain("Provision");
   });
 
-  it("shows a generic alert when handleAAPInstance throws a non-UserFacingError", async () => {
-    const handleAAPInstance = vi
+  it("shows a generic alert when provisionInstance throws a non-UserFacingError", async () => {
+    const provisionInstance = vi
       .fn()
       .mockRejectedValue(new Error("unexpected"));
 
-    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "new" } });
+    renderCard({}, { provisionInstance, instanceStatus: { kind: "new" } });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleAAPInstance).toHaveBeenCalled();
-    expect(screen.getByText("AAP provisioning failed")).toBeInTheDocument();
+    expect(provisionInstance).toHaveBeenCalled();
     expect(
-      screen.getByText(
-        /An unexpected error occurred while handling your AAP instance/,
-      ),
+      screen.getByText("Unable to provision your instance"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/We were unable to provision your instance/),
     ).toBeInTheDocument();
   });
 
-  it("shows a user-facing alert when handleAAPInstance throws a UserFacingError", async () => {
-    const handleAAPInstance = vi
+  it("shows a user-facing alert when provisionInstance throws a UserFacingError", async () => {
+    const provisionInstance = vi
       .fn()
       .mockRejectedValue(
         new UserFacingError("Provision failed", "Something went wrong"),
       );
 
-    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "new" } });
+    renderCard({}, { provisionInstance, instanceStatus: { kind: "new" } });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleAAPInstance).toHaveBeenCalled();
+    expect(provisionInstance).toHaveBeenCalled();
     expect(screen.getByText("Provision failed")).toBeInTheDocument();
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 
   it("prevents double-click on provision button via in-flight guard", async () => {
     let resolveProvision: () => void;
-    const handleAAPInstance = vi.fn().mockImplementation(
+    const provisionInstance = vi.fn().mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           resolveProvision = resolve;
         }),
     );
 
-    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "new" } });
+    renderCard({}, { provisionInstance, instanceStatus: { kind: "new" } });
 
     const button = screen.getByTestId("try-it-button");
 
     await userEvent.click(button);
     await userEvent.click(button);
 
-    expect(handleAAPInstance).toHaveBeenCalledTimes(1);
+    expect(provisionInstance).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveProvision!();
@@ -446,39 +447,39 @@ describe("AnsibleCatalogCard", () => {
     expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
   });
 
-  it("does not call handleAAPInstance when clicking during provisioning", async () => {
-    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+  it("does not call provisionInstance when clicking during provisioning", async () => {
+    const provisionInstance = vi.fn().mockResolvedValue(undefined);
 
     renderCard(
       {},
-      { handleAAPInstance, instanceStatus: { kind: "provisioning" } },
+      { provisionInstance, instanceStatus: { kind: "provisioning" } },
     );
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
     expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
   });
 
-  it("does not call handleAAPInstance when clicking during unidling", async () => {
-    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+  it("does not call unidleInstance when clicking during unidling", async () => {
+    const unidleInstance = vi.fn().mockResolvedValue(undefined);
 
-    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "unidling" } });
+    renderCard({}, { unidleInstance, instanceStatus: { kind: "unidling" } });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(unidleInstance).not.toHaveBeenCalled();
     expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
   });
 
   it("blocks primary button click during deletion", async () => {
-    const handleAAPInstance = vi.fn().mockResolvedValue(undefined);
+    const provisionInstance = vi.fn().mockResolvedValue(undefined);
 
-    renderCard({}, { handleAAPInstance, instanceStatus: { kind: "deleting" } });
+    renderCard({}, { provisionInstance, instanceStatus: { kind: "deleting" } });
 
     await userEvent.click(screen.getByTestId("try-it-button"));
 
-    expect(handleAAPInstance).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
   });
 
   it("renders 'Failed' status label for 'error' status", () => {

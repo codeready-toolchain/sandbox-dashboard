@@ -70,7 +70,8 @@ function makeUserContext(
  */
 function TestConsumer() {
   const ctx = useAnsibleContext();
-  const [handleError, setHandleError] = useState("");
+  const [provisionError, setProvisionError] = useState("");
+  const [unidleError, setUnidleError] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [credsResult, setCredsResult] = useState("");
   const [credsError, setCredsError] = useState("");
@@ -84,12 +85,24 @@ function TestConsumer() {
           : ""}
       </span>
       <button
-        data-testid="handle-aap"
+        data-testid="provision-instance"
         onClick={async () => {
           try {
-            await ctx.handleAAPInstance();
+            await ctx.provisionInstance();
           } catch (e) {
-            setHandleError(
+            setProvisionError(
+              e instanceof UserFacingError ? "UserFacingError" : "other",
+            );
+          }
+        }}
+      />
+      <button
+        data-testid="unidle-instance"
+        onClick={async () => {
+          try {
+            await ctx.unidleInstance();
+          } catch (e) {
+            setUnidleError(
               e instanceof UserFacingError ? "UserFacingError" : "other",
             );
           }
@@ -118,7 +131,8 @@ function TestConsumer() {
           }
         }}
       />
-      <span data-testid="handle-error">{handleError}</span>
+      <span data-testid="provision-error">{provisionError}</span>
+      <span data-testid="unidle-error">{unidleError}</span>
       <span data-testid="delete-error">{deleteError}</span>
       <span data-testid="creds-result">{credsResult}</span>
       <span data-testid="creds-error">{credsError}</span>
@@ -254,10 +268,10 @@ describe("AnsibleProvider", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // handleAAPInstance
+  // provisionInstance
   // ---------------------------------------------------------------------------
 
-  describe("handleAAPInstance", () => {
+  describe("provisionInstance", () => {
     it("creates a new AAP instance when status is 'new'", async () => {
       mockedGetAAP.mockResolvedValue(undefined);
       mockedCreateAAP.mockResolvedValue(undefined);
@@ -266,7 +280,7 @@ describe("AnsibleProvider", () => {
       await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       expect(mockedCreateAAP).toHaveBeenCalledWith(
@@ -278,27 +292,7 @@ describe("AnsibleProvider", () => {
       );
     });
 
-    it("unidles the instance when status is 'idled'", async () => {
-      mockedGetAAP.mockResolvedValue(aapIdledFixture.items[0]);
-      mockedUnIdleAAP.mockResolvedValue(undefined);
-
-      renderProvider();
-      await waitFor(() =>
-        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
-      );
-
-      await act(async () => {
-        screen.getByTestId("handle-aap").click();
-      });
-
-      expect(mockedUnIdleAAP).toHaveBeenCalledWith(
-        MOCK_PROXY_URL,
-        readyUserFixture.defaultUserNamespace,
-      );
-      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
-    });
-
-    it("does not create or unidle when instance is already ready", async () => {
+    it("does not create when instance is already ready", async () => {
       mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
 
       renderProvider();
@@ -307,14 +301,13 @@ describe("AnsibleProvider", () => {
       );
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       expect(mockedCreateAAP).not.toHaveBeenCalled();
-      expect(mockedUnIdleAAP).not.toHaveBeenCalled();
     });
 
-    it("does not create or unidle when instance is provisioning", async () => {
+    it("does not create when instance is provisioning", async () => {
       mockedGetAAP.mockResolvedValue(aapProvisioningFixture.items[0]);
 
       renderProvider();
@@ -325,11 +318,10 @@ describe("AnsibleProvider", () => {
       );
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       expect(mockedCreateAAP).not.toHaveBeenCalled();
-      expect(mockedUnIdleAAP).not.toHaveBeenCalled();
     });
 
     it("sets error status when createAAP fails", async () => {
@@ -340,13 +332,39 @@ describe("AnsibleProvider", () => {
       await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       expect(screen.getByTestId("status-kind").textContent).toBe("error");
       expect(screen.getByTestId("status-error-type").textContent).toBe(
         AAPInstanceErrorType.INSTANCE_CREATION_FAILED.toString(),
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // unidleInstance
+  // ---------------------------------------------------------------------------
+
+  describe("unidleInstance", () => {
+    it("unidles the instance when status is 'idled'", async () => {
+      mockedGetAAP.mockResolvedValue(aapIdledFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(mockedUnIdleAAP).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
     });
   });
 
@@ -615,7 +633,7 @@ describe("AnsibleProvider", () => {
       await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       expect(screen.getByTestId("status-kind").textContent).toBe(
@@ -623,7 +641,7 @@ describe("AnsibleProvider", () => {
       );
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(4_500);
       });
 
       await waitFor(() =>
@@ -691,7 +709,8 @@ describe("AnsibleProvider", () => {
         expect(screen.getByTestId("status-kind").textContent).toBeTruthy(),
       );
 
-      expect(screen.getByTestId("handle-aap")).toBeInTheDocument();
+      expect(screen.getByTestId("provision-instance")).toBeInTheDocument();
+      expect(screen.getByTestId("unidle-instance")).toBeInTheDocument();
       expect(screen.getByTestId("delete-instance")).toBeInTheDocument();
       expect(screen.getByTestId("fetch-credentials")).toBeInTheDocument();
       expect(screen.getByTestId("status-kind")).toBeInTheDocument();
@@ -752,15 +771,30 @@ describe("AnsibleProvider", () => {
       );
     });
 
-    it("NOOP handleAAPInstance rejects", async () => {
+    it("NOOP provisionInstance rejects", async () => {
       renderProvider({ user: undefined });
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       await waitFor(() =>
-        expect(screen.getByTestId("handle-error").textContent).toBe("other"),
+        expect(screen.getByTestId("provision-error").textContent).toBe("other"),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "userNotReady",
+      );
+    });
+
+    it("NOOP unidleInstance rejects", async () => {
+      renderProvider({ user: undefined });
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("unidle-error").textContent).toBe("other"),
       );
       expect(screen.getByTestId("status-kind").textContent).toBe(
         "userNotReady",
@@ -832,10 +866,10 @@ describe("AnsibleProvider", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // handleAAPInstance with unrecognized CR status
+  // provisionInstance with unrecognized CR status
   // ---------------------------------------------------------------------------
 
-  describe("handleAAPInstance with existing CR in unrecognized status", () => {
+  describe("provisionInstance with existing CR in unrecognized status", () => {
     it("sets status to 'provisioning' and polls when CR exists with unknown status", async () => {
       const unknownCR = {
         status: {
@@ -860,7 +894,7 @@ describe("AnsibleProvider", () => {
       );
 
       await act(async () => {
-        screen.getByTestId("handle-aap").click();
+        screen.getByTestId("provision-instance").click();
       });
 
       expect(screen.getByTestId("status-kind").textContent).toBe(

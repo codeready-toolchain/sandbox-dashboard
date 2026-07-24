@@ -20,8 +20,9 @@ function makeAnsibleContext(
       password: "secret",
       url: "https://aap.example.com",
     }),
-    handleAAPInstance: vi.fn().mockResolvedValue(undefined),
     instanceStatus: { kind: "ready" },
+    provisionInstance: vi.fn().mockResolvedValue(undefined),
+    unidleInstance: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

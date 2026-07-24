@@ -7,18 +7,28 @@ export interface AnsibleContextType {
    * Delete the instance.
    */
   deleteInstance: () => Promise<void>;
+
   /**
    * Fetches the user instance's credentials.
    */
   fetchInstanceCredentials: () => Promise<AAPInstanceCredentials>;
-  /**
-   * Provisions or reprovisions the instance.
-   */
-  handleAAPInstance: () => Promise<void>;
+
   /**
    * Current status of the instance.
    */
   instanceStatus: AAPInstanceStatus;
+
+  /**
+   * Provisions the instance.
+   * @throws {UserFacingError} if provisioning the instance fails.
+   */
+  provisionInstance: () => Promise<void>;
+
+  /**
+   * Unidles the instance.
+   * @throws {UserFacingError} if unidling the instance fails.
+   */
+  unidleInstance: () => Promise<void>;
 }
 
 export const AnsibleContext = createContext<AnsibleContextType | undefined>(

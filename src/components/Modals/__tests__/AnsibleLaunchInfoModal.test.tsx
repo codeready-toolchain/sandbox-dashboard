@@ -25,8 +25,9 @@ function makeAnsibleContext(
   return {
     deleteInstance: vi.fn(),
     fetchInstanceCredentials: vi.fn().mockResolvedValue(defaultCredentials),
-    handleAAPInstance: vi.fn().mockResolvedValue(undefined),
     instanceStatus: { kind: "ready" },
+    provisionInstance: vi.fn().mockResolvedValue(undefined),
+    unidleInstance: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
