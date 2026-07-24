@@ -12,6 +12,7 @@ import logger from "../../utils/logger";
 import { AnsibleDeleteInstanceModal, AnsibleLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
+import { SUPPORT_EMAIL } from "../../const";
 
 /**
  * Obtains the main button's label.
@@ -90,7 +91,7 @@ export function AnsibleCatalogCard({
   isGreenCornerVisible,
   markProductAsTried,
 }: AnsibleCatalogCardProps) {
-  const { deleteInstance, handleAAPInstance, instanceStatus } =
+  const { deleteInstance, instanceStatus, provisionInstance, unidleInstance } =
     useAnsibleContext();
 
   const { signupUser, userSignupPhase } = useUserContext();
@@ -109,8 +110,9 @@ export function AnsibleCatalogCard({
     UserFacingError | undefined
   >();
 
-  const ansibleProvisionInFlight = useRef(false);
-  const ansibleDeleteInFlight = useRef(false);
+  const provisionInFlight = useRef(false);
+  const unidleInFlight = useRef(false);
+  const deleteInFlight = useRef(false);
 
   // Determine the labels and statuses if applicable, and whether we should be
   // showing the delete button or not.
@@ -141,64 +143,94 @@ export function AnsibleCatalogCard({
         return;
     }
 
-    if (instanceStatus.kind === "userNotReady") {
-      return;
-    }
+    switch (instanceStatus.kind) {
+      case "userNotReady":
+      case "unknown":
+      case "deleting":
+      case "deleted":
+      case "notDeployed":
+        return;
 
-    if (
-      instanceStatus.kind === "deleting" ||
-      instanceStatus.kind === "deleted"
-    ) {
-      return;
-    }
+      case "ready":
+        setAnsibleInfoModalOpen(true);
+        trackAnalytics(product, "Catalog", undefined, "cta");
+        markProductAsTried(product);
+        return;
 
-    if (
-      instanceStatus.kind === "provisioning" ||
-      instanceStatus.kind === "unidling"
-    ) {
-      setAnsibleInfoModalOpen(true);
-      return;
-    }
+      case "provisioning":
+      case "unidling":
+        setAnsibleInfoModalOpen(true);
+        return;
 
-    if (ansibleProvisionInFlight.current) {
-      return;
-    }
+      case "idled":
+        if (unidleInFlight.current) {
+          return;
+        }
 
-    ansibleProvisionInFlight.current = true;
-    try {
-      await handleAAPInstance();
+        unidleInFlight.current = true;
+        try {
+          await unidleInstance();
+          setAnsibleInfoModalOpen(true);
+        } catch (error) {
+          if (error instanceof UserFacingError) {
+            setProvisioningError(error);
+          } else {
+            setProvisioningError(
+              new UserFacingError(
+                "Unable to reprovision your instance",
+                `We were unable to reprovision your instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+                error,
+                `${error}`,
+              ),
+            );
+          }
+        } finally {
+          unidleInFlight.current = false;
+        }
 
-      trackAnalytics(product, "Catalog", undefined, "cta");
-      setAnsibleInfoModalOpen(true);
-      markProductAsTried(product);
-    } catch (error) {
-      if (error instanceof UserFacingError) {
-        setProvisioningError(error);
-        addAlertFromError(error);
-      } else {
-        logger.error(
-          "Unexpected exception occurred when handling AAP instance:",
-          error,
-        );
-        addAlert(
-          AlertVariant.danger,
-          "AAP provisioning failed",
-          "An unexpected error occurred while handling your AAP instance. Please try again later.",
-        );
-      }
-    } finally {
-      ansibleProvisionInFlight.current = false;
+        return;
+
+      case "new":
+      case "error":
+        if (provisionInFlight.current) {
+          return;
+        }
+
+        provisionInFlight.current = true;
+        try {
+          await provisionInstance();
+        } catch (error) {
+          if (error instanceof UserFacingError) {
+            setProvisioningError(error);
+          } else {
+            setProvisioningError(
+              new UserFacingError(
+                "Unable to provision your instance",
+                `We were unable to provision your instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+                error,
+                `${error}`,
+              ),
+            );
+          }
+          setAnsibleInfoModalOpen(true);
+          return;
+        } finally {
+          provisionInFlight.current = false;
+        }
+        setAnsibleInfoModalOpen(true);
+        trackAnalytics(product, "Catalog", undefined, "cta");
+        markProductAsTried(product);
     }
+    return;
   }, [
-    addAlert,
-    addAlertFromError,
-    handleAAPInstance,
     instanceStatus.kind,
     markProductAsTried,
     openPhoneVerificationModal,
     product,
+    provisionInstance,
     signupUser,
     trackAnalytics,
+    unidleInstance,
     userSignupPhase,
   ]);
 
@@ -206,14 +238,11 @@ export function AnsibleCatalogCard({
    * Deletes the Ansible instance.
    */
   const handleOnClickDelete = useCallback(async () => {
-    if (
-      ansibleDeleteInFlight.current ||
-      instanceStatus.kind === "userNotReady"
-    ) {
+    if (deleteInFlight.current || instanceStatus.kind === "userNotReady") {
       return;
     }
 
-    ansibleDeleteInFlight.current = true;
+    deleteInFlight.current = true;
     try {
       await deleteInstance();
       setAnsibleDeleteModalOpen(false);
@@ -233,7 +262,7 @@ export function AnsibleCatalogCard({
         );
       }
     } finally {
-      ansibleDeleteInFlight.current = false;
+      deleteInFlight.current = false;
     }
   }, [addAlert, addAlertFromError, deleteInstance, instanceStatus.kind]);
 

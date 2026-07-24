@@ -16,9 +16,9 @@ import {
   getStatefulSets,
 } from "../api/kube";
 import { SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
-import { ProvisioningError } from "../error/ProvisioningError";
-import { ApiError } from "../error/ApiError";
 import { AggregatedOperationError } from "../error/AggregatedOperationError";
+import { ApiError } from "../error/ApiError";
+import { ProvisioningError } from "../error/ProvisioningError";
 import { UserFacingError } from "../error/UserFacingError";
 import { useNotifications } from "../notifications/useNotifications";
 import type {
@@ -71,10 +71,13 @@ export function AnsibleProviderNoop({ children }: { children: ReactNode }) {
         },
         fetchInstanceCredentials: async () =>
           Promise.reject(new Error("User not signed up")),
-        handleAAPInstance: async () => {
+        instanceStatus: { kind: "userNotReady" },
+        provisionInstance: async () => {
           throw new Error("User not signed up");
         },
-        instanceStatus: { kind: "userNotReady" },
+        unidleInstance: async () => {
+          throw new Error("User not signed up");
+        },
       }}
     >
       {children}
@@ -296,25 +299,10 @@ export function AnsibleProviderConnected({
     }, [instanceCredentials, instanceCR, proxyURL, userNamespace]);
 
   /**
-   * Provisions or "unidles" the Ansible Automation Platform instance
-   * depending on its current status.
-   * @param userNamespace the namespace to perform the actions in.
-   * @throws {UserFacingError} if fetching, "unidling" or creating the
-   * instance fails.
+   * Provisions the Ansible Automation Platform instance.
+   * @throws {UserFacingError} if provisioning the instance fails.
    */
-  const handleAAPInstance = useCallback(async () => {
-    // Get the latest status for the instance.
-    try {
-      await fetchCR(userNamespace);
-    } catch (error) {
-      throw new UserFacingError(
-        "Unable to get your Ansible Automation Platform instance's information",
-        "We were unable to obtain the status of your Ansible Automation Platform instance. Please try again later.",
-        error,
-        `Unable to handle AAP instance for the user: fetching the CR failed: ${error}`,
-      );
-    }
-
+  const provisionInstance = useCallback(async () => {
     // When the instance is provisioning or is already provisioned, there is
     // nothing else to do.
     if (
@@ -322,25 +310,6 @@ export function AnsibleProviderConnected({
       instanceStatusRef.current.kind === "ready"
     ) {
       return;
-    }
-
-    // When the instance is idled, unidle the instance.
-    if (instanceStatusRef.current.kind === "idled" && instanceCRRef.current) {
-      try {
-        await unIdleAAP(proxyURL, userNamespace);
-        pollTransientRetriesLeft.current = maxTransientErrorRetries;
-        updateInstanceStatus({ kind: "unidling" });
-        return;
-      } catch (error) {
-        // Keep the instance in "idled" status and tell the user that we
-        // could not unidle it for them.
-        throw new UserFacingError(
-          "Unable to provision your Ansible Automation Platform instance",
-          "We were unable to reprovision your Ansible Automation Platform instance. Please try again later.",
-          error,
-          `Unable to handle AAP instance for the user: unidling the instance failed: ${error}`,
-        );
-      }
     }
 
     // When the CR already exists with an unrecognized status, treat it as a
@@ -352,7 +321,7 @@ export function AnsibleProviderConnected({
       return;
     }
 
-    // The CR is absent — create the instance.
+    // The CR is absent, so at this point we create the instance.
     try {
       await createAAP(proxyURL, userNamespace);
       pollTransientRetriesLeft.current = maxTransientErrorRetries;
@@ -372,7 +341,29 @@ export function AnsibleProviderConnected({
         `Unable to create the AAP instance for the user: the CR creation failed: ${error}`,
       );
     }
-  }, [fetchCR, proxyURL, updateInstanceStatus, userNamespace]);
+  }, [proxyURL, updateInstanceStatus, userNamespace]);
+
+  /**
+   * Unidles the Ansible Automation Platform instance.
+   * @throws {UserFacingError} if unidling the instance fails.
+   */
+  const unidleInstance = useCallback(async () => {
+    try {
+      await unIdleAAP(proxyURL, userNamespace);
+      pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      updateInstanceStatus({ kind: "unidling" });
+      return;
+    } catch (error) {
+      // Keep the instance in "idled" status and tell the user that we
+      // could not unidle it for them.
+      throw new UserFacingError(
+        "Unable to reprovision your Ansible Automation Platform instance",
+        "We were unable to reprovision your Ansible Automation Platform instance. Please try again later.",
+        error,
+        `Unable to handle AAP instance for the user: unidling the instance failed: ${error}`,
+      );
+    }
+  }, [proxyURL, updateInstanceStatus, userNamespace]);
 
   /**
    * Deletes the AAP instance and all the related resources.
@@ -637,14 +628,16 @@ export function AnsibleProviderConnected({
     () => ({
       deleteInstance,
       fetchInstanceCredentials,
-      handleAAPInstance,
       instanceStatus,
+      provisionInstance,
+      unidleInstance,
     }),
     [
       deleteInstance,
       fetchInstanceCredentials,
-      handleAAPInstance,
       instanceStatus,
+      provisionInstance,
+      unidleInstance,
     ],
   );
 
