@@ -3,6 +3,8 @@
   justify-content: center;
   flex-wrap: wrap;
   gap: 16px;
+  margin: 0 auto;
+  max-width: 1600px;
 }
 
 .sandbox-catalog-card-wrapper {
