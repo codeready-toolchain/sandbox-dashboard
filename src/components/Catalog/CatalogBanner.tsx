@@ -1,21 +1,22 @@
 import {
+  Button,
   Card,
   CardBody,
   Content,
   ContentVariants,
-  Skeleton,
-  Popover,
-  Button,
   Flex,
   FlexItem,
+  Popover,
+  Skeleton,
 } from "@patternfly/react-core";
-import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/outlined-question-circle-icon";
+import { CommentAltIcon } from "@patternfly/react-icons";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
-import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
+import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/outlined-question-circle-icon";
 import SalesImage from "../../assets/images/banner/sales.svg";
+import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { calculateDaysBetweenDates } from "../../utils/common";
-import { CommentAltIcon } from "@patternfly/react-icons";
+import "./CatalogBanner.css";
 
 export function CatalogBanner() {
   const { user, userSignupPhase } = useUserContext();
@@ -56,11 +57,8 @@ export function CatalogBanner() {
 
   return (
     <Card isPlain isFullHeight={false} style={{ borderRadius: 0 }}>
-      <CardBody style={{ padding: "21px 100px 0 100px" }}>
-        <Flex
-          alignItems={{ default: "alignItemsCenter" }}
-          gap={{ default: "gapLg" }}
-        >
+      <CardBody className="banner-body">
+        <Flex className="banner-body-content-wrapper">
           <FlexItem className="pf-v6-u-display-block-on-md">
             <img
               src={BannerImage}

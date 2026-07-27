@@ -1,11 +1,12 @@
 import { Grid, GridItem } from "@patternfly/react-core";
 import { ActivitiesCard } from "./ActivitiesCard";
+import "./ActivitiesPage.css";
 import { articleData, type Article } from "./articleData";
 
 export function ActivitiesPage() {
   return (
     <>
-      <div style={{ padding: "50px", minHeight: "100%" }}>
+      <div className="activites-wrapper">
         <Grid hasGutter>
           {articleData.map((article: Article) => (
             <GridItem key={article.link} span={3}>
