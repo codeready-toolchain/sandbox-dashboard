@@ -21,7 +21,7 @@ const mockKeycloakInstance = {
   updateToken: vi.fn(),
   logout: vi.fn(),
   token: "mock-token",
-  tokenParsed: {
+  idTokenParsed: {
     given_name: "Jane",
     family_name: "Doe",
     email: "jane@example.com",
