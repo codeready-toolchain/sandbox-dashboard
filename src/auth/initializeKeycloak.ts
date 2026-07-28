@@ -128,13 +128,13 @@ async function initializeKeycloak(
   });
 
   // Obtain the claims that we use on our application.
-  const parsed = keycloak.tokenParsed ?? {};
+  const idTokenParsed = keycloak.idTokenParsed ?? {};
   return {
     token: keycloak.token,
-    givenName: (parsed.given_name as string) ?? "",
-    familyName: (parsed.family_name as string) ?? "",
-    email: (parsed.email as string) ?? "",
-    username: (parsed.preferred_username as string) ?? "",
+    givenName: (idTokenParsed.given_name as string) ?? "",
+    familyName: (idTokenParsed.family_name as string) ?? "",
+    email: (idTokenParsed.email as string) ?? "",
+    username: (idTokenParsed.preferred_username as string) ?? "",
     logout: () => keycloak.logout(),
   };
 }
