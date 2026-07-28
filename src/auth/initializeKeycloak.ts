@@ -122,20 +122,23 @@ async function initializeKeycloak(
 
   // Use Keycloak's token utilities as the "token getter" for the
   // authenticated fetch calls.
+  //
+  // We pass the ID token to the registration service because it's the one
+  // that has all the claims that need to be verified.
   setTokenGetter(async (): Promise<string> => {
     await keycloak.updateToken(30);
-    return keycloak.token!;
+    return keycloak.idToken!;
   });
 
   // Obtain the claims that we use on our application.
   const idTokenParsed = keycloak.idTokenParsed ?? {};
   return {
-    token: keycloak.token,
-    givenName: (idTokenParsed.given_name as string) ?? "",
-    familyName: (idTokenParsed.family_name as string) ?? "",
     email: (idTokenParsed.email as string) ?? "",
-    username: (idTokenParsed.preferred_username as string) ?? "",
+    familyName: (idTokenParsed.family_name as string) ?? "",
+    givenName: (idTokenParsed.given_name as string) ?? "",
     logout: () => keycloak.logout(),
+    token: keycloak.token,
+    username: (idTokenParsed.preferred_username as string) ?? "",
   };
 }
 

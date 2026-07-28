@@ -5,12 +5,12 @@ import { createContext } from "react";
  * in the authenticated context.
  */
 export interface AuthenticatedContextValue {
-  token: string | undefined;
-  givenName: string;
-  familyName: string;
   email: string;
-  username: string;
+  familyName: string;
+  givenName: string;
   logout: () => void;
+  token: string | undefined;
+  username: string;
 }
 
 /**

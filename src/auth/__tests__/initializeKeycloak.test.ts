@@ -21,6 +21,7 @@ const mockKeycloakInstance = {
   updateToken: vi.fn(),
   logout: vi.fn(),
   token: "mock-token",
+  idToken: "mock-id-token",
   idTokenParsed: {
     given_name: "Jane",
     family_name: "Doe",
@@ -230,7 +231,7 @@ describe("initializeKeycloak", () => {
       const token = await registeredGetter();
 
       expect(mockKeycloakInstance.updateToken).toHaveBeenCalledWith(30);
-      expect(token).toBe("mock-token");
+      expect(token).toBe("mock-id-token");
     });
   });
 
