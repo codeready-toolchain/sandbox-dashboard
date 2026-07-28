@@ -100,8 +100,9 @@ describe("initializeKeycloak", () => {
       await initializeKeycloak(config);
 
       expect(mockKeycloakInstance.init).toHaveBeenCalledWith({
-        onLoad: "login-required",
         checkLoginIframe: false,
+        onLoad: "login-required",
+        scope: "id.email id.name id.username",
       });
     });
 
