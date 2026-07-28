@@ -111,8 +111,9 @@ async function initializeKeycloak(
 
   // Authenticate the user.
   const authenticated = await keycloak.init({
-    onLoad: "login-required",
     checkLoginIframe: false,
+    onLoad: "login-required",
+    scope: "id.email id.name id.username",
   });
 
   if (!authenticated) {
