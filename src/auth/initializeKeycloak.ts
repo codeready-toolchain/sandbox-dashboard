@@ -102,9 +102,9 @@ async function initializeKeycloak(
         await fetchKeycloakClientConfiguration(config.registrationServiceURL);
 
       keycloak = new Keycloak({
-        url: clientConfig["auth-server-url"],
+        clientId: clientConfig.clientId,
         realm: clientConfig.realm,
-        clientId: clientConfig.clientId || clientConfig.resource,
+        url: clientConfig["auth-server-url"],
       });
     }
   }

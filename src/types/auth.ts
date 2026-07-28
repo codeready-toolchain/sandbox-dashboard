@@ -3,12 +3,9 @@
  * service's response.
  */
 export type KeycloakClientConfig = {
-  realm: string;
   "auth-server-url": string;
   clientId: string;
-  resource: string;
-  "public-client": boolean;
-  "confidential-port": number;
+  realm: string;
 };
 
 /**
