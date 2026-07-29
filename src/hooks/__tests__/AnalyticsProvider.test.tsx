@@ -499,13 +499,13 @@ describe("AnalyticsProvider consent revocation", () => {
     expect(mockTrack).toHaveBeenCalledTimes(1);
 
     // Revoke consent: clear cookie and fire postMessage to trigger listener.
-    document.cookie =
-      "cmapi_cookie_privacy=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    window.dispatchEvent(new MessageEvent("message"));
-
-    await waitFor(() => {
-      expect(mockReset).toHaveBeenCalled();
+    await act(async () => {
+      document.cookie =
+        "cmapi_cookie_privacy=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      window.dispatchEvent(new MessageEvent("message"));
     });
+
+    expect(mockReset).toHaveBeenCalled();
 
     // Events should be blocked after revocation.
     mockTrack.mockClear();
