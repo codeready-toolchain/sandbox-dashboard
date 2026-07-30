@@ -12,7 +12,7 @@ import logger from "../../utils/logger";
 import type { AddedCredential } from "../../utils/openclaw-providers";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
 import { OpenClawLaunchInfoModal } from "../Modals";
-import { OpenClawDeleteInstanceModal } from "../Modals/OpenClawDeletInstanceModal";
+import { OpenClawDeleteInstanceModal } from "../Modals/OpenClawDeleteInstanceModal";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
 
