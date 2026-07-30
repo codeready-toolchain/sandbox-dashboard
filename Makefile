@@ -13,6 +13,7 @@ start-keycloak:
 		quay.io/keycloak/keycloak:latest start-dev --import-realm
 
 lint:
+	npm run typecheck
 	npm run lint
 	npm run format:check
 
