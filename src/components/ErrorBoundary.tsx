@@ -1,12 +1,13 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
 import {
+  Button,
   EmptyState,
+  EmptyStateActions,
   EmptyStateBody,
   EmptyStateFooter,
-  EmptyStateActions,
-  Button,
 } from "@patternfly/react-core";
 import ExclamationCircleIcon from "@patternfly/react-icons/dist/esm/icons/exclamation-circle-icon";
+import { Component, type ErrorInfo, type ReactNode } from "react";
+
 import { SUPPORT_EMAIL } from "../const";
 import { errorMessage } from "../utils/common";
 import logger from "../utils/logger";
@@ -40,7 +41,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   private handleCopy = async () => {
-    if (!this.state.error) return;
+    if (!this.state.error) {
+      return;
+    }
     try {
       await navigator.clipboard.writeText(errorMessage(this.state.error));
       this.setState({ copyLabel: "Copied!" });

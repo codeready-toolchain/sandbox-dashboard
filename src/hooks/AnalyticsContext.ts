@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+
 import type { Product } from "../types/product";
 
 export interface AnalyticsContextType {

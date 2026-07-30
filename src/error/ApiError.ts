@@ -1,6 +1,6 @@
 import { errorMessage } from "../utils/common";
-import { sanitizeErrorBody } from "./sanitize";
 import logger from "../utils/logger";
+import { sanitizeErrorBody } from "./sanitize";
 
 /**
  * Parses the JSON response or falls back to regular text.

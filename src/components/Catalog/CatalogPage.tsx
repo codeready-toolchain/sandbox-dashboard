@@ -1,5 +1,6 @@
 import { Button, Content } from "@patternfly/react-core";
 import { useState } from "react";
+
 import { useUserContext } from "../../hooks/UserContext";
 import { AccessCodeInputModal } from "../Modals";
 import { CatalogBanner } from "./CatalogBanner";

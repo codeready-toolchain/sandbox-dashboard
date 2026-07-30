@@ -17,11 +17,11 @@ import {
   newRbacEditRoleBindingObject,
   newServiceAccountObject,
   newTokenRequestObject,
+  type OpenClawCredentialInput,
+  type OpenClawCustomProviderInput,
   ROLEBINDING_EDIT_NAME,
   ROLEBINDING_RBAC_EDIT_NAME,
   SA_NAME,
-  type OpenClawCredentialInput,
-  type OpenClawCustomProviderInput,
 } from "../utils/openclaw-utils";
 import { authFetch } from "./authFetch";
 
@@ -104,7 +104,9 @@ function buildCredentialInput(
 function buildCustomProvider(
   cred: AddedCredential,
 ): OpenClawCustomProviderInput | undefined {
-  if (cred.provider.id !== "custom") return undefined;
+  if (cred.provider.id !== "custom") {
+    return undefined;
+  }
 
   const endpointUrl = cred.values["endpoint-url"] ?? "";
   const apiFormat = cred.values["api-format"];
@@ -131,7 +133,9 @@ function resolveWebSearchProvider(
   const hasStandardProvider = credentials.some(
     (c) => c.provider.id !== "custom",
   );
-  if (!hasStandardProvider) return undefined;
+  if (!hasStandardProvider) {
+    return undefined;
+  }
 
   const hasGoogleApiKey = credentials.some(
     (c) =>
@@ -158,7 +162,9 @@ async function createOrUpdateSecret(
     headers: { "Content-Type": "application/json" },
   });
 
-  if (response.ok) return;
+  if (response.ok) {
+    return;
+  }
 
   if (response.status === 409) {
     const getResponse = await authFetch(`${basePath}/${name}`, {
@@ -212,7 +218,9 @@ async function createIfAbsent(
     headers: { "Content-Type": "application/json" },
   });
 
-  if (response.ok || response.status === 409) return;
+  if (response.ok || response.status === 409) {
+    return;
+  }
 
   throw await ApiError.fromResponse(
     `createIfAbsent failed: ${label}`,
@@ -230,7 +238,9 @@ function logAndAggregate(
   rejected: PromiseRejectedResult[],
   context: string,
 ): void {
-  if (rejected.length === 0) return;
+  if (rejected.length === 0) {
+    return;
+  }
 
   for (const f of rejected) {
     const reason = f.reason;
@@ -258,7 +268,9 @@ function logAndAggregate(
 async function deleteIfPresent(url: string, label: string): Promise<void> {
   const response = await authFetch(url, { method: "DELETE" });
 
-  if (response.ok || response.status === 404) return;
+  if (response.ok || response.status === 404) {
+    return;
+  }
 
   throw await ApiError.fromResponse(
     `deleteIfPresent failed: ${label}`,
@@ -281,7 +293,9 @@ export async function getSpaceRequest(
   const response = await authFetch(`${proxyURL}${url}`, { method: "GET" });
 
   if (!response.ok) {
-    if (response.status === 404) return undefined;
+    if (response.status === 404) {
+      return undefined;
+    }
     throw await ApiError.fromResponse("getSpaceRequest failed", response);
   }
   return response.json();
@@ -343,7 +357,9 @@ export async function getOpenClaw(
   const response = await authFetch(`${proxyURL}${url}`, { method: "GET" });
 
   if (!response.ok) {
-    if (response.status === 404) return undefined;
+    if (response.status === 404) {
+      return undefined;
+    }
     throw await ApiError.fromResponse("getOpenClaw", response);
   }
   return response.json();

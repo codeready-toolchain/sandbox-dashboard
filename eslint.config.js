@@ -1,7 +1,8 @@
 import js from "@eslint/js";
-import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   { ignores: ["dist", "tmp", "public/mockServiceWorker.js"] },
@@ -11,6 +12,7 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
+      "simple-import-sort": simpleImportSort,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -18,6 +20,11 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      // Enforce braces on every block statement to improve readability.
+      curly: ["error", "all"],
+      // Make sure the imports and exports are properly sorted.
+      "simple-import-sort/imports": "error",
+      "simple-import-sort/exports": "error",
     },
   },
 );

@@ -5,6 +5,7 @@ import {
   ModalBody,
   ModalHeader,
 } from "@patternfly/react-core";
+
 import { SUPPORT_EMAIL } from "../../const";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
@@ -8,7 +9,7 @@ import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
-import { ProductType, type Product } from "../../../types/product";
+import { type Product, ProductType } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { OpenClawCatalogCard } from "../OpenClawCatalogCard";
 import { products } from "../productData";

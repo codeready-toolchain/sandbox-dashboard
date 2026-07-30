@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+
 import { setTokenGetter } from "../../api/authFetch";
 import { server } from "../../mocks/server";
 import { NotificationProvider } from "../../notifications/NotificationProvider";

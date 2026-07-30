@@ -1,7 +1,8 @@
 import Keycloak from "keycloak-js";
 import { http, HttpResponse } from "msw";
+
 import { setTokenGetter } from "../../api/authFetch";
-import { Environment, type AppConfig } from "../../config/config";
+import { type AppConfig, Environment } from "../../config/config";
 import { authConfigFixture } from "../../mocks/fixtures/registration-fixtures";
 import { server } from "../../mocks/server";
 import initializeKeycloak from "../initializeKeycloak";

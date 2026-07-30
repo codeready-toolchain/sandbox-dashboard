@@ -1,6 +1,7 @@
 import Keycloak from "keycloak-js";
+
 import { setTokenGetter } from "../api/authFetch";
-import { Environment, type AppConfig } from "../config/config";
+import { type AppConfig, Environment } from "../config/config";
 import type { AuthConfigResponse, KeycloakClientConfig } from "../types";
 import type { AuthenticatedContextValue } from "./AuthenticatedContext";
 

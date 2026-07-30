@@ -1,11 +1,12 @@
 import { http, HttpResponse, type RequestHandler } from "msw";
+
 import {
   clawSpaceRequest,
+  kubeRootCaConfigMapFixture,
   openClawFixture,
   openClawIdledFixture,
   openClawProvisioning,
   openClawTerminatingSpaceRequest,
-  kubeRootCaConfigMapFixture,
   tokenRequestResponseFixture,
 } from "../fixtures/openclaw-fixtures";
 import { StateMachine } from "./state-machine";

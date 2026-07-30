@@ -10,12 +10,13 @@ import {
   ModalHeader,
 } from "@patternfly/react-core";
 import {
+  type ClipboardEvent,
+  type KeyboardEvent,
   useCallback,
   useRef,
   useState,
-  type ClipboardEvent,
-  type KeyboardEvent,
 } from "react";
+
 import { verifyActivationCode } from "../../api/registration";
 import { SUPPORT_EMAIL } from "../../const";
 import { ApiError } from "../../error/ApiError";
@@ -111,7 +112,9 @@ function CodeBoxes({
       .replace(/[^a-zA-Z0-9]/g, "")
       .toUpperCase()
       .slice(0, CODE_LENGTH);
-    if (!pasted) return;
+    if (!pasted) {
+      return;
+    }
     const next = [...values];
     for (let i = 0; i < pasted.length; i++) {
       next[i] = pasted[i];
@@ -203,7 +206,9 @@ export function AccessCodeInputModal({
   };
 
   const handleSubmit = async () => {
-    if (isSubmittingRef.current) return;
+    if (isSubmittingRef.current) {
+      return;
+    }
 
     setError(null);
     const code = codeChars.join("");

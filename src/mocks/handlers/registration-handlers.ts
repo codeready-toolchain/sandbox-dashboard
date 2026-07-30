@@ -1,10 +1,11 @@
 import { http, HttpResponse, type RequestHandler } from "msw";
+
 import {
   authConfigFixture,
   localKeycloakAuthConfigFixture,
   readyUserFixture,
-  uiConfigFixture,
   segmentWriteKeyFixture,
+  uiConfigFixture,
 } from "../fixtures/registration-fixtures";
 
 export const registrationMockHandlers: RequestHandler[] = [

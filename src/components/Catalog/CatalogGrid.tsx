@@ -1,19 +1,21 @@
+import "./CatalogGrid.css";
+
 import { useCallback, useMemo } from "react";
+
 import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { AnsibleProvider } from "../../hooks/AnsibleProvider";
 import { OpenClawProvider } from "../../hooks/OpenClawProvider";
+import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 import { useUIConfigurationContext } from "../../hooks/UIConfigurationContext";
 import useProductURLResolver from "../../hooks/useProductURLResolver";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import useTriedProducts from "../../hooks/useTriedProducts";
-import { ProductType, type Product } from "../../types/product";
+import { type Product, ProductType } from "../../types/product";
 import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel } from "./catalogCardTypes";
-import "./CatalogGrid.css";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
 import { products } from "./productData";
-import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 
 export function CatalogGrid() {
   const { trackAnalytics } = useAnalyticsContext();

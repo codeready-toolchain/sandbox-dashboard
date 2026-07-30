@@ -14,6 +14,7 @@ import {
 import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import { useRef, useState } from "react";
+
 import type { UserFacingError } from "../../error/UserFacingError";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
 import type { Product } from "../../types/product";
@@ -73,7 +74,9 @@ export function OpenClawLaunchInfoModal({
   // parent component.
   const handleOnClickProvision = async () => {
     const credentials = accordionRef.current?.getValidatedCredentials();
-    if (!credentials || credentials.length === 0) return;
+    if (!credentials || credentials.length === 0) {
+      return;
+    }
 
     setIsSubmitting(true);
     try {

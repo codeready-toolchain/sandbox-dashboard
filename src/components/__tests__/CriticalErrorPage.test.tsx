@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { CriticalErrorPage } from "../CriticalErrorPage";
+
 import { CriticalError } from "../../error/CriticalError";
+import { CriticalErrorPage } from "../CriticalErrorPage";
 
 describe("CriticalErrorPage", () => {
   beforeEach(() => {

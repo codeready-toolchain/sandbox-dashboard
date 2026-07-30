@@ -57,7 +57,9 @@ export async function deleteSecretsAndPVCs(
   if (k8sObjects && k8sObjects.items.length > 0) {
     for (const k8sObject of k8sObjects.items) {
       const volumes = k8sObject?.spec?.template?.spec?.volumes;
-      if (!volumes) continue;
+      if (!volumes) {
+        continue;
+      }
 
       for (const volume of volumes) {
         if (volume.persistentVolumeClaim?.claimName) {
@@ -106,7 +108,9 @@ export async function deletePVCsForSTS(
   if (k8sObjects && k8sObjects.items.length > 0) {
     for (const k8sObject of k8sObjects.items) {
       const volumeClaimTemplates = k8sObject?.spec?.volumeClaimTemplates;
-      if (!volumeClaimTemplates) continue;
+      if (!volumeClaimTemplates) {
+        continue;
+      }
 
       for (const volumeClaim of volumeClaimTemplates) {
         const pvcs = await getPersistentVolumeClaims(

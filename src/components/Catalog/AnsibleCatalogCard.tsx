@@ -1,5 +1,7 @@
 import { AlertVariant } from "@patternfly/react-core";
 import { useCallback, useRef, useState } from "react";
+
+import { SUPPORT_EMAIL } from "../../const";
 import { UserFacingError } from "../../error/UserFacingError";
 import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
@@ -12,7 +14,6 @@ import logger from "../../utils/logger";
 import { AnsibleDeleteInstanceModal, AnsibleLaunchInfoModal } from "../Modals";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
-import { SUPPORT_EMAIL } from "../../const";
 
 /**
  * Obtains the main button's label.

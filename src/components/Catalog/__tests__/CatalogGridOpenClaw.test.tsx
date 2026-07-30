@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
@@ -7,10 +8,10 @@ import {
 } from "../../../hooks/AnsibleContext";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
+import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
+import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
-import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
-import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";

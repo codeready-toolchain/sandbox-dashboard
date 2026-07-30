@@ -29,7 +29,9 @@ const SENSITIVE_PATTERNS: { pattern: RegExp; replacement: string }[] = [
  *   and length capped at {@link MAX_BODY_LENGTH} characters.
  */
 export function sanitizeErrorBody(body: unknown): unknown {
-  if (body === undefined || body === null) return body;
+  if (body === undefined || body === null) {
+    return body;
+  }
 
   if (typeof body === "string") {
     return redactAndTruncate(body);
@@ -44,9 +46,15 @@ export function sanitizeErrorBody(body: unknown): unknown {
 }
 
 function sanitizeObjectValues(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj === "string") return redact(obj);
-  if (Array.isArray(obj)) return obj.map(sanitizeObjectValues);
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (typeof obj === "string") {
+    return redact(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObjectValues);
+  }
   if (typeof obj === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {

@@ -1,12 +1,13 @@
 import { AlertVariant } from "@patternfly/react-core";
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
+
 import { createAAP, deleteAAPCR, getAAP, unIdleAAP } from "../api/aap";
 import {
   deletePVCsForSTS,
@@ -30,8 +31,8 @@ import type {
 } from "../types";
 import {
   AAPInstanceErrorType,
-  mapAnsibleStatus,
   type AAPInstanceStatus,
+  mapAnsibleStatus,
 } from "../utils/aap-utils";
 import logger from "../utils/logger";
 import { isTransient, withRetry } from "../utils/retry";

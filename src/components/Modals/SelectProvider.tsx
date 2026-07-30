@@ -12,6 +12,7 @@ import {
 } from "@patternfly/react-core";
 import RhMicronsCloseIcon from "@patternfly/react-icons/dist/esm/icons/rh-microns-close-icon";
 import { useMemo, useRef, useState } from "react";
+
 import {
   CATEGORY_LABELS,
   type ProviderCategory,
@@ -141,7 +142,9 @@ export function SelectProvider({
       setIsOpen(true);
     }
 
-    if (renderOrderProviders.length === 0) return;
+    if (renderOrderProviders.length === 0) {
+      return;
+    }
 
     const currentIndex: number = renderOrderProviders.findIndex(
       (provider: ProviderConfig) => {
@@ -170,7 +173,9 @@ export function SelectProvider({
     }
 
     const nextProvider = renderOrderProviders[nextIndex];
-    if (!nextProvider) return;
+    if (!nextProvider) {
+      return;
+    }
     setFocusedProviderId(nextProvider.id);
     setActiveItemId(nextProvider.id);
   };
@@ -260,7 +265,9 @@ export function SelectProvider({
       selected={selected}
       onSelect={onSelect}
       onOpenChange={(isOpen) => {
-        if (!isOpen) closeMenu();
+        if (!isOpen) {
+          closeMenu();
+        }
       }}
       toggle={toggle}
       variant="typeahead"

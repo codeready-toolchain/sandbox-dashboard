@@ -1,5 +1,5 @@
-import { createContext } from "react";
 import type { AlertVariant } from "@patternfly/react-core";
+import { createContext } from "react";
 
 /**
  * Defines the functions which the NotificationContext provides to show

@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
-import type { AAPInstanceStatus } from "../utils/aap-utils";
+
 import type { AAPInstanceCredentials } from "../types";
+import type { AAPInstanceStatus } from "../utils/aap-utils";
 
 export interface AnsibleContextType {
   /**

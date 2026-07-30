@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { SelectProvider } from "../SelectProvider";
+
 import type { ProviderConfig } from "../../../utils/openclaw-providers";
+import { SelectProvider } from "../SelectProvider";
 
 const mockProvider: ProviderConfig = {
   id: "gemini",

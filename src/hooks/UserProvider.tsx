@@ -1,12 +1,13 @@
 import { AlertVariant } from "@patternfly/react-core";
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
+
 import { getSignupData, signup } from "../api/registration";
 import { CriticalErrorPage } from "../components/CriticalErrorPage";
 import { Environment, getConfig } from "../config/config";

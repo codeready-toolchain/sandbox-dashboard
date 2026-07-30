@@ -1,18 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { Layout } from "../Layout/Layout";
+
 import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../auth/AuthenticatedContext";
 import {
   UserContext,
-  UserSignupPhase,
   type UserContextType,
+  UserSignupPhase,
 } from "../../hooks/UserContext";
 import { readyUserFixture } from "../../mocks/fixtures";
-import React from "react";
+import { Layout } from "../Layout/Layout";
 
 vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
   RhIcon: { resolve: vi.fn() },

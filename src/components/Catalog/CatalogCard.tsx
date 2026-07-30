@@ -1,3 +1,6 @@
+import "../common/Card.css";
+import "./CatalogCard.css";
+
 import {
   Button,
   Card,
@@ -15,15 +18,14 @@ import CheckCircleIcon from "@patternfly/react-icons/dist/esm/icons/check-circle
 import CheckIcon from "@patternfly/react-icons/dist/esm/icons/check-icon";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import InfoCircleIcon from "@patternfly/react-icons/dist/esm/icons/info-circle-icon";
-import "../common/Card.css";
-import "./CatalogCard.css";
-import { ButtonLabel } from "./catalogCardTypes";
-import type { StatusLabel } from "./catalogCardTypes";
+
 import {
   BulletPointIconType,
   type Product,
   type ProductDescription,
 } from "../../types/product";
+import type { StatusLabel } from "./catalogCardTypes";
+import { ButtonLabel } from "./catalogCardTypes";
 import { Intcmp } from "./productData";
 
 /**

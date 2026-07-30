@@ -21,14 +21,15 @@ import {
   useRef,
   useState,
 } from "react";
+
 import {
-  PROVIDERS,
   type AddedCredential,
   type ProviderConfig,
+  PROVIDERS,
 } from "../../utils/openclaw-providers";
+import { extractGcpProjectId } from "../../utils/openclaw-utils";
 import { ProviderCredentialForm } from "./ProviderCredentialForm";
 import { SelectProvider } from "./SelectProvider";
-import { extractGcpProjectId } from "../../utils/openclaw-utils";
 
 type CredentialEntry = {
   id: string;
@@ -45,7 +46,9 @@ export type CredentialAccordionProps = {
 };
 
 function getCredentialSummary(entry: CredentialEntry): string {
-  if (!entry.provider) return "";
+  if (!entry.provider) {
+    return "";
+  }
   const { provider, values } = entry;
 
   if (provider.credentialType === "gcp") {
@@ -204,7 +207,9 @@ export const CredentialAccordion = forwardRef<
           return { ...prev, [entryId]: entryClone };
         }
 
-        if (!prev[entryId]?.[fieldKey]) return prev;
+        if (!prev[entryId]?.[fieldKey]) {
+          return prev;
+        }
         const entryErrors = { ...prev[entryId] };
         delete entryErrors[fieldKey];
         if (Object.keys(entryErrors).length === 0) {
@@ -260,7 +265,9 @@ export const CredentialAccordion = forwardRef<
           (e): e is CredentialEntry & { provider: ProviderConfig } =>
             e.provider !== null,
         );
-        if (withProvider.length === 0) return null;
+        if (withProvider.length === 0) {
+          return null;
+        }
 
         let hasErrors = false;
         const newErrors: Record<string, Record<string, string[]>> = {};
@@ -307,7 +314,9 @@ export const CredentialAccordion = forwardRef<
               <AccordionToggle
                 id={`toggle-${entry.id}`}
                 onClick={() => {
-                  if (hasProvider) handleToggleExpand(entry.id);
+                  if (hasProvider) {
+                    handleToggleExpand(entry.id);
+                  }
                 }}
               >
                 <Flex alignItems={{ default: "alignItemsCenter" }}>

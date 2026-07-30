@@ -1,5 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
 import { UserFacingError } from "../../../error/UserFacingError";
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
@@ -11,7 +12,7 @@ import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { NotificationProvider } from "../../../notifications/NotificationProvider";
-import { ProductType, type Product } from "../../../types/product";
+import { type Product, ProductType } from "../../../types/product";
 import { AAPInstanceErrorType } from "../../../utils/aap-utils";
 import { AnsibleCatalogCard } from "../AnsibleCatalogCard";
 import { products } from "../productData";

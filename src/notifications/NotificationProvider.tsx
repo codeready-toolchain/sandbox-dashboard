@@ -4,7 +4,8 @@ import {
   AlertGroup,
   AlertVariant,
 } from "@patternfly/react-core";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
+
 import { ErrorSeverity, UserFacingError } from "../error/UserFacingError";
 import logger from "../utils/logger";
 import { NotificationContext } from "./NotificationContext";

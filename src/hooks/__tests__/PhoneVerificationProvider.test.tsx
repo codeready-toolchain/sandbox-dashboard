@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
 import * as registrationApi from "../../api/registration";
 import { readyUserFixture } from "../../mocks/fixtures";
 import { AnalyticsContext } from "../AnalyticsContext";
@@ -7,8 +8,8 @@ import { usePhoneVerificationContext } from "../PhoneVerificationContext";
 import { PhoneVerificationProvider } from "../PhoneVerificationProvider";
 import {
   UserContext,
-  UserSignupPhase,
   type UserContextType,
+  UserSignupPhase,
 } from "../UserContext";
 
 vi.mock("../../api/registration", () => ({

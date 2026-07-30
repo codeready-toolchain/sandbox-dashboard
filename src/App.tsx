@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router";
+
 import { ActivitiesPage } from "./components/Activities/ActivitiesPage";
 import { CatalogPage } from "./components/Catalog/CatalogPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
