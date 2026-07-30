@@ -1,0 +1,33 @@
+FROM node:22-slim AS build
+
+# Set up our working directory.
+WORKDIR /app
+
+# Copy the files which specify the exact dependencies.
+COPY package.json package-lock.json ./
+
+# Run NPM CI to:
+#
+# - Skip the dependency resolution.
+# - Install the dependencies exactly as listed in the lockfile.
+# - Remove the "node_modules" if any, to have a clean installation every
+#   time.
+RUN npm ci
+
+# Copy all the files to the container.
+COPY . .
+
+# Build the user interface.
+RUN npm run build
+
+FROM registry.access.redhat.com/ubi9/nginx-124
+
+# Copy the UI contents into the container.
+COPY --from=build /app/dist .
+
+# Copy the Nginx configuration files into the container.
+COPY deploy/nginx/nginx.conf "${NGINX_CONF_PATH}"
+COPY deploy/nginx/security-headers.conf /etc/nginx/security-headers.conf
+
+# Launch Nginx in the foreground.
+CMD nginx -g "daemon off;"

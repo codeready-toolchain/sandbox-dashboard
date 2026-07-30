@@ -27,7 +27,7 @@ build:
 	npm run build
 
 image:
-	podman build -t sandbox-dashboard -f Containerfile .
+	podman build --tag sandbox-dashboard --file deploy/Containerfile .
 
 run-image:
 	podman run --rm -p 8080:8080 sandbox-dashboard

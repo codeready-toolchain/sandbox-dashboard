@@ -23,7 +23,7 @@ jobs:
         with:
           image: ${{ env.IMAGE_NAME }}
           tags: latest ${{ github.sha }}
-          containerfiles: ./Containerfile
+          containerfiles: ./deploy/Containerfile
 
       - name: Login to Quay.io
         env:
