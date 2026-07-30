@@ -78,8 +78,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             key={key}
             variant={variant}
             title={title}
-            timeout={8000}
-            onTimeout={() => removeAlert(key)}
+            timeout={variant === AlertVariant.danger ? undefined : 8000}
+            onTimeout={
+              variant === AlertVariant.danger
+                ? undefined
+                : () => removeAlert(key)
+            }
             actionClose={
               <AlertActionCloseButton onClose={() => removeAlert(key)} />
             }

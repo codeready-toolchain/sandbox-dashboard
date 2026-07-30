@@ -140,6 +140,7 @@ export function AnsibleCatalogCard({
         return;
       case UserSignupPhase.READY:
         break;
+      case UserSignupPhase.BLOCKED:
       default:
         return;
     }

@@ -1,20 +1,52 @@
 import { AlertVariant } from "@patternfly/react-core";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { ErrorSeverity, UserFacingError } from "../../error/UserFacingError";
 import { NotificationProvider } from "../NotificationProvider";
 import { useNotifications } from "../useNotifications";
 
 function TestConsumer() {
-  const { addAlert } = useNotifications();
+  const { addAlert, addAlertFromError } = useNotifications();
   return (
-    <button
-      onClick={() =>
-        addAlert(AlertVariant.success, "Test alert", "Description")
-      }
-    >
-      Add Alert
-    </button>
+    <div>
+      <button
+        onClick={() =>
+          addAlert(AlertVariant.success, "Test alert", "Description")
+        }
+      >
+        Add Alert
+      </button>
+      <button
+        onClick={() =>
+          addAlert(AlertVariant.danger, "Danger alert", "Danger description")
+        }
+      >
+        Add Danger Alert
+      </button>
+      <button
+        onClick={() =>
+          addAlertFromError(new UserFacingError("Error title", "Error detail"))
+        }
+      >
+        Add Error From UserFacingError
+      </button>
+      <button
+        onClick={() =>
+          addAlertFromError(
+            new UserFacingError(
+              "Warning title",
+              "Warning detail",
+              undefined,
+              undefined,
+              ErrorSeverity.WARNING,
+            ),
+          )
+        }
+      >
+        Add Warning From UserFacingError
+      </button>
+    </div>
   );
 }
 
@@ -40,6 +72,100 @@ describe("NotificationProvider", () => {
     await user.click(screen.getByText("Add Alert"));
     expect(screen.getByText("Test alert")).toBeInTheDocument();
     expect(screen.getByText("Description")).toBeInTheDocument();
+  });
+
+  it("auto-dismisses non-danger alerts after timeout", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    render(
+      <NotificationProvider>
+        <TestConsumer />
+      </NotificationProvider>,
+    );
+
+    await act(async () => {
+      screen.getByText("Add Alert").click();
+    });
+
+    expect(screen.getByText("Test alert")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000);
+    });
+
+    expect(screen.queryByText("Test alert")).not.toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it("does not auto-dismiss danger alerts", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    render(
+      <NotificationProvider>
+        <TestConsumer />
+      </NotificationProvider>,
+    );
+
+    await act(async () => {
+      screen.getByText("Add Danger Alert").click();
+    });
+
+    expect(screen.getByText("Danger alert")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+
+    expect(screen.getByText("Danger alert")).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it("allows manually closing a danger alert", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NotificationProvider>
+        <TestConsumer />
+      </NotificationProvider>,
+    );
+
+    await user.click(screen.getByText("Add Danger Alert"));
+    expect(screen.getByText("Danger alert")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByLabelText("Close Danger alert: alert: Danger alert"),
+    );
+    expect(screen.queryByText("Danger alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a danger alert from a UserFacingError with ERROR severity", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NotificationProvider>
+        <TestConsumer />
+      </NotificationProvider>,
+    );
+
+    await user.click(screen.getByText("Add Error From UserFacingError"));
+    expect(screen.getByText("Error title")).toBeInTheDocument();
+    expect(screen.getByText("Error detail")).toBeInTheDocument();
+  });
+
+  it("shows a warning alert from a UserFacingError with WARNING severity", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NotificationProvider>
+        <TestConsumer />
+      </NotificationProvider>,
+    );
+
+    await user.click(screen.getByText("Add Warning From UserFacingError"));
+    expect(screen.getByText("Warning title")).toBeInTheDocument();
+    expect(screen.getByText("Warning detail")).toBeInTheDocument();
   });
 });
 

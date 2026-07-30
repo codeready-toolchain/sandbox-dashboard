@@ -9,15 +9,16 @@ import {
 } from "react";
 
 import { getSignupData, signup } from "../api/registration";
-import { CriticalErrorPage } from "../components/CriticalErrorPage";
 import { Environment, getConfig } from "../config/config";
 import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { ApiError } from "../error/ApiError";
-import { CriticalError } from "../error/CriticalError";
 import { useNotifications } from "../notifications/useNotifications";
 import { type User } from "../types";
 import logger from "../utils/logger";
-import { mapUserStatusToSignupPhase } from "../utils/register-utils";
+import {
+  mapFetchUserErrorToErrorMessage,
+  mapUserStatusToSignupPhase,
+} from "../utils/register-utils";
 import { withRetry } from "../utils/retry";
 import { UserContext, UserSignupPhase } from "./UserContext";
 import { useRecaptcha } from "./useRecaptcha";
@@ -29,15 +30,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Grab the notifications' utilities to be able to post errors if anything
   // goes wrong.
-  const { addAlert } = useNotifications();
+  const { addAlert, addAlertFromError } = useNotifications();
 
   const [user, setUser] = useState<User | undefined>(undefined);
   const [userSignupPhase, setUserSignupPhase] = useState<UserSignupPhase>(
     UserSignupPhase.NOT_STARTED,
-  );
-
-  const [criticalError, setCriticalError] = useState<CriticalError | null>(
-    null,
   );
 
   /**
@@ -110,16 +107,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // user information and therefore we can't really have a functional
         // UI.
         if (!isRefetch) {
-          logger.error(
-            "Critical: unable to fetch user data after retries:",
-            err,
-          );
-          setCriticalError(
-            new CriticalError(
-              `We're unable to load your account information. Please try again later, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
-              err,
-            ),
-          );
+          updateSignupPhase(UserSignupPhase.BLOCKED);
+          addAlertFromError(mapFetchUserErrorToErrorMessage(err));
           return undefined;
         }
         logger.error("Error fetching user data:", err);
@@ -127,7 +116,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // will be retried on the next poll tick.
       }
     },
-    [updateSignupPhase],
+    [addAlertFromError, updateSignupPhase],
   );
 
   /**
@@ -135,6 +124,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
    */
   const signupUser = useCallback(async () => {
     if (
+      userSignupPhaseRef.current === UserSignupPhase.BLOCKED ||
       userSignupPhaseRef.current === UserSignupPhase.SIGNING_UP ||
       userSignupPhaseRef.current === UserSignupPhase.PROVISIONING ||
       userSignupPhaseRef.current === UserSignupPhase.PROVISIONING_TIMED_OUT
@@ -321,12 +311,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }),
     [refetchUserData, signupUser, user, userSignupPhase],
   );
-
-  // Render an error page on critical errors instead of having a broken and
-  // unresponsive user interface.
-  if (criticalError) {
-    return <CriticalErrorPage error={criticalError} />;
-  }
 
   return (
     <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>

@@ -78,6 +78,7 @@ export function CatalogGrid() {
         case UserSignupPhase.READY:
           openProductURL(product);
           return;
+        case UserSignupPhase.BLOCKED:
         default:
           return;
       }
