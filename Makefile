@@ -13,6 +13,7 @@ start-keycloak:
 		quay.io/keycloak/keycloak:latest start-dev --import-realm
 
 lint:
+	npm run typecheck
 	npm run lint
 	npm run format:check
 
@@ -27,7 +28,7 @@ build:
 	npm run build
 
 image:
-	podman build -t sandbox-dashboard -f Containerfile .
+	podman build --tag sandbox-dashboard --file deploy/Containerfile .
 
 run-image:
 	podman run --rm -p 8080:8080 sandbox-dashboard

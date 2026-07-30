@@ -1,0 +1,15 @@
+.claude/
+.containerignore
+.cursor/
+.git/
+.github/
+.gitignore
+.prettierignore
+.prettierrc
+.vscode/
+dist/
+docs/
+eslint.config.js
+Makefile
+node_modules/
+README.md
