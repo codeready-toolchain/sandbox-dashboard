@@ -82,7 +82,7 @@ describe("UserProvider", () => {
     expect(screen.getByTestId("givenName").textContent).toBe("");
   });
 
-  it("renders CriticalErrorPage when the initial fetch fails", async () => {
+  it("sets phase to BLOCKED and shows a danger alert when the initial fetch fails", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
     server.use(
@@ -98,14 +98,112 @@ describe("UserProvider", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Unable to load the Developer Sandbox"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.BLOCKED),
+      );
     });
 
     expect(
-      screen.getByText(/We're unable to load your account information/),
+      screen.getByText("Unable to sign you up into Developer Sandbox"),
     ).toBeInTheDocument();
+  });
+
+  it("shows a suspended alert when the backend reports the user has been suspended", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        return HttpResponse.json(
+          { message: "user has been suspended" },
+          { status: 403 },
+        );
+      }),
+    );
+
+    renderProvider();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.BLOCKED),
+      );
+    });
+
+    expect(screen.getByText("The account is suspended")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Access to the Developer Sandbox has been suspended due to suspicious activity or detected abuse",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a denied alert when the backend reports access has been denied", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        return HttpResponse.json(
+          { message: "user has been denied" },
+          { status: 403 },
+        );
+      }),
+    );
+
+    renderProvider();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.BLOCKED),
+      );
+    });
+
+    expect(screen.getByText("The access has been denied")).toBeInTheDocument();
+    expect(
+      screen.getByText("Access to the Developer Sandbox has been denied"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not allow signupUser when phase is BLOCKED", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let signupCallCount = 0;
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        return HttpResponse.json(
+          { message: "user has been suspended" },
+          { status: 403 },
+        );
+      }),
+      http.post("*/api/v1/signup", () => {
+        signupCallCount++;
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+
+    renderProvider();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.BLOCKED),
+      );
+    });
+
+    await act(async () => {
+      screen.getByTestId("signup-btn").click();
+    });
+
+    expect(signupCallCount).toBe(0);
   });
 
   it("maps verification-required status to PENDING_PHONE_VERIFICATION phase", async () => {

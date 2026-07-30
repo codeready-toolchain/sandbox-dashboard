@@ -163,6 +163,7 @@ export function OpenClawCatalogCard({
         return;
       case UserSignupPhase.READY:
         break;
+      case UserSignupPhase.BLOCKED:
       default:
         return;
     }

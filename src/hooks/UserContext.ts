@@ -7,6 +7,7 @@ import { type User } from "../types";
  */
 export enum UserSignupPhase {
   NOT_STARTED,
+  BLOCKED,
   FETCHING_DATA,
   SIGNING_UP,
   PENDING_PHONE_VERIFICATION,

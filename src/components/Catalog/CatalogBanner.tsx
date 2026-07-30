@@ -45,15 +45,19 @@ export function CatalogBanner() {
   );
 
   const renderSubtitle = () => {
-    if (userSignupPhase === UserSignupPhase.PENDING_PHONE_VERIFICATION) {
-      return 'Click on "Try it" to initiate your free, no commitment 30-day trial.';
+    switch (userSignupPhase) {
+      case UserSignupPhase.BLOCKED:
+        return "Your account is not ready to use the Developer Sandbox.";
+      case UserSignupPhase.PENDING_PHONE_VERIFICATION:
+        return 'Click on "Try it" to initiate your free, no commitment 30-day trial.';
+      case UserSignupPhase.PENDING_MANUAL_APPROVAL:
+        return "Please wait for your trial to be approved.";
     }
-    if (userSignupPhase === UserSignupPhase.PENDING_MANUAL_APPROVAL) {
-      return "Please wait for your trial to be approved.";
-    }
+
     if (user?.endDate && daysLeft !== undefined) {
       return `Your free trial expires in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
     }
+
     return "";
   };
 
@@ -69,7 +73,16 @@ export function CatalogBanner() {
             />
           </FlexItem>
           <FlexItem>
-            {userSignupPhase === UserSignupPhase.FETCHING_DATA ? (
+            {userSignupPhase === UserSignupPhase.BLOCKED ? (
+              <div>
+                <Content component={ContentVariants.h1}>
+                  Try Red Hat products
+                </Content>
+                <Content component={ContentVariants.p}>
+                  {renderSubtitle()}
+                </Content>
+              </div>
+            ) : userSignupPhase === UserSignupPhase.FETCHING_DATA ? (
               <div>
                 <Skeleton
                   width="500px"

@@ -55,6 +55,24 @@ describe("CatalogBanner", () => {
     expect(screen.getByText("Try Red Hat products")).toBeInTheDocument();
   });
 
+  it("shows account not ready message when phase is BLOCKED", () => {
+    render(
+      <UserContext.Provider
+        value={makeContext({
+          user: undefined,
+          userSignupPhase: UserSignupPhase.BLOCKED,
+        })}
+      >
+        <CatalogBanner />
+      </UserContext.Provider>,
+    );
+    expect(
+      screen.getByText(
+        "Your account is not ready to use the Developer Sandbox.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows verification prompt when pending phone verification", () => {
     render(
       <UserContext.Provider
