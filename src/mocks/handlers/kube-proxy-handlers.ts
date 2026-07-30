@@ -1,9 +1,10 @@
 import { http, HttpResponse, type RequestHandler } from "msw";
+
 import {
-  secretFixture,
   deploymentFixture,
-  statefulSetFixture,
   pvcFixture,
+  secretFixture,
+  statefulSetFixture,
 } from "../fixtures/kube-proxy-fixtures";
 
 export const kubeProxyMockHandlers: RequestHandler[] = [

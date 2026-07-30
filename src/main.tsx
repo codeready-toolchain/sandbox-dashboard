@@ -3,10 +3,11 @@ import "./global.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+
 import { App } from "./App";
+import { AuthenticatedContext } from "./auth/AuthenticatedContext";
 import initializeKeycloak from "./auth/initializeKeycloak";
 import { Environment, getConfig } from "./config/config";
-import { AuthenticatedContext } from "./auth/AuthenticatedContext";
 
 async function bootstrap() {
   const configuration = getConfig();

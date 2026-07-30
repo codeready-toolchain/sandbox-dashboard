@@ -11,15 +11,16 @@ import {
   Spinner,
   TextInput,
 } from "@patternfly/react-core";
-import { useRef, useState, type FormEvent } from "react";
+import { type FormEvent, useRef, useState } from "react";
+
 import {
   completePhoneVerification,
   initiatePhoneVerification,
 } from "../../api/registration";
 import { SUPPORT_EMAIL } from "../../const";
 import { ApiError } from "../../error/ApiError";
-import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { mapApiErrorMessage } from "../../error/mapApiErrorMessage";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import logger from "../../utils/logger";
 import {
   isValidCountryCode,
@@ -122,7 +123,9 @@ export function PhoneVerificationModal({
 
   const handlePhoneSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (inFlightRef.current) return;
+    if (inFlightRef.current) {
+      return;
+    }
 
     setError(null);
 

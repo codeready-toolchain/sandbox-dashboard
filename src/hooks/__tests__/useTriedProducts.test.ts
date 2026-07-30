@@ -1,6 +1,7 @@
-import { renderHook, act } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
+
+import { type Product, ProductType } from "../../types/product";
 import useTriedProducts from "../useTriedProducts";
-import { ProductType, type Product } from "../../types/product";
 
 function makeProduct(type: ProductType): Product {
   return { type, title: type, image: "", description: [] };

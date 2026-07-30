@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import { ActivitiesPage } from "../ActivitiesPage";
 import { articleData } from "../articleData";

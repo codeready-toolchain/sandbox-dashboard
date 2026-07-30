@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";

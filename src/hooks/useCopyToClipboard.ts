@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import logger from "../utils/logger";
 
 /**
@@ -16,7 +17,9 @@ export function useCopyToClipboard(text: string | null | undefined) {
   // Clears the timeout on unmount.
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, []);
 

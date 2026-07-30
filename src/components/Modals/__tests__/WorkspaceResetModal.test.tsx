@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceResetModal } from "../WorkspaceResetModal";
-import { ApiError } from "../../../error/ApiError";
+
 import * as registrationApi from "../../../api/registration";
+import { ApiError } from "../../../error/ApiError";
+import { WorkspaceResetModal } from "../WorkspaceResetModal";
 
 vi.mock("../../../api/registration", () => ({
   resetWorkspaces: vi.fn(),

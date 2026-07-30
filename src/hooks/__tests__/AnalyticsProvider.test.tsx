@@ -1,16 +1,17 @@
+import { AnalyticsBrowser } from "@segment/analytics-next";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AnalyticsBrowser } from "@segment/analytics-next";
 import { http, HttpResponse } from "msw";
+
 import { setTokenGetter } from "../../api/authFetch";
 import { server } from "../../mocks/server";
-import { AnalyticsProvider } from "../AnalyticsProvider";
-import { useAnalyticsContext } from "../AnalyticsContext";
-import { UserContext, UserSignupPhase } from "../UserContext";
-import { UIConfigurationContext } from "../UIConfigurationContext";
-import * as cookieUtils from "../../utils/cookie-utils";
 import type { User } from "../../types";
-import { ProductType, type Product } from "../../types/product";
+import { type Product, ProductType } from "../../types/product";
+import * as cookieUtils from "../../utils/cookie-utils";
+import { useAnalyticsContext } from "../AnalyticsContext";
+import { AnalyticsProvider } from "../AnalyticsProvider";
+import { UIConfigurationContext } from "../UIConfigurationContext";
+import { UserContext, UserSignupPhase } from "../UserContext";
 
 vi.mock("@segment/analytics-next", () => ({
   AnalyticsBrowser: {
@@ -296,8 +297,12 @@ describe("AnalyticsProvider", () => {
 
     (cookieUtils.getCookie as ReturnType<typeof vi.fn>).mockImplementation(
       (name: string) => {
-        if (name === "rh_omni_tc") return "RHCTN1234";
-        if (name === "rh_omni_itc") return "RHCTE5678";
+        if (name === "rh_omni_tc") {
+          return "RHCTN1234";
+        }
+        if (name === "rh_omni_itc") {
+          return "RHCTE5678";
+        }
         return "";
       },
     );

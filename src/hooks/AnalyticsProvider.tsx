@@ -1,11 +1,12 @@
 import { AnalyticsBrowser } from "@segment/analytics-next";
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
+
 import { getSegmentWriteKey } from "../api/registration";
 import { Intcmp } from "../components/Catalog/productData";
 import { Environment, getConfig } from "../config/config";
@@ -21,7 +22,9 @@ import { useUserContext } from "./UserContext";
  */
 function hasAnalyticsConsent(): boolean {
   const match = document.cookie.match(/cmapi_cookie_privacy=([^;]+)/);
-  if (!match) return false;
+  if (!match) {
+    return false;
+  }
   const value = decodeURIComponent(match[1]);
   return /permit\s+[\d,]*2/.test(value);
 }
@@ -43,7 +46,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   // Listen for TrustArc consent changes (fires postMessage on decision).
   useEffect(() => {
-    if (!isProd) return;
+    if (!isProd) {
+      return;
+    }
 
     const checkConsent = () => {
       const granted = hasAnalyticsConsent();
@@ -73,7 +78,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     }
 
     // Guard to avoid injecting it twice, just in case.
-    if (document.getElementById("dpal")) return;
+    if (document.getElementById("dpal")) {
+      return;
+    }
 
     const script = document.createElement("script");
     script.id = "dpal";
@@ -94,7 +101,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   // Tear down Segment when consent is revoked.
   useEffect(() => {
-    if (consentGranted) return;
+    if (consentGranted) {
+      return;
+    }
     if (analyticsRef.current) {
       analyticsRef.current.reset();
       analyticsRef.current = null;
@@ -106,7 +115,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   // Fetch the Segment key only in production after consent is granted.
   useEffect(() => {
-    if (!isProd || !consentGranted) return;
+    if (!isProd || !consentGranted) {
+      return;
+    }
     // The stale flag is needed because the "getSegmentWriteKey" is async. If
     // consent is revoked while there is a network request in-flight, React
     // will run the effect's cleanup but the "await" could resolve afterwards.
@@ -129,7 +140,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   // Initialize Segment when write key arrives (only while consent holds).
   useEffect(() => {
-    if (!segmentWriteKey || !consentGranted) return;
+    if (!segmentWriteKey || !consentGranted) {
+      return;
+    }
     try {
       analyticsRef.current = AnalyticsBrowser.load({
         writeKey: segmentWriteKey,
@@ -146,7 +159,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   // network requests. The refs reset when the userID changes so that a
   // different user (e.g. after logout/login) gets properly re-identified.
   useEffect(() => {
-    if (!analyticsRef.current) return;
+    if (!analyticsRef.current) {
+      return;
+    }
 
     const currentUserId = user?.userID;
 
@@ -198,7 +213,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       href?: string,
       linkType: "cta" | "default" = "default",
     ) => {
-      if (!consentGranted) return;
+      if (!consentGranted) {
+        return;
+      }
 
       const isProduct =
         typeof itemNameOrProduct === "object" && "type" in itemNameOrProduct;

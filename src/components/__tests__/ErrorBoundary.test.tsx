@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+
 import { ErrorBoundary } from "../ErrorBoundary";
 
 function ThrowingComponent({ message }: { message: string }): never {

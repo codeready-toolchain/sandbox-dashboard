@@ -1,7 +1,8 @@
 import { http, HttpResponse } from "msw";
+
 import { server } from "../../mocks/server";
+import { createAAP, deleteAAPCR, getAAP, unIdleAAP } from "../aap";
 import { setTokenGetter } from "../authFetch";
-import { getAAP, createAAP, unIdleAAP, deleteAAPCR } from "../aap";
 
 const PROXY_URL = "https://proxy.example.com";
 const NS = "test-namespace";

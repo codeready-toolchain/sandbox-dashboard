@@ -9,12 +9,13 @@ import {
   ModalHeader,
 } from "@patternfly/react-core";
 import { useRef, useState } from "react";
+
 import { resetWorkspaces } from "../../api/registration";
 import { SUPPORT_EMAIL } from "../../const";
 import { ApiError } from "../../error/ApiError";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { errorMessage } from "../../utils/common";
 import logger from "../../utils/logger";
-import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
 type WorkspaceResetModalProps = {
   isOpen: boolean;

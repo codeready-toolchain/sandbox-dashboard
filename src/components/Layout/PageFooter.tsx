@@ -1,10 +1,12 @@
+import "@rhds/elements/rh-footer/rh-footer-lightdom.css";
+
+import { Content, Modal, ModalBody, ModalHeader } from "@patternfly/react-core";
 import { Cta } from "@rhds/elements/react/rh-cta/rh-cta.js";
+import { Footer } from "@rhds/elements/react/rh-footer/rh-footer.js";
 import { FooterBlock } from "@rhds/elements/react/rh-footer/rh-footer-block.js";
 import { FooterCopyright } from "@rhds/elements/react/rh-footer/rh-footer-copyright.js";
 import { FooterSocialLink } from "@rhds/elements/react/rh-footer/rh-footer-social-link.js";
 import { FooterUniversal } from "@rhds/elements/react/rh-footer/rh-footer-universal.js";
-import { Footer } from "@rhds/elements/react/rh-footer/rh-footer.js";
-import "@rhds/elements/rh-footer/rh-footer-lightdom.css";
 import { RhIcon } from "@rhds/elements/rh-icon/rh-icon.js";
 import iconFacebook from "@rhds/icons/social/facebook.js";
 import iconLinkedin from "@rhds/icons/social/linkedin.js";
@@ -12,9 +14,9 @@ import iconX from "@rhds/icons/social/x.js";
 import iconYoutube from "@rhds/icons/social/youtube.js";
 import iconArrowRight from "@rhds/icons/ui/arrow-right.js";
 import { useEffect, useState } from "react";
+
 import RedHatLogo from "../../assets/logos/red_hat_logo_on_dark.svg";
 import { Environment, getConfig } from "../../config/config";
-import { Content, Modal, ModalBody, ModalHeader } from "@patternfly/react-core";
 
 // Pre-bundled icons needed by rh-footer-social-link and rh-cta. We specify
 // here so that Vite bundles them and so that we can access them when

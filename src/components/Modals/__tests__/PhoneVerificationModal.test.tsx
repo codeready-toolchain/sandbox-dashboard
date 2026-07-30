@@ -1,11 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
 import * as registrationApi from "../../../api/registration";
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import {
   UserContext,
-  UserSignupPhase,
   type UserContextType,
+  UserSignupPhase,
 } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { PhoneVerificationModal } from "../PhoneVerificationModal";

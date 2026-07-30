@@ -1,11 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AnsibleDeleteInstanceModal } from "../AnsibleDeleteInstanceModal";
+
+import { UserFacingError } from "../../../error/UserFacingError";
 import {
   AnsibleContext,
   type AnsibleContextType,
 } from "../../../hooks/AnsibleContext";
-import { UserFacingError } from "../../../error/UserFacingError";
+import { AnsibleDeleteInstanceModal } from "../AnsibleDeleteInstanceModal";
 
 const mockOnClose = vi.fn();
 const mockOnClickDelete = vi.fn();

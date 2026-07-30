@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+
 import { getUIConfig } from "../api/registration";
 import logger from "../utils/logger";
 import { UIConfigurationContext } from "./UIConfigurationContext";

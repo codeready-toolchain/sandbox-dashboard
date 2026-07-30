@@ -1,7 +1,9 @@
-import { Grid, GridItem } from "@patternfly/react-core";
-import { ActivitiesCard } from "./ActivitiesCard";
 import "./ActivitiesPage.css";
-import { articleData, type Article } from "./articleData";
+
+import { Grid, GridItem } from "@patternfly/react-core";
+
+import { ActivitiesCard } from "./ActivitiesCard";
+import { type Article, articleData } from "./articleData";
 
 export function ActivitiesPage() {
   return (

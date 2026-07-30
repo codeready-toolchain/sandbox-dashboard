@@ -1,26 +1,24 @@
 export {
-  MOCK_PROXY_URL,
-  MOCK_REG_SERVICE_URL,
+  aapEmptyFixture,
+  aapFailedFixture,
+  aapIdledFixture,
+  aapProvisioningFixture,
+  aapReadyFixture,
+} from "./fixtures/aap-fixtures";
+export {
+  deploymentFixture,
+  pvcFixture,
+  secretFixture,
+  statefulSetFixture,
+} from "./fixtures/kube-proxy-fixtures";
+export {
   authConfigFixture,
   localKeycloakAuthConfigFixture,
-  readyUserFixture,
-  verifyUserFixture,
+  MOCK_PROXY_URL,
+  MOCK_REG_SERVICE_URL,
   provisioningUserFixture,
-  uiConfigFixture,
+  readyUserFixture,
   segmentWriteKeyFixture,
+  uiConfigFixture,
+  verifyUserFixture,
 } from "./fixtures/registration-fixtures";
-
-export {
-  secretFixture,
-  deploymentFixture,
-  statefulSetFixture,
-  pvcFixture,
-} from "./fixtures/kube-proxy-fixtures";
-
-export {
-  aapReadyFixture,
-  aapProvisioningFixture,
-  aapIdledFixture,
-  aapFailedFixture,
-  aapEmptyFixture,
-} from "./fixtures/aap-fixtures";

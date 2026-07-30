@@ -1,18 +1,19 @@
 import { http, HttpResponse } from "msw";
+
 import { ApiError } from "../../error/ApiError";
+import { readyUserFixture, uiConfigFixture } from "../../mocks/fixtures";
 import { server } from "../../mocks/server";
 import { setTokenGetter } from "../authFetch";
 import {
-  getSignupData,
-  getRecaptchaToken,
-  initiatePhoneVerification,
   completePhoneVerification,
-  verifyActivationCode,
-  getUIConfig,
+  getRecaptchaToken,
   getSegmentWriteKey,
+  getSignupData,
+  getUIConfig,
+  initiatePhoneVerification,
   resetWorkspaces,
+  verifyActivationCode,
 } from "../registration";
-import { readyUserFixture, uiConfigFixture } from "../../mocks/fixtures";
 
 const REG_URL = "https://registration.example.com";
 

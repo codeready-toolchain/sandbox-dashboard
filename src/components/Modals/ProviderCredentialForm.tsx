@@ -14,6 +14,7 @@ import {
 import EyeIcon from "@patternfly/react-icons/dist/esm/icons/eye-icon";
 import EyeSlashIcon from "@patternfly/react-icons/dist/esm/icons/eye-slash-icon";
 import { useState } from "react";
+
 import type {
   ProviderConfig,
   ProviderCredentialField,

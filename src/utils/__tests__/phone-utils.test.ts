@@ -1,7 +1,7 @@
 import {
   isValidCountryCode,
-  isValidPhoneNumber,
   isValidOTP,
+  isValidPhoneNumber,
 } from "../phone-utils";
 
 describe("phone-utils", () => {

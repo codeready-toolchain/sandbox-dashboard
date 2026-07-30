@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
+
 import { setTokenGetter } from "./api/authFetch";
 import { App } from "./App";
-import { server } from "./mocks/server";
 import { AuthenticatedContext } from "./auth/AuthenticatedContext";
+import { server } from "./mocks/server";
 
 vi.mock("@rhds/elements/react/rh-footer/rh-footer.js", () => ({
   Footer: (props: React.HTMLAttributes<HTMLDivElement>) =>

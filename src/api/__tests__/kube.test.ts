@@ -1,20 +1,21 @@
 import { http, HttpResponse } from "msw";
+
 import { server } from "../../mocks/server";
-import { setTokenGetter } from "../authFetch";
-import {
-  deleteSecretsAndPVCs,
-  deletePVCsForSTS,
-  getSecret,
-  getPersistentVolumeClaims,
-  getDeployments,
-  getStatefulSets,
-} from "../kube";
 import type {
   DeploymentData,
   PersistentVolumeClaimData,
   SecretItem,
   StatefulSetData,
 } from "../../types";
+import { setTokenGetter } from "../authFetch";
+import {
+  deletePVCsForSTS,
+  deleteSecretsAndPVCs,
+  getDeployments,
+  getPersistentVolumeClaims,
+  getSecret,
+  getStatefulSets,
+} from "../kube";
 
 const PROXY_URL = "https://proxy.example.com";
 const NS = "test-namespace";

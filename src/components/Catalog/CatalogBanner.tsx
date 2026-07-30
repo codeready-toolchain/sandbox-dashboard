@@ -1,3 +1,5 @@
+import "./CatalogBanner.css";
+
 import {
   Button,
   Card,
@@ -12,11 +14,11 @@ import {
 import { CommentAltIcon } from "@patternfly/react-icons";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/outlined-question-circle-icon";
+
 import SalesImage from "../../assets/images/banner/sales.svg";
 import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
 import { calculateDaysBetweenDates } from "../../utils/common";
-import "./CatalogBanner.css";
 
 export function CatalogBanner() {
   const { user, userSignupPhase } = useUserContext();

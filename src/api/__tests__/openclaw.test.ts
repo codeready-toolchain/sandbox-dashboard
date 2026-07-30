@@ -1,19 +1,20 @@
 import { http, HttpResponse } from "msw";
+
 import { server } from "../../mocks/server";
+import type {
+  AddedCredential,
+  ProviderConfig,
+} from "../../utils/openclaw-providers";
 import { setTokenGetter } from "../authFetch";
 import {
-  getSpaceRequest,
+  cleanupWorkspaceEnvironment,
+  createOpenClaw,
+  createWorkspaceKubeconfig,
+  deleteOpenClawCR,
   deleteSpaceRequest,
   getOpenClaw,
-  createOpenClaw,
-  deleteOpenClawCR,
-  cleanupWorkspaceEnvironment,
-  createWorkspaceKubeconfig,
+  getSpaceRequest,
 } from "../openclaw";
-import type {
-  ProviderConfig,
-  AddedCredential,
-} from "../../utils/openclaw-providers";
 
 const PROXY_URL = "https://proxy.example.com";
 const NS = "test-namespace";

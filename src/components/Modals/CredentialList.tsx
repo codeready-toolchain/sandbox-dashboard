@@ -1,4 +1,5 @@
-import { Label, LabelGroup, Content } from "@patternfly/react-core";
+import { Content, Label, LabelGroup } from "@patternfly/react-core";
+
 import type { AddedCredential } from "../../utils/openclaw-providers";
 
 type CredentialListProps = {

@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AccessCodeInputModal } from "../AccessCodeInputModal";
+
 import * as registrationApi from "../../../api/registration";
+import { AccessCodeInputModal } from "../AccessCodeInputModal";
 
 vi.mock("../../../api/registration", () => ({
   verifyActivationCode: vi.fn(),

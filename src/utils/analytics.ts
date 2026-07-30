@@ -1,6 +1,7 @@
 import type { AnalyticsBrowser } from "@segment/analytics-next";
-import { getCookie } from "./cookie-utils";
+
 import type { User } from "../types";
+import { getCookie } from "./cookie-utils";
 
 /**
  * The data required to fire a Segment tracking event.

@@ -1,13 +1,13 @@
 import AnsibleIcon from "../../assets/logos/ansible.svg";
 import DevSpacesIcon from "../../assets/logos/devspaces.svg";
 import OpenClawIcon from "../../assets/logos/openclaw.svg";
+import OpenShiftIcon from "../../assets/logos/openshift.svg";
 import OpenShiftAIIcon from "../../assets/logos/openshift-ai.svg";
 import OpenshiftVirtualizationIcon from "../../assets/logos/openshift-virtualization.svg";
-import OpenShiftIcon from "../../assets/logos/openshift.svg";
 import {
   BulletPointIconType,
-  ProductType,
   type Product,
+  ProductType,
   type URLTemplateVars,
 } from "../../types/product";
 

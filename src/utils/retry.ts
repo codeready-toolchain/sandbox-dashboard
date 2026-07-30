@@ -7,8 +7,12 @@ import { ApiError } from "../error/ApiError";
  */
 export function isTransient(err: unknown): boolean {
   if (err instanceof ApiError) {
-    if (err.statusCode >= 500) return true;
-    if (err.statusCode === 408 || err.statusCode === 429) return true;
+    if (err.statusCode >= 500) {
+      return true;
+    }
+    if (err.statusCode === 408 || err.statusCode === 429) {
+      return true;
+    }
     return false;
   }
   return true;
@@ -35,7 +39,9 @@ export async function withRetry<T>(
     try {
       return await fn();
     } catch (err) {
-      if (i === attempts - 1 || !shouldRetry(err)) throw err;
+      if (i === attempts - 1 || !shouldRetry(err)) {
+        throw err;
+      }
       await new Promise((retry) => setTimeout(retry, delayMs));
     }
   }

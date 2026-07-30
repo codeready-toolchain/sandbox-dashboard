@@ -7,6 +7,7 @@ import {
 } from "@patternfly/react-core";
 import ExclamationCircleIcon from "@patternfly/react-icons/dist/esm/icons/exclamation-circle-icon";
 import { useMemo } from "react";
+
 import { SUPPORT_EMAIL } from "../const";
 import { ApiError } from "../error/ApiError";
 import type { CriticalError } from "../error/CriticalError";
@@ -25,7 +26,9 @@ type CriticalErrorPageProps = {
  */
 export function CriticalErrorPage({ error }: CriticalErrorPageProps) {
   const technicalDetails = useMemo(() => {
-    if (!error.cause) return undefined;
+    if (!error.cause) {
+      return undefined;
+    }
     if (error.cause instanceof ApiError) {
       return error.cause.body;
     }

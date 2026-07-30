@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+
 import { getConfig } from "../config/config";
 import { loadRecaptchaScript } from "../utils/recaptcha";
 

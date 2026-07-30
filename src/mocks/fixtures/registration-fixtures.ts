@@ -1,4 +1,4 @@
-import type { AuthConfigResponse, User, UIConfig } from "../../types";
+import type { AuthConfigResponse, UIConfig, User } from "../../types";
 
 export const MOCK_PROXY_URL = "https://proxy.example.com";
 export const MOCK_REG_SERVICE_URL = "https://registration.example.com";

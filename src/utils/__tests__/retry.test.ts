@@ -1,5 +1,5 @@
-import { withRetry } from "../retry";
 import { ApiError } from "../../error/ApiError";
+import { withRetry } from "../retry";
 
 describe("withRetry", () => {
   it("returns the result on first success", async () => {
@@ -11,7 +11,9 @@ describe("withRetry", () => {
     let calls = 0;
     const fn = () => {
       calls++;
-      if (calls < 3) return Promise.reject(new Error("transient"));
+      if (calls < 3) {
+        return Promise.reject(new Error("transient"));
+      }
       return Promise.resolve("recovered");
     };
 
@@ -41,7 +43,9 @@ describe("withRetry", () => {
     let calls = 0;
     const fn = () => {
       calls++;
-      if (calls < 2) return Promise.reject(new ApiError("timeout", 408));
+      if (calls < 2) {
+        return Promise.reject(new ApiError("timeout", 408));
+      }
       return Promise.resolve("ok");
     };
 
@@ -54,7 +58,9 @@ describe("withRetry", () => {
     let calls = 0;
     const fn = () => {
       calls++;
-      if (calls < 2) return Promise.reject(new ApiError("rate limited", 429));
+      if (calls < 2) {
+        return Promise.reject(new ApiError("rate limited", 429));
+      }
       return Promise.resolve("ok");
     };
 
@@ -67,7 +73,9 @@ describe("withRetry", () => {
     let calls = 0;
     const fn = () => {
       calls++;
-      if (calls < 2) return Promise.reject(new ApiError("server error", 502));
+      if (calls < 2) {
+        return Promise.reject(new ApiError("server error", 502));
+      }
       return Promise.resolve("ok");
     };
 

@@ -1,6 +1,8 @@
-import { Card, CardBody, CardHeader, Content } from "@patternfly/react-core";
-import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import "../common/Card.css";
+
+import { Card, CardBody, CardHeader, Content } from "@patternfly/react-core";
+
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import type { Article } from "./articleData";
 
 interface ActivitiesCardProps {

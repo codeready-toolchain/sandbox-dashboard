@@ -1,6 +1,6 @@
 import { Environment, getConfig } from "../config/config";
 import { ApiError } from "../error/ApiError";
-import type { User, UIConfig } from "../types";
+import type { UIConfig, User } from "../types";
 import logger from "../utils/logger";
 import { authFetch } from "./authFetch";
 

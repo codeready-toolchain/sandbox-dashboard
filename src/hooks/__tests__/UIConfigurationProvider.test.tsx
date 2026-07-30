@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
+
 import { setTokenGetter } from "../../api/authFetch";
 import { server } from "../../mocks/server";
-import { UIConfigurationProvider } from "../UIConfigurationProvider";
 import { useUIConfigurationContext } from "../UIConfigurationContext";
+import { UIConfigurationProvider } from "../UIConfigurationProvider";
 
 function ContextConsumer() {
   const ctx = useUIConfigurationContext();

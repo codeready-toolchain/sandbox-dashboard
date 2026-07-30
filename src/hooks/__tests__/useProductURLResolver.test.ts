@@ -1,16 +1,17 @@
 import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
+
 import { products } from "../../components/Catalog/productData";
 import { readyUserFixture } from "../../mocks/fixtures";
 import type { User } from "../../types";
 import {
-  ProductType,
   type Product,
+  ProductType,
   type URLTemplateVars,
 } from "../../types/product";
+import useProductURLResolver from "../useProductURLResolver";
 import type { UserContextType } from "../UserContext";
 import { UserContext, UserSignupPhase } from "../UserContext";
-import useProductURLResolver from "../useProductURLResolver";
 
 function makeContext(
   overrides: Partial<UserContextType> = {},

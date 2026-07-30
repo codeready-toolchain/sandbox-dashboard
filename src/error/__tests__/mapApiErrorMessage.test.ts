@@ -1,5 +1,5 @@
 import { ApiError } from "../ApiError";
-import { mapApiErrorMessage, type ApiErrorRule } from "../mapApiErrorMessage";
+import { type ApiErrorRule, mapApiErrorMessage } from "../mapApiErrorMessage";
 
 function makeApiError(body: string): ApiError {
   return new ApiError("test error", 400, body);
