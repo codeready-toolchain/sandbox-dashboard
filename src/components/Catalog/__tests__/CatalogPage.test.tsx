@@ -16,10 +16,6 @@ vi.mock("../CatalogGrid", () => ({
   CatalogGrid: () => <div data-testid="catalog-grid" />,
 }));
 
-vi.mock("../CatalogFooter", () => ({
-  CatalogFooter: () => <div data-testid="catalog-footer" />,
-}));
-
 let capturedOnVerified: (() => void) | undefined;
 
 vi.mock("../../Modals", () => ({

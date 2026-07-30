@@ -3,10 +3,6 @@ import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
 import { ActivitiesPage } from "../ActivitiesPage";
 import { articleData } from "../articleData";
 
-vi.mock("../../Catalog/CatalogFooter", () => ({
-  CatalogFooter: () => <div data-testid="catalog-footer" />,
-}));
-
 function renderWithAnalytics() {
   return render(
     <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
