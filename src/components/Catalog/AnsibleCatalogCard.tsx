@@ -58,6 +58,8 @@ function getButtonLabel(status: AAPInstanceStatus): ButtonLabel {
  */
 function getStatusLabel(status: AAPInstanceStatus): StatusLabel | undefined {
   switch (status.kind) {
+    case "initialFetch":
+      return { label: "Loading", color: StatusColor.BLUE };
     case "provisioning":
     case "unidling":
       return { label: "Provisioning", color: StatusColor.BLUE };
@@ -124,12 +126,16 @@ export function AnsibleCatalogCard({
 
   // Determine the status of the interactive buttons.
   const isPrimaryButtonDisabled =
-    buttonLabel === ButtonLabel.LOADING || buttonLabel === ButtonLabel.DELETING;
+    buttonLabel === ButtonLabel.LOADING ||
+    buttonLabel === ButtonLabel.DELETING ||
+    userSignupPhase === UserSignupPhase.INITIAL_FETCH;
   const isPrimaryButtonSpinnerVisible =
     buttonLabel === ButtonLabel.LOADING ||
     buttonLabel === ButtonLabel.PROVISIONING ||
-    buttonLabel === ButtonLabel.DELETING;
+    buttonLabel === ButtonLabel.DELETING ||
+    userSignupPhase === UserSignupPhase.INITIAL_FETCH;
   const isDeleteButtonVisible =
+    userSignupPhase !== UserSignupPhase.INITIAL_FETCH &&
     instanceStatus.kind !== "initialFetch" &&
     instanceStatus.kind !== "userNotReady" &&
     instanceStatus.kind !== "new" &&

@@ -192,10 +192,11 @@ describe("AnsibleCatalogCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not render a status label when instanceStatus is 'initialFetch'", () => {
+  it("renders 'Loading' status label when instanceStatus is 'initialFetch'", () => {
     renderCard({}, { instanceStatus: { kind: "initialFetch" } });
 
     const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Loading");
     expect(card.textContent).not.toContain("Ready");
     expect(card.textContent).not.toContain("Provisioning");
     expect(card.textContent).not.toContain("Idled");
@@ -655,5 +656,15 @@ describe("AnsibleCatalogCard", () => {
     expect(
       screen.queryByTestId("ansible-automation-platform-error"),
     ).not.toBeInTheDocument();
+  });
+
+  it("disables primary button when userSignupPhase is INITIAL_FETCH", () => {
+    renderCard(
+      { userSignupPhase: UserSignupPhase.INITIAL_FETCH },
+      { instanceStatus: { kind: "new" } },
+    );
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton).toBeDisabled();
   });
 });

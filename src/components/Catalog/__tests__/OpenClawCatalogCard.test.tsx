@@ -340,4 +340,13 @@ describe("OpenClawCatalogCard", () => {
       screen.queryByTestId("openclaw-launch-modal"),
     ).not.toBeInTheDocument();
   });
+
+  it("disables primary button when userSignupPhase is INITIAL_FETCH", () => {
+    renderCard({ status: OpenClawStatus.READY }, undefined, {
+      userSignupPhase: UserSignupPhase.INITIAL_FETCH,
+    });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton).toBeDisabled();
+  });
 });

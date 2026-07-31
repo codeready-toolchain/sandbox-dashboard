@@ -86,8 +86,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   /**
    * Fetches the user's signup data, critical for the application to work.
-   * @param isRefetch signals if it is a refetching operation.
-   * @returns the {@link User} itself.
    */
   const fetchUser = useCallback(async (): Promise<void> => {
     const result: User | undefined = await getSignupData();
@@ -178,7 +176,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Initial user fetch when the provider is mounted.
   useEffect(() => {
     withRetry(() => fetchUser(), 3, 3_000).catch((error) => {
-      logger.error(`Unable to obtain the user's signup information`);
+      logger.error("Unable to obtain the user's signup information", error);
 
       updateSignupPhase(UserSignupPhase.BLOCKED);
       addAlertFromError(mapFetchUserErrorToErrorMessage(error));
@@ -235,6 +233,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       // Refresh the user's signup.
       try {
         await fetchUser();
+        pollTransientRetriesLeft.current = maxTransientErrorRetries;
       } catch (error) {
         let technicalDetails: string | undefined;
         if (error instanceof ApiError) {

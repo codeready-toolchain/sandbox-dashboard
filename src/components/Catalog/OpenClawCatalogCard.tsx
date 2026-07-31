@@ -58,7 +58,6 @@ function getStatusLabel(status: OpenClawStatus): StatusLabel | undefined {
   switch (status) {
     case OpenClawStatus.INITIAL_FETCH:
       return { label: "Loading", color: StatusColor.BLUE };
-
     case OpenClawStatus.PROVISIONING:
       return { label: "Provisioning", color: StatusColor.BLUE };
     case OpenClawStatus.READY:
@@ -129,14 +128,19 @@ export function OpenClawCatalogCard({
 
   // Determine the status of the interactive buttons.
   const isPrimaryButtonDisabled =
-    buttonLabel === ButtonLabel.LOADING || buttonLabel === ButtonLabel.DELETING;
-  const isPrimaryButtonSpinnerVisible =
+    buttonLabel === ButtonLabel.LOADING ||
     buttonLabel === ButtonLabel.DELETING ||
-    buttonLabel === ButtonLabel.PROVISIONING;
+    userSignupPhase === UserSignupPhase.INITIAL_FETCH;
+  const isPrimaryButtonSpinnerVisible =
+    buttonLabel === ButtonLabel.LOADING ||
+    buttonLabel === ButtonLabel.DELETING ||
+    buttonLabel === ButtonLabel.PROVISIONING ||
+    userSignupPhase === UserSignupPhase.INITIAL_FETCH;
   const isPrimaryButtonExtIconVisible =
     buttonLabel === ButtonLabel.LAUNCH ||
     (buttonLabel === ButtonLabel.TRY_IT && !!uiURL);
   const isDeleteButtonVisible =
+    userSignupPhase !== UserSignupPhase.INITIAL_FETCH &&
     status !== OpenClawStatus.INITIAL_FETCH &&
     status !== OpenClawStatus.USER_NOT_READY &&
     status !== OpenClawStatus.NEW &&

@@ -152,7 +152,11 @@ export function CatalogCard({
               </FlexItem>
               {statusLabel && (
                 <FlexItem>
-                  <Label color={statusLabel.color} isCompact>
+                  <Label
+                    color={statusLabel.color}
+                    isCompact
+                    data-testid="status-label"
+                  >
                     {statusLabel.label}
                   </Label>
                 </FlexItem>

@@ -102,7 +102,11 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
     renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
 
     const openclawCard = getOpenClawCard();
-    expect(openclawCard.textContent).toContain("Loading");
+    const statusLabel = openclawCard.querySelector(
+      "[data-testid='status-label']",
+    );
+    expect(statusLabel).not.toBeNull();
+    expect(statusLabel!.textContent).toContain("Loading");
   });
 
   it("does not show delete button when OpenClaw status is INITIAL_FETCH", () => {
