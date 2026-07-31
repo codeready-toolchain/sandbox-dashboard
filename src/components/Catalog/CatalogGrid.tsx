@@ -137,7 +137,9 @@ export function CatalogGrid() {
                     product={product}
                     primaryButtonLabel={ButtonLabel.TRY_IT}
                     isGreenCornerVisible={isProductTried(product)}
-                    isPrimaryButtonDisabled={false}
+                    isPrimaryButtonDisabled={
+                      userSignupPhase === UserSignupPhase.INITIAL_FETCH
+                    }
                     isPrimaryButtonSpinnerVisible={false}
                     isPrimaryButtonExtIconVisible
                     isDeleteButtonVisible={false}

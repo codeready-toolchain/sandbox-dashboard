@@ -50,6 +50,14 @@ afterEach(() => {
 afterAll(() => server.close());
 
 describe("UserProvider", () => {
+  it("starts with INITIAL_FETCH phase before resolving user data", () => {
+    renderProvider();
+
+    expect(screen.getByTestId("phase").textContent).toBe(
+      String(UserSignupPhase.INITIAL_FETCH),
+    );
+  });
+
   it("fetches user data and provides it via context", async () => {
     renderProvider();
 

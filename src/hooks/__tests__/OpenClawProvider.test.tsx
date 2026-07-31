@@ -300,6 +300,16 @@ describe("OpenClawProvider", () => {
   // ---------------------------------------------------------------------------
 
   describe("initial fetch on mount", () => {
+    it("starts with INITIAL_FETCH status before the first API call resolves", () => {
+      mockedGetSpaceRequest.mockImplementation(() => new Promise(() => {}));
+
+      renderProvider();
+
+      expect(screen.getByTestId("status").textContent).toBe(
+        OpenClawStatus.INITIAL_FETCH,
+      );
+    });
+
     it("sets status to NEW when no SpaceRequest exists", async () => {
       mockedGetSpaceRequest.mockResolvedValue(undefined);
 

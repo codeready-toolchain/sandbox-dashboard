@@ -32,7 +32,7 @@ describe("CatalogBanner", () => {
     render(
       <UserContext.Provider
         value={makeContext({
-          userSignupPhase: UserSignupPhase.FETCHING_DATA,
+          userSignupPhase: UserSignupPhase.INITIAL_FETCH,
         })}
       >
         <CatalogBanner />

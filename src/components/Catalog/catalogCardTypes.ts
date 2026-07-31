@@ -2,6 +2,7 @@
  * Defines the possible labels for the card's main button.
  */
 export enum ButtonLabel {
+  LOADING = "Loading",
   TRY_IT = "Try it",
   PROVISION = "Provision",
   PROVISIONING = "Provisioning...",
@@ -26,5 +27,5 @@ export enum StatusColor {
  */
 export type StatusLabel = {
   color: StatusColor;
-  label: "Provisioning" | "Ready" | "Idled" | "Deleting" | "Failed";
+  label: "Loading" | "Provisioning" | "Ready" | "Idled" | "Deleting" | "Failed";
 };

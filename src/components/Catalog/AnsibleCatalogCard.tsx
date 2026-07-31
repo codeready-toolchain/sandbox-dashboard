@@ -22,6 +22,9 @@ import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
  */
 function getButtonLabel(status: AAPInstanceStatus): ButtonLabel {
   switch (status.kind) {
+    case "initialFetch":
+      return ButtonLabel.LOADING;
+
     case "userNotReady":
     case "new":
     case "notDeployed":
@@ -120,6 +123,7 @@ export function AnsibleCatalogCard({
   const buttonLabel = getButtonLabel(instanceStatus);
   const statusLabel = getStatusLabel(instanceStatus);
   const isDeleteButtonVisible =
+    instanceStatus.kind !== "initialFetch" &&
     instanceStatus.kind !== "userNotReady" &&
     instanceStatus.kind !== "new" &&
     instanceStatus.kind !== "notDeployed" &&
@@ -299,8 +303,12 @@ export function AnsibleCatalogCard({
         statusLabel={statusLabel}
         primaryButtonLabel={buttonLabel}
         isGreenCornerVisible={isGreenCornerVisible}
-        isPrimaryButtonDisabled={buttonLabel === ButtonLabel.DELETING}
+        isPrimaryButtonDisabled={
+          buttonLabel === ButtonLabel.LOADING ||
+          buttonLabel === ButtonLabel.DELETING
+        }
         isPrimaryButtonSpinnerVisible={
+          buttonLabel === ButtonLabel.LOADING ||
           buttonLabel === ButtonLabel.PROVISIONING ||
           buttonLabel === ButtonLabel.DELETING
         }

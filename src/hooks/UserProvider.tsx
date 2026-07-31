@@ -34,7 +34,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const [user, setUser] = useState<User | undefined>(undefined);
   const [userSignupPhase, setUserSignupPhase] = useState<UserSignupPhase>(
-    UserSignupPhase.NOT_STARTED,
+    UserSignupPhase.INITIAL_FETCH,
   );
 
   /**
@@ -49,7 +49,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
    * object possible.
    */
   const userSignupPhaseRef = useRef<UserSignupPhase>(
-    UserSignupPhase.NOT_STARTED,
+    UserSignupPhase.INITIAL_FETCH,
   );
 
   /**
@@ -79,7 +79,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const fetchUser = useCallback(
     async (isRefetch = false): Promise<void> => {
       if (!isRefetch) {
-        updateSignupPhase(UserSignupPhase.FETCHING_DATA);
+        updateSignupPhase(UserSignupPhase.INITIAL_FETCH);
       }
 
       try {
@@ -199,6 +199,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Determine if we should be polling to fetch the latest user data.
   const shouldBePolling = useMemo<boolean>(() => {
     switch (userSignupPhase) {
+      case UserSignupPhase.INITIAL_FETCH:
       case UserSignupPhase.NOT_STARTED:
       case UserSignupPhase.READY:
       default:

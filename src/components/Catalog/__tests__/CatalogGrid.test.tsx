@@ -265,6 +265,17 @@ describe("CatalogGrid", () => {
     windowOpenSpy.mockRestore();
   });
 
+  it("disables the primary button on simple cards when signup phase is INITIAL_FETCH", () => {
+    renderGrid(
+      makeContext({
+        userSignupPhase: UserSignupPhase.INITIAL_FETCH,
+      }),
+    );
+
+    const { tryItButton } = getOpenShiftCardWithButton();
+    expect(tryItButton).toBeDisabled();
+  });
+
   it("renders AAP card with the correct product type", () => {
     renderGrid(makeContext());
 

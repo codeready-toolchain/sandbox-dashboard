@@ -176,6 +176,32 @@ describe("AnsibleCatalogCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows 'Loading' button when instanceStatus is 'initialFetch'", () => {
+    renderCard({}, { instanceStatus: { kind: "initialFetch" } });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Loading");
+    expect(mainButton).toBeDisabled();
+  });
+
+  it("does not render delete button when instanceStatus is 'initialFetch'", () => {
+    renderCard({}, { instanceStatus: { kind: "initialFetch" } });
+
+    expect(
+      screen.queryByTestId("delete-instance-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render a status label when instanceStatus is 'initialFetch'", () => {
+    renderCard({}, { instanceStatus: { kind: "initialFetch" } });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).not.toContain("Ready");
+    expect(card.textContent).not.toContain("Provisioning");
+    expect(card.textContent).not.toContain("Idled");
+    expect(card.textContent).not.toContain("Failed");
+  });
+
   it("shows 'Provision' button when instanceStatus is 'userNotReady'", () => {
     renderCard({}, { instanceStatus: { kind: "userNotReady" } });
 

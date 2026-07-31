@@ -6,9 +6,9 @@ import { type User } from "../types";
  * Defines the phases in which the "user signup" currently is.
  */
 export enum UserSignupPhase {
+  INITIAL_FETCH,
   NOT_STARTED,
   BLOCKED,
-  FETCHING_DATA,
   SIGNING_UP,
   PENDING_PHONE_VERIFICATION,
   PENDING_MANUAL_APPROVAL,
