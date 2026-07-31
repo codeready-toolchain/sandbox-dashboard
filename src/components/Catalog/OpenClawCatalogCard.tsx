@@ -123,10 +123,19 @@ export function OpenClawCatalogCard({
   const openClawUnidleInFlight = useRef(false);
   const openClawDeleteInFlight = useRef(false);
 
-  // Determine the labels and statuses if applicable, and whether we should be
-  // showing the delete button or not.
+  // Determine the labels and statuses.
   const buttonLabel = getButtonLabel(status);
   const statusLabel = getStatusLabel(status);
+
+  // Determine the status of the interactive buttons.
+  const isPrimaryButtonDisabled =
+    buttonLabel === ButtonLabel.LOADING || buttonLabel === ButtonLabel.DELETING;
+  const isPrimaryButtonSpinnerVisible =
+    buttonLabel === ButtonLabel.DELETING ||
+    buttonLabel === ButtonLabel.PROVISIONING;
+  const isPrimaryButtonExtIconVisible =
+    buttonLabel === ButtonLabel.LAUNCH ||
+    (buttonLabel === ButtonLabel.TRY_IT && !!uiURL);
   const isDeleteButtonVisible =
     status !== OpenClawStatus.INITIAL_FETCH &&
     status !== OpenClawStatus.USER_NOT_READY &&
@@ -287,18 +296,9 @@ export function OpenClawCatalogCard({
         statusLabel={statusLabel}
         primaryButtonLabel={buttonLabel}
         isGreenCornerVisible={isGreenCornerVisible}
-        isPrimaryButtonDisabled={
-          buttonLabel === ButtonLabel.LOADING ||
-          buttonLabel === ButtonLabel.DELETING
-        }
-        isPrimaryButtonSpinnerVisible={
-          buttonLabel === ButtonLabel.DELETING ||
-          buttonLabel === ButtonLabel.PROVISIONING
-        }
-        isPrimaryButtonExtIconVisible={
-          buttonLabel === ButtonLabel.LAUNCH ||
-          (buttonLabel === ButtonLabel.TRY_IT && !!uiURL)
-        }
+        isPrimaryButtonDisabled={isPrimaryButtonDisabled}
+        isPrimaryButtonSpinnerVisible={isPrimaryButtonSpinnerVisible}
+        isPrimaryButtonExtIconVisible={isPrimaryButtonExtIconVisible}
         isDeleteButtonVisible={isDeleteButtonVisible}
         onClickPrimaryButton={handleOnClickPrimaryButton}
         onClickDeleteButton={() => setOpenClawDeleteModalOpen(true)}

@@ -118,10 +118,17 @@ export function AnsibleCatalogCard({
   const unidleInFlight = useRef(false);
   const deleteInFlight = useRef(false);
 
-  // Determine the labels and statuses if applicable, and whether we should be
-  // showing the delete button or not.
+  // Determine the labels and statuses.
   const buttonLabel = getButtonLabel(instanceStatus);
   const statusLabel = getStatusLabel(instanceStatus);
+
+  // Determine the status of the interactive buttons.
+  const isPrimaryButtonDisabled =
+    buttonLabel === ButtonLabel.LOADING || buttonLabel === ButtonLabel.DELETING;
+  const isPrimaryButtonSpinnerVisible =
+    buttonLabel === ButtonLabel.LOADING ||
+    buttonLabel === ButtonLabel.PROVISIONING ||
+    buttonLabel === ButtonLabel.DELETING;
   const isDeleteButtonVisible =
     instanceStatus.kind !== "initialFetch" &&
     instanceStatus.kind !== "userNotReady" &&
@@ -303,15 +310,8 @@ export function AnsibleCatalogCard({
         statusLabel={statusLabel}
         primaryButtonLabel={buttonLabel}
         isGreenCornerVisible={isGreenCornerVisible}
-        isPrimaryButtonDisabled={
-          buttonLabel === ButtonLabel.LOADING ||
-          buttonLabel === ButtonLabel.DELETING
-        }
-        isPrimaryButtonSpinnerVisible={
-          buttonLabel === ButtonLabel.LOADING ||
-          buttonLabel === ButtonLabel.PROVISIONING ||
-          buttonLabel === ButtonLabel.DELETING
-        }
+        isPrimaryButtonDisabled={isPrimaryButtonDisabled}
+        isPrimaryButtonSpinnerVisible={isPrimaryButtonSpinnerVisible}
         isPrimaryButtonExtIconVisible={false}
         isDeleteButtonVisible={isDeleteButtonVisible}
         onClickPrimaryButton={handleOnClickPrimaryButton}
