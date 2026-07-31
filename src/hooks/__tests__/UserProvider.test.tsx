@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { setTokenGetter } from "../../api/authFetch";
+import { SUPPORT_EMAIL } from "../../const";
 import { server } from "../../mocks/server";
 import { NotificationProvider } from "../../notifications/NotificationProvider";
 import { UserSignupPhase, useUserContext } from "../UserContext";
@@ -603,6 +604,214 @@ describe("UserProvider", () => {
     });
 
     expect(signupCallCount).toBe(1);
+  });
+
+  it("tolerates transient (5xx) errors during polling and continues", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let getCallCount = 0;
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        getCallCount++;
+        if (getCallCount <= 1) {
+          return new HttpResponse(null, { status: 404 });
+        }
+        if (getCallCount === 2) {
+          return HttpResponse.json({
+            name: "John Doe",
+            compliantUsername: "johndoe",
+            username: "johndoe",
+            givenName: "John",
+            familyName: "Doe",
+            company: "Red Hat",
+            status: {
+              ready: false,
+              reason: "Provisioning",
+              verificationRequired: false,
+            },
+          });
+        }
+        if (getCallCount <= 4) {
+          return new HttpResponse(null, { status: 500 });
+        }
+        return HttpResponse.json({
+          name: "John Doe",
+          compliantUsername: "johndoe",
+          username: "johndoe",
+          givenName: "John",
+          familyName: "Doe",
+          company: "Red Hat",
+          status: {
+            ready: true,
+            reason: "",
+            verificationRequired: false,
+          },
+          defaultUserNamespace: "johndoe-dev",
+          consoleURL: "https://console.apps.example.com",
+          proxyURL: "https://proxy.example.com",
+        });
+      }),
+      http.post("*/api/v1/signup", () => {
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+
+    renderProvider();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.NOT_STARTED),
+      );
+    });
+
+    await act(async () => {
+      screen.getByTestId("signup-btn").click();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.READY),
+      );
+    });
+
+    expect(
+      screen.queryByText("Unable to determine your account's status"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stops polling and shows error alert on non-transient errors", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let getCallCount = 0;
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        getCallCount++;
+        if (getCallCount <= 1) {
+          return new HttpResponse(null, { status: 404 });
+        }
+        if (getCallCount === 2) {
+          return HttpResponse.json({
+            name: "John Doe",
+            compliantUsername: "johndoe",
+            username: "johndoe",
+            givenName: "John",
+            familyName: "Doe",
+            company: "Red Hat",
+            status: {
+              ready: false,
+              reason: "Provisioning",
+              verificationRequired: false,
+            },
+          });
+        }
+        return HttpResponse.json({ message: "forbidden" }, { status: 403 });
+      }),
+      http.post("*/api/v1/signup", () => {
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+
+    renderProvider();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.NOT_STARTED),
+      );
+    });
+
+    await act(async () => {
+      screen.getByTestId("signup-btn").click();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Unable to determine your account's status"),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(
+        `Unfortunately, we weren't able to determine your account's status. Please try again later, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("stops polling after exhausting transient retry budget", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let getCallCount = 0;
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        getCallCount++;
+        if (getCallCount <= 1) {
+          return new HttpResponse(null, { status: 404 });
+        }
+        if (getCallCount === 2) {
+          return HttpResponse.json({
+            name: "John Doe",
+            compliantUsername: "johndoe",
+            username: "johndoe",
+            givenName: "John",
+            familyName: "Doe",
+            company: "Red Hat",
+            status: {
+              ready: false,
+              reason: "Provisioning",
+              verificationRequired: false,
+            },
+          });
+        }
+        return new HttpResponse(null, { status: 500 });
+      }),
+      http.post("*/api/v1/signup", () => {
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+
+    renderProvider();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("phase").textContent).toBe(
+        String(UserSignupPhase.NOT_STARTED),
+      );
+    });
+
+    await act(async () => {
+      screen.getByTestId("signup-btn").click();
+    });
+
+    // 3 transient retries allowed + 1 that triggers the cancellation.
+    // Each poll is at SHORT_INTERVAL (2000ms), so advance enough for
+    // the provisioning fetch + 4 failed polls.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Unable to determine your account's status"),
+      ).toBeInTheDocument();
+    });
   });
 });
 

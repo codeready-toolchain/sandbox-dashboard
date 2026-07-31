@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 
 import * as registrationApi from "../../api/registration";
 import { readyUserFixture } from "../../mocks/fixtures";
+import { NotificationProvider } from "../../notifications/NotificationProvider";
 import { AnalyticsContext } from "../AnalyticsContext";
 import { usePhoneVerificationContext } from "../PhoneVerificationContext";
 import { PhoneVerificationProvider } from "../PhoneVerificationProvider";
@@ -43,13 +44,15 @@ function OpenModalButton() {
 function renderProvider(contextOverrides: Partial<UserContextType> = {}) {
   const ctx = makeUserContext(contextOverrides);
   render(
-    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
-      <UserContext.Provider value={ctx}>
-        <PhoneVerificationProvider>
-          <OpenModalButton />
-        </PhoneVerificationProvider>
-      </UserContext.Provider>
-    </AnalyticsContext.Provider>,
+    <NotificationProvider>
+      <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+        <UserContext.Provider value={ctx}>
+          <PhoneVerificationProvider>
+            <OpenModalButton />
+          </PhoneVerificationProvider>
+        </UserContext.Provider>
+      </AnalyticsContext.Provider>
+    </NotificationProvider>,
   );
   return ctx;
 }
@@ -119,6 +122,40 @@ describe("PhoneVerificationProvider", () => {
       expect(
         screen.queryByTestId("phone-verification-modal"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows warning alert when refetchUserData rejects after phone verification", async () => {
+    vi.mocked(registrationApi.initiatePhoneVerification).mockResolvedValue();
+    vi.mocked(registrationApi.completePhoneVerification).mockResolvedValue();
+
+    const refetchUserData = vi
+      .fn()
+      .mockRejectedValue(new Error("network failure"));
+    renderProvider({ refetchUserData });
+
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("open-modal"));
+
+    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
+    await user.click(screen.getByText("Send code"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("verification-code-input")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByTestId("verification-code-input"), "123456");
+    await user.click(screen.getByText("Verify"));
+
+    await waitFor(() => {
+      expect(refetchUserData).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Unable to refresh your user's details"),
+      ).toBeInTheDocument();
     });
   });
 });

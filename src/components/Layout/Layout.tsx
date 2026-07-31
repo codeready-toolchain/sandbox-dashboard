@@ -1,6 +1,7 @@
 import "./Layout.css";
 
 import {
+  AlertVariant,
   Divider,
   Dropdown,
   DropdownItem,
@@ -27,12 +28,15 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import { useAuth } from "../../auth/useAuth";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
+import { useNotifications } from "../../notifications/useNotifications";
+import logger from "../../utils/logger";
 import { WorkspaceResetModal } from "../Modals";
 import { PageFooter } from "./PageFooter";
 
 export function Layout() {
   const { logout } = useAuth();
   const { refetchUserData, user, userSignupPhase } = useUserContext();
+  const { addAlert } = useNotifications();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -46,7 +50,20 @@ export function Layout() {
 
   const handleResetComplete = async () => {
     setIsResetModalOpen(false);
-    await refetchUserData();
+
+    // Refetch the user data and log any errors. We do not
+    refetchUserData().catch((error) => {
+      logger.warn(
+        "Refetching the user's signup after resetting the user's workspaces threw an error",
+        error,
+      );
+
+      addAlert(
+        AlertVariant.warning,
+        "Unable to refresh your user's details",
+        "The resetting of your workspace was scheduled, but we were unable to refresh your user's details at the moment. You might have to refresh the page in order to see the reset to be completed. Sorry for the inconvenience.",
+      );
+    });
   };
 
   const masthead = (

@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
+import * as registrationApi from "../../api/registration";
 import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
@@ -13,7 +14,13 @@ import {
   UserSignupPhase,
 } from "../../hooks/UserContext";
 import { readyUserFixture } from "../../mocks/fixtures";
+import { NotificationProvider } from "../../notifications/NotificationProvider";
 import { Layout } from "../Layout/Layout";
+
+vi.mock("../../api/registration", async (importOriginal) => {
+  const actual = await importOriginal<typeof registrationApi>();
+  return { ...actual, resetWorkspaces: vi.fn() };
+});
 
 vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
   RhIcon: { resolve: vi.fn() },
@@ -68,7 +75,7 @@ function makeSandboxContext(
   return {
     user: readyUserFixture,
     userSignupPhase: UserSignupPhase.READY,
-    refetchUserData: vi.fn(),
+    refetchUserData: vi.fn().mockResolvedValue(undefined),
     signupUser: vi.fn(),
     ...overrides,
   };
@@ -79,21 +86,23 @@ function renderLayout(
   sandboxOverrides: Partial<UserContextType> = {},
 ) {
   return render(
-    <AuthenticatedContext.Provider value={authValue}>
-      <UserContext.Provider value={makeSandboxContext(sandboxOverrides)}>
-        <MemoryRouter initialEntries={[route]}>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route index element={<div>Catalog Content</div>} />
-              <Route
-                path="activities"
-                element={<div>Activities Content</div>}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </UserContext.Provider>
-    </AuthenticatedContext.Provider>,
+    <NotificationProvider>
+      <AuthenticatedContext.Provider value={authValue}>
+        <UserContext.Provider value={makeSandboxContext(sandboxOverrides)}>
+          <MemoryRouter initialEntries={[route]}>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route index element={<div>Catalog Content</div>} />
+                <Route
+                  path="activities"
+                  element={<div>Activities Content</div>}
+                />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </UserContext.Provider>
+      </AuthenticatedContext.Provider>
+    </NotificationProvider>,
   );
 }
 
@@ -170,5 +179,39 @@ describe("Layout", () => {
       user: { ...readyUserFixture, givenName: "", familyName: "" },
     });
     expect(screen.getByText("User")).toBeInTheDocument();
+  });
+
+  it("shows warning alert when refetchUserData rejects after workspace reset", async () => {
+    vi.mocked(registrationApi.resetWorkspaces).mockResolvedValue();
+
+    const refetchUserData = vi
+      .fn()
+      .mockRejectedValue(new Error("network failure"));
+
+    const user = userEvent.setup();
+    renderLayout("/", {
+      userSignupPhase: UserSignupPhase.READY,
+      refetchUserData,
+    });
+
+    await user.click(screen.getByText("John Doe"));
+    await user.click(screen.getByText("Reset Workspaces"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-reset-modal")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("workspace-reset-button"));
+    await user.click(screen.getByTestId("workspace-reset-button"));
+
+    await waitFor(() => {
+      expect(refetchUserData).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Unable to refresh your user's details"),
+      ).toBeInTheDocument();
+    });
   });
 });
