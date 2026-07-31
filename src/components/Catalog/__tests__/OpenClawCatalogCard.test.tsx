@@ -66,6 +66,29 @@ function renderCard(
 }
 
 describe("OpenClawCatalogCard", () => {
+  it("shows 'Loading' button and disables it when status is INITIAL_FETCH", () => {
+    renderCard({ status: OpenClawStatus.INITIAL_FETCH });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Loading");
+    expect(mainButton).toBeDisabled();
+  });
+
+  it("renders 'Loading' status label when status is INITIAL_FETCH", () => {
+    renderCard({ status: OpenClawStatus.INITIAL_FETCH });
+
+    const card = screen.getByTestId("catalog-card");
+    expect(card.textContent).toContain("Loading");
+  });
+
+  it("hides delete button when status is INITIAL_FETCH", () => {
+    renderCard({ status: OpenClawStatus.INITIAL_FETCH });
+
+    expect(
+      screen.queryByTestId("delete-instance-button"),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens info modal (not direct link) when status is READY and link exists", async () => {
     const windowOpenSpy = vi
       .spyOn(window, "open")
@@ -316,5 +339,14 @@ describe("OpenClawCatalogCard", () => {
     expect(
       screen.queryByTestId("openclaw-launch-modal"),
     ).not.toBeInTheDocument();
+  });
+
+  it("disables primary button when userSignupPhase is INITIAL_FETCH", () => {
+    renderCard({ status: OpenClawStatus.READY }, undefined, {
+      userSignupPhase: UserSignupPhase.INITIAL_FETCH,
+    });
+
+    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
+    expect(mainButton).toBeDisabled();
   });
 });

@@ -1,6 +1,9 @@
+import { AlertVariant } from "@patternfly/react-core";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { PhoneVerificationModal } from "../components/Modals/PhoneVerificationModal";
+import { useNotifications } from "../notifications/useNotifications";
+import logger from "../utils/logger";
 import { PhoneVerificationContext } from "./PhoneVerificationContext";
 import { useUserContext } from "./UserContext";
 
@@ -13,6 +16,7 @@ export function PhoneVerificationProvider({
   children: ReactNode;
 }) {
   const { refetchUserData } = useUserContext();
+  const { addAlert } = useNotifications();
 
   const [isPhoneModalOpen, setPhoneModalOpen] = useState<boolean>(false);
 
@@ -37,8 +41,20 @@ export function PhoneVerificationProvider({
    */
   const handlePhoneVerified = useCallback(async () => {
     setPhoneModalOpen(false);
-    await refetchUserData();
-  }, [refetchUserData]);
+
+    refetchUserData().catch((error) => {
+      logger.warn(
+        "Refetching the user's signup after verifying the user's phone threw an error",
+        error,
+      );
+
+      addAlert(
+        AlertVariant.warning,
+        "Unable to refresh your user's details",
+        "The phone was successfuly verified, but we were unable to refresh your user's details at the moment. You might have to refresh the page in order to start using the product trials. Sorry for the inconvenience.",
+      );
+    });
+  }, [addAlert, refetchUserData]);
 
   return (
     <PhoneVerificationContext.Provider value={contextValue}>

@@ -11,6 +11,7 @@ import { anyConditionMatches } from "./condition-utils";
 
 export enum OpenClawStatus {
   USER_NOT_READY = "userNotReady",
+  INITIAL_FETCH = "initialFetch",
   INITIAL_FETCH_FAILED = "initialFetchFailed",
   NEW = "new",
   PROVISIONING = "provisioning",

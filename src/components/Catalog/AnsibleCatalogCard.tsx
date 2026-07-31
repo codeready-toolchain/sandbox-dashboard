@@ -22,6 +22,9 @@ import { ButtonLabel, StatusColor, type StatusLabel } from "./catalogCardTypes";
  */
 function getButtonLabel(status: AAPInstanceStatus): ButtonLabel {
   switch (status.kind) {
+    case "initialFetch":
+      return ButtonLabel.LOADING;
+
     case "userNotReady":
     case "new":
     case "notDeployed":
@@ -55,6 +58,8 @@ function getButtonLabel(status: AAPInstanceStatus): ButtonLabel {
  */
 function getStatusLabel(status: AAPInstanceStatus): StatusLabel | undefined {
   switch (status.kind) {
+    case "initialFetch":
+      return { label: "Loading", color: StatusColor.BLUE };
     case "provisioning":
     case "unidling":
       return { label: "Provisioning", color: StatusColor.BLUE };
@@ -115,11 +120,23 @@ export function AnsibleCatalogCard({
   const unidleInFlight = useRef(false);
   const deleteInFlight = useRef(false);
 
-  // Determine the labels and statuses if applicable, and whether we should be
-  // showing the delete button or not.
+  // Determine the labels and statuses.
   const buttonLabel = getButtonLabel(instanceStatus);
   const statusLabel = getStatusLabel(instanceStatus);
+
+  // Determine the status of the interactive buttons.
+  const isPrimaryButtonDisabled =
+    buttonLabel === ButtonLabel.LOADING ||
+    buttonLabel === ButtonLabel.DELETING ||
+    userSignupPhase === UserSignupPhase.INITIAL_FETCH;
+  const isPrimaryButtonSpinnerVisible =
+    buttonLabel === ButtonLabel.LOADING ||
+    buttonLabel === ButtonLabel.PROVISIONING ||
+    buttonLabel === ButtonLabel.DELETING ||
+    userSignupPhase === UserSignupPhase.INITIAL_FETCH;
   const isDeleteButtonVisible =
+    userSignupPhase !== UserSignupPhase.INITIAL_FETCH &&
+    instanceStatus.kind !== "initialFetch" &&
     instanceStatus.kind !== "userNotReady" &&
     instanceStatus.kind !== "new" &&
     instanceStatus.kind !== "notDeployed" &&
@@ -299,11 +316,8 @@ export function AnsibleCatalogCard({
         statusLabel={statusLabel}
         primaryButtonLabel={buttonLabel}
         isGreenCornerVisible={isGreenCornerVisible}
-        isPrimaryButtonDisabled={buttonLabel === ButtonLabel.DELETING}
-        isPrimaryButtonSpinnerVisible={
-          buttonLabel === ButtonLabel.PROVISIONING ||
-          buttonLabel === ButtonLabel.DELETING
-        }
+        isPrimaryButtonDisabled={isPrimaryButtonDisabled}
+        isPrimaryButtonSpinnerVisible={isPrimaryButtonSpinnerVisible}
         isPrimaryButtonExtIconVisible={false}
         isDeleteButtonVisible={isDeleteButtonVisible}
         onClickPrimaryButton={handleOnClickPrimaryButton}

@@ -82,7 +82,7 @@ export function CatalogBanner() {
                   {renderSubtitle()}
                 </Content>
               </div>
-            ) : userSignupPhase === UserSignupPhase.FETCHING_DATA ? (
+            ) : userSignupPhase === UserSignupPhase.INITIAL_FETCH ? (
               <div>
                 <Skeleton
                   width="500px"

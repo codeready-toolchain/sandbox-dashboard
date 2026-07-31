@@ -86,6 +86,38 @@ function getOpenClawCard(): HTMLElement {
 }
 
 describe("CatalogGrid – OpenClaw card rendering", () => {
+  it("shows 'Loading' button and disables it when OpenClaw status is INITIAL_FETCH", () => {
+    renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
+
+    const openclawCard = getOpenClawCard();
+
+    const mainButton = openclawCard.querySelector(
+      "[data-testid='try-it-button']",
+    ) as HTMLButtonElement;
+    expect(mainButton.textContent).toContain("Loading");
+    expect(mainButton).toBeDisabled();
+  });
+
+  it("renders 'Loading' status label on OpenClaw card when status is INITIAL_FETCH", () => {
+    renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
+
+    const openclawCard = getOpenClawCard();
+    const statusLabel = openclawCard.querySelector(
+      "[data-testid='status-label']",
+    );
+    expect(statusLabel).not.toBeNull();
+    expect(statusLabel!.textContent).toContain("Loading");
+  });
+
+  it("does not show delete button when OpenClaw status is INITIAL_FETCH", () => {
+    renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
+
+    const openclawCard = getOpenClawCard();
+    expect(
+      openclawCard.querySelector("[data-testid='delete-instance-button']"),
+    ).toBeNull();
+  });
+
   it("does not show delete button when OpenClaw status is UNKNOWN", () => {
     renderGrid({ status: OpenClawStatus.UNKNOWN });
 

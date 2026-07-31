@@ -12,6 +12,7 @@ import { getSignupData, signup } from "../api/registration";
 import { Environment, getConfig } from "../config/config";
 import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { ApiError } from "../error/ApiError";
+import { UserFacingError } from "../error/UserFacingError";
 import { useNotifications } from "../notifications/useNotifications";
 import { type User } from "../types";
 import logger from "../utils/logger";
@@ -19,7 +20,7 @@ import {
   mapFetchUserErrorToErrorMessage,
   mapUserStatusToSignupPhase,
 } from "../utils/register-utils";
-import { withRetry } from "../utils/retry";
+import { isTransient, withRetry } from "../utils/retry";
 import { UserContext, UserSignupPhase } from "./UserContext";
 import { useRecaptcha } from "./useRecaptcha";
 
@@ -34,8 +35,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const [user, setUser] = useState<User | undefined>(undefined);
   const [userSignupPhase, setUserSignupPhase] = useState<UserSignupPhase>(
-    UserSignupPhase.NOT_STARTED,
+    UserSignupPhase.INITIAL_FETCH,
   );
+
+  /**
+   * Defines how many times we are going to retry fetching for the user's
+   * signup on transient errors before giving up.
+   */
+  const maxTransientErrorRetries: number = 3;
 
   /**
    * User reference to avoid rerender in case we fetch the user from the
@@ -49,7 +56,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
    * object possible.
    */
   const userSignupPhaseRef = useRef<UserSignupPhase>(
-    UserSignupPhase.NOT_STARTED,
+    UserSignupPhase.INITIAL_FETCH,
   );
 
   /**
@@ -57,6 +64,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
    * status.
    */
   const lastUserSignupPhaseChangedAt = useRef<number>(0);
+
+  /**
+   * Counter to keep track of how many transient errors we have encountered
+   * while polling to check for an status update of the user's signup.
+   */
+  const pollTransientRetriesLeft = useRef<number>(maxTransientErrorRetries);
 
   /**
    * Utility function so that we can keep both the user signup phase and
@@ -73,51 +86,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   /**
    * Fetches the user's signup data, critical for the application to work.
-   * @param isRefetch signals if it is a refetching operation.
-   * @returns the {@link User} itself.
    */
-  const fetchUser = useCallback(
-    async (isRefetch = false): Promise<void> => {
-      if (!isRefetch) {
-        updateSignupPhase(UserSignupPhase.FETCHING_DATA);
-      }
+  const fetchUser = useCallback(async (): Promise<void> => {
+    const result: User | undefined = await getSignupData();
 
-      try {
-        let result: User | undefined;
-        if (isRefetch) {
-          result = await getSignupData();
-        } else {
-          result = await withRetry(() => getSignupData(), 3, 2000);
-        }
+    // Make sure that the user has changed before changing the state and
+    // scheduling a rerender.
+    if (JSON.stringify(userRef.current) !== JSON.stringify(result)) {
+      userRef.current = result;
+      setUser(result);
+    }
 
-        // Make sure that the user has changed before changing the state and
-        // scheduling a rerender.
-        if (JSON.stringify(userRef.current) !== JSON.stringify(result)) {
-          userRef.current = result;
-          setUser(result);
-        }
-
-        updateSignupPhase(
-          mapUserStatusToSignupPhase(userSignupPhaseRef.current, result),
-        );
-      } catch (err) {
-        // On mount, the user is fetched for the first time. Since 404 errors
-        // are not treated as such because they just signal that a user signup
-        // yet does not exist, any other error means that we couldn't get the
-        // user information and therefore we can't really have a functional
-        // UI.
-        if (!isRefetch) {
-          updateSignupPhase(UserSignupPhase.BLOCKED);
-          addAlertFromError(mapFetchUserErrorToErrorMessage(err));
-          return undefined;
-        }
-        logger.error("Error fetching user data:", err);
-        // Keep the last known-good user/phase. A transient refetch failure
-        // will be retried on the next poll tick.
-      }
-    },
-    [addAlertFromError, updateSignupPhase],
-  );
+    updateSignupPhase(
+      mapUserStatusToSignupPhase(userSignupPhaseRef.current, result),
+    );
+  }, [updateSignupPhase]);
 
   /**
    * Creates a user signup in the back end.
@@ -192,13 +175,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Initial user fetch when the provider is mounted.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount is intentional
-    fetchUser();
-  }, [fetchUser]);
+    withRetry(() => fetchUser(), 3, 3_000).catch((error) => {
+      logger.error("Unable to obtain the user's signup information", error);
+
+      updateSignupPhase(UserSignupPhase.BLOCKED);
+      addAlertFromError(mapFetchUserErrorToErrorMessage(error));
+    });
+  }, [addAlertFromError, fetchUser, updateSignupPhase]);
 
   // Determine if we should be polling to fetch the latest user data.
   const shouldBePolling = useMemo<boolean>(() => {
     switch (userSignupPhase) {
+      case UserSignupPhase.INITIAL_FETCH:
       case UserSignupPhase.NOT_STARTED:
       case UserSignupPhase.READY:
       default:
@@ -242,12 +230,46 @@ export function UserProvider({ children }: { children: ReactNode }) {
         userSignupPhaseRef.current === UserSignupPhase.SIGNING_UP ||
         userSignupPhaseRef.current === UserSignupPhase.PROVISIONING;
 
-      // Refresh the user.
-      await fetchUser(true);
+      // Refresh the user's signup.
+      try {
+        await fetchUser();
+        pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      } catch (error) {
+        let technicalDetails: string | undefined;
+        if (error instanceof ApiError) {
+          if (isTransient(error) && pollTransientRetriesLeft.current > 0) {
+            pollTransientRetriesLeft.current--;
+            logger.warn(
+              `Unexpected transient error received while polling on a user signup: ${error.body}`,
+            );
+          } else {
+            cancelled = true;
+            technicalDetails = error.body;
+          }
+        } else {
+          cancelled = true;
+
+          logger.error(
+            `Unexpected error while polling for the user signup: ${error}`,
+          );
+          technicalDetails = `${error}`;
+        }
+
+        if (cancelled) {
+          addAlertFromError(
+            new UserFacingError(
+              "Unable to determine your account's status",
+              `Unfortunately, we weren't able to determine your account's status. Please try again later, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+              error,
+              technicalDetails,
+            ),
+          );
+        }
+      }
 
       // If we were in the process of signing the user up, show a notification
       // to the user depending on their current state of their account.
-      if (wasSigningUp) {
+      if (!cancelled && wasSigningUp) {
         // Make sure that after a significant amount of polling, we show some
         // feedback to the user if their account has not been provisioned.
         if (Date.now() - lastUserSignupPhaseChangedAt.current > 60_000) {
@@ -296,20 +318,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       clearTimeout(timerId);
     };
-  }, [addAlert, fetchUser, pollInterval, shouldBePolling, updateSignupPhase]);
-
-  const refetchUserData = useCallback(() => fetchUser(true), [fetchUser]);
+  }, [
+    addAlert,
+    addAlertFromError,
+    fetchUser,
+    pollInterval,
+    shouldBePolling,
+    updateSignupPhase,
+  ]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
   // function changes.
   const contextValue = useMemo(
     () => ({
-      refetchUserData,
+      refetchUserData: fetchUser,
       signupUser,
       user,
       userSignupPhase,
     }),
-    [refetchUserData, signupUser, user, userSignupPhase],
+    [fetchUser, signupUser, user, userSignupPhase],
   );
 
   return (

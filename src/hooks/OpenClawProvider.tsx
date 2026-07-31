@@ -129,9 +129,11 @@ export function OpenClawProviderConnected({
   /**
    * A reference of the status to avoid stale values in closures.
    */
-  const statusRef = useRef<OpenClawStatus>(OpenClawStatus.NEW);
+  const statusRef = useRef<OpenClawStatus>(OpenClawStatus.INITIAL_FETCH);
 
-  const [status, setStatus] = useState<OpenClawStatus>(OpenClawStatus.NEW);
+  const [status, setStatus] = useState<OpenClawStatus>(
+    OpenClawStatus.INITIAL_FETCH,
+  );
   const [uiURL, setUiURL] = useState<string | undefined>();
   const [deletionError, setDeletionError] = useState<
     UserFacingError | undefined
