@@ -161,9 +161,6 @@ export const AAPObject: string = `
             }
          }
       },
-      "metrics": {
-         "disabled": true
-      },
       "controller":{
          "extra_settings":[
             {
