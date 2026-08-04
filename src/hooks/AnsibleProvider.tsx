@@ -19,7 +19,6 @@ import {
 import { SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
-import { ProvisioningError } from "../error/ProvisioningError";
 import { UserFacingError } from "../error/UserFacingError";
 import { useNotifications } from "../notifications/useNotifications";
 import type {
@@ -32,6 +31,7 @@ import type {
 import {
   AAPInstanceErrorType,
   type AAPInstanceStatus,
+  type FetchCRResult,
   mapAnsibleStatus,
 } from "../utils/aap-utils";
 import logger from "../utils/logger";
@@ -100,7 +100,7 @@ export function AnsibleProviderConnected({
   userNamespace: string;
   proxyURL: string;
 }) {
-  const { addAlert } = useNotifications();
+  const { addAlert, addAlertFromError } = useNotifications();
 
   const [instanceCR, setInstanceCR] = useState<AAPCR | undefined>();
   const [instanceCredentials, setInstanceCredentials] = useState<
@@ -187,27 +187,35 @@ export function AnsibleProviderConnected({
   /**
    * Gets the Ansible Automation Platform resource from Kubernetes.
    * @param userNamespace the namespace to fetch teh resource for.
+   * @returns one of "absent", "failed" or "ok" statuses, signaling that the
+   * instance is either absent, in a failure state or reporting everything
+   * right.
    * @throws {ApiError} if the API calls to fetch the AAP resource.
    */
   const fetchCR = useCallback(
-    async (namespace: string): Promise<void> => {
+    async (namespace: string): Promise<FetchCRResult> => {
       const cr = await getAAP(proxyURL, namespace);
       if (!cr) {
-        updateInstanceStatus({ kind: "new" });
-        updateInstanceCR(undefined);
-        return;
+        return { kind: "absent" };
       }
 
-      const [ansibleStatus, matchedCondition] = mapAnsibleStatus(cr);
-      if (ansibleStatus.kind === "error" && matchedCondition) {
-        updateInstanceStatus(ansibleStatus);
-        throw new ProvisioningError("AAP", matchedCondition);
+      const [status, matchedCondition] = mapAnsibleStatus(cr);
+      if (status.kind === "error" && matchedCondition) {
+        return {
+          kind: "failed",
+          cr,
+          status,
+          failedCondition: matchedCondition,
+        };
       }
 
-      updateInstanceStatus(ansibleStatus);
-      updateInstanceCR(cr);
+      return {
+        kind: "ok",
+        cr,
+        status,
+      };
     },
-    [proxyURL, updateInstanceCR, updateInstanceStatus],
+    [proxyURL],
   );
 
   /**
@@ -448,33 +456,75 @@ export function AnsibleProviderConnected({
    * The reference is to ensure we only run this effect once.
    */
   useEffect(() => {
+    // Guard for in-flight requests, so that if the component gets unmounted
+    // while the request is in-flight, we ignore the results instead of
+    // modifying the state with stale results.
+    let cancelled = false;
+
     if (!hasFetchedOnMount.current) {
       // The reference is updated here to avoid any more executions if the
       // "instanceStatus" changes while "withRetry" is in flight.
       hasFetchedOnMount.current = true;
 
-      withRetry(() => fetchCR(userNamespace), 3, 3_000).catch((error) => {
-        logger.error(
-          `Unable to obtain the Ansible Automation Platform instance's status: ${error}`,
-        );
-        // With a ProvisioningError we know there's a condition failure in
-        // the instance, so we want to preserve the error status that is set
-        // by the fetch call. Any other errors we want to report them as an
-        // initial fetch failure.
-        if (!(error instanceof ProvisioningError)) {
+      updateInstanceStatus({ kind: "initialFetch" });
+      withRetry(() => fetchCR(userNamespace), 3, 3_000)
+        .then((result: FetchCRResult) => {
+          if (cancelled) {
+            return;
+          }
+
+          if (result.kind === "absent") {
+            updateInstanceStatus({ kind: "new" });
+            updateInstanceCR(undefined);
+          } else if (result.kind === "failed") {
+            updateInstanceStatus(result.status);
+            updateInstanceCR(result.cr);
+            addAlertFromError(
+              new UserFacingError(
+                "Ansible Automation Platform instance is not properly provisioned",
+                `We have detected that your Ansible Automation Platform instance is not successfully provisioned. Please, either delete it and try again later, or contact ${SUPPORT_EMAIL}.`,
+                undefined,
+                `The AAP instance reports the following failed condition: ${JSON.stringify(result.failedCondition)}`,
+              ),
+            );
+          } else {
+            updateInstanceStatus(result.status);
+            updateInstanceCR(result.cr);
+          }
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
+
+          logger.error(
+            `Unable to obtain the Ansible Automation Platform instance's status: ${error}`,
+          );
+          addAlertFromError(
+            new UserFacingError(
+              "Unable to determine your Ansible Automation Platform instance's status",
+              `We have been unable to determine the status of your Ansible Automation Platform's instance. Please refresh the page, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
+              error,
+              `${error}`,
+            ),
+          );
           updateInstanceStatus({
             kind: "error",
             errorType: AAPInstanceErrorType.INITIAL_FETCH_FAILED,
           });
-        }
-        addAlert(
-          AlertVariant.danger,
-          "Unable to determine your Ansible Automation Platform instance's status",
-          `We have been unable to determine the status of your Ansible Automation Platform's instance. Please refresh the page, and if the issue persists, contact ${SUPPORT_EMAIL}.`,
-        );
-      });
+        });
     }
-  }, [addAlert, fetchCR, updateInstanceStatus, userNamespace]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    addAlertFromError,
+    fetchCR,
+    updateInstanceCR,
+    updateInstanceStatus,
+    userNamespace,
+  ]);
 
   /**
    * Poll for the instance's status when the instance is provisioning,
@@ -482,124 +532,180 @@ export function AnsibleProviderConnected({
    * errors, and notifies the user accordingly.
    */
   useEffect(() => {
+    // Narrow down the status type. Should we be using the
+    // "instanceStatusRef" here, TypeScript assumes that the status could be
+    // any of them, even though we have an "if" statement that will not allow
+    // to poll for any other statuses than the ones listed.
+    //
+    // This way TypeScript understands that "currentInstanceStatus" can only
+    // hold the listed values during the execution of this polling. It also
+    // serves us as a guard in the very rare case that the status reference
+    // drifts out of sync with the state. Something unlikely to happen, but
+    // it's good to have it.
+    const currentInstanceStatus = instanceStatusRef.current.kind;
     if (
-      instanceStatus.kind !== "deleting" &&
-      instanceStatus.kind !== "deleted" &&
-      instanceStatus.kind !== "provisioning" &&
-      instanceStatus.kind !== "unidling"
+      currentInstanceStatus !== "deleting" &&
+      currentInstanceStatus !== "deleted" &&
+      currentInstanceStatus !== "provisioning" &&
+      currentInstanceStatus !== "unidling"
     ) {
       return;
     }
 
+    // Prepare the elements that would be required for the error messages for
+    // the user, in case we need them.
+    const { titleVerb, descriptionVerb, errorType } = (() => {
+      switch (currentInstanceStatus) {
+        case "deleted":
+        case "deleting":
+          return {
+            titleVerb: "delete",
+            descriptionVerb: "deletion",
+            errorType: AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE,
+          };
+        case "provisioning":
+          return {
+            titleVerb: "provision",
+            descriptionVerb: "provisioning",
+            errorType:
+              AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE,
+          };
+        case "unidling":
+          return {
+            titleVerb: "reprovision",
+            descriptionVerb: "reprovisioning",
+            errorType: AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE,
+          };
+      }
+    })();
+
     let cancelled = false;
     const poll = async () => {
+      let result: FetchCRResult;
+      try {
+        result = await fetchCR(userNamespace);
+        // If the effect gets cancelled whil the "fetchCR" request is in
+        // flight simply ignore all the results and stop polling.
+        if (cancelled) {
+          return;
+        }
+
+        pollTransientRetriesLeft.current = maxTransientErrorRetries;
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        // On a transient error, if we still have retries left, we simply want
+        // to keep polling.
+        if (isTransient(error) && pollTransientRetriesLeft.current > 0) {
+          pollTransientRetriesLeft.current--;
+          logger.warn(
+            `Transient error while polling AAP instance: ${error instanceof ApiError ? error.body : error}`,
+          );
+
+          if (!cancelled) {
+            timerId = setTimeout(poll, SHORT_INTERVAL);
+          }
+          return;
+        }
+
+        // After the retries have been depleted, or on a non-transient error
+        // occurs, we want to stop the polling and notify the user.
+        addAlertFromError(
+          new UserFacingError(
+            `Unable to ${titleVerb} your Ansible Automation Platform instance`,
+            `Unfortunately, the ${descriptionVerb} of your Ansible Automation Platform instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}.`,
+            error,
+            `${error}`,
+          ),
+        );
+        updateInstanceStatus({
+          kind: "error",
+          errorType: errorType,
+        });
+        return;
+      }
+
+      if (result.kind === "absent") {
+        // When fetching the CR returned nothing, if we're deleting the
+        // instance then that means that the deletion of the instance
+        // succeeded.
+        if (
+          currentInstanceStatus === "deleting" ||
+          currentInstanceStatus === "deleted"
+        ) {
+          addAlert(
+            AlertVariant.success,
+            "Ansible Automation Platform instance deleted",
+            "Your Ansible Automation Platform instance was successfully deleted.",
+          );
+
+          updateInstanceStatus({ kind: "new" });
+          updateInstanceCR(undefined);
+          return;
+        }
+
+        // Otherwise, something unexpected happened because the CR should not
+        // magically disappear when we are provisioning or reprovisioning it.
+        addAlertFromError(
+          new UserFacingError(
+            `Unable to ${titleVerb} your AAP instance`,
+            `Unfortunately, an internal error occurred that prevented from ${descriptionVerb} your Ansible Automation Platform instance. Please contact ${SUPPORT_EMAIL}.`,
+            undefined,
+            "During provisioning/reprovisioning, a fetch call returned no CR",
+          ),
+        );
+
+        updateInstanceStatus({
+          kind: "error",
+          errorType: errorType,
+        });
+        updateInstanceCR(undefined);
+        return;
+      } else if (result.kind === "failed") {
+        // When the instance is being deleted, we do not care about any
+        // failures, because the instance will get deleted eventually. So in
+        // that case we keep polling.
+        if (
+          currentInstanceStatus === "deleted" ||
+          currentInstanceStatus === "deleting"
+        ) {
+          if (!cancelled) {
+            timerId = setTimeout(poll, SHORT_INTERVAL);
+          }
+          return;
+        }
+
+        // The instance ended up in a "failure" state, so we do not want to
+        // keep polling and we want to notify the user that something went
+        // wrong.
+        addAlertFromError(
+          new UserFacingError(
+            `Unable to ${titleVerb} your AAP instance`,
+            `Unfortunately, an internal error occurred that prevented from ${descriptionVerb} your Ansible Automation Platform instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}.`,
+            undefined,
+            `During provisioning/reprovisioning, the instance ended in a failed condition: ${JSON.stringify(result.failedCondition)}`,
+          ),
+        );
+        updateInstanceStatus({
+          kind: "error",
+          errorType: errorType,
+        });
+
+        return;
+      }
+
+      // Only update the instance's status when we are either provisioning
+      // or reprovisioning the instance. We do not want to overwrite the
+      // deletion status while the instance is being deleted, because we
+      // want to continue polling.
       if (
-        instanceStatusRef.current.kind === "deleting" ||
-        instanceStatusRef.current.kind === "deleted"
+        currentInstanceStatus !== "deleting" &&
+        currentInstanceStatus !== "deleted"
       ) {
-        // We want to keep the "fetchCR" function as a "fetch and update"
-        // status function without any deletion logic on it. This is why the
-        // polling mechanism has this special case.
-        //
-        // Using "fetchCR" directly would probably change the instance's
-        // status to something else than "deleting", which would stop the
-        // polling.
-        try {
-          const cr = await getAAP(proxyURL, userNamespace);
-
-          if (!cr && instanceStatusRef.current.kind === "deleted") {
-            updateInstanceStatus({ kind: "new" });
-            updateInstanceCR(undefined);
-            return;
-          }
-        } catch (err) {
-          if (err instanceof ApiError) {
-            if (isTransient(err) && pollTransientRetriesLeft.current > 0) {
-              pollTransientRetriesLeft.current--;
-              logger.warn(
-                `Unexpected transient error received while polling on an AAP instance when verifying its deletion: ${err.body}`,
-              );
-            } else {
-              cancelled = true;
-              updateInstanceStatus({
-                kind: "error",
-                errorType:
-                  AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE,
-              });
-              addAlert(
-                AlertVariant.danger,
-                `Unable to delete your instance`,
-                `The deletion of the instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
-              );
-              logger.error(
-                `Unexpected response received while polling on a AAP instance when verifying its deletion: ${err.body}`,
-              );
-            }
-          } else {
-            // Any other unexpected error should make the polling stop, since
-            // it would be probably related to the "send the request" failures.
-            cancelled = true;
-            updateInstanceStatus({
-              kind: "error",
-              errorType: AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE,
-            });
-
-            logger.error(
-              `Unexpected error while polling for the status of the deletion of the AAP instance: ${err}`,
-            );
-            addAlert(
-              AlertVariant.danger,
-              `Unable to delete your instance`,
-              `The deletion of the instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
-            );
-          }
-        }
-      } else {
-        const wasUnidling = instanceStatusRef.current.kind === "unidling";
-        try {
-          await fetchCR(userNamespace);
-        } catch (err) {
-          if (err instanceof ApiError) {
-            if (isTransient(err) && pollTransientRetriesLeft.current > 0) {
-              pollTransientRetriesLeft.current--;
-              logger.warn(
-                `Unexpected transient error received while polling on an AAP instance when verifying its ${wasUnidling ? "unidling" : "provisioning"}: ${err.body}`,
-              );
-            } else {
-              cancelled = true;
-            }
-          } else if (err instanceof ProvisioningError) {
-            cancelled = true;
-
-            logger.error(
-              `Error while polling for the AAP instance status: the AAP instance ended up in a failure condition: ${err.getFormattedErrorMessage()}`,
-            );
-          } else {
-            cancelled = true;
-
-            logger.error(
-              `Unexpected error while polling for the AAP instance status: ${err}`,
-            );
-          }
-
-          if (cancelled) {
-            // ProvisioningError means fetchCR already set the
-            // condition-specific error status — preserve it.
-            if (!(err instanceof ProvisioningError)) {
-              updateInstanceStatus({
-                kind: "error",
-                errorType: wasUnidling
-                  ? AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE
-                  : AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE,
-              });
-            }
-            addAlert(
-              AlertVariant.danger,
-              `Unable to ${wasUnidling ? "reprovision" : "provision"} your instance`,
-              `The ${wasUnidling ? "reprovisioning" : "provisioning"} of the instance failed. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
-            );
-          }
-        }
+        updateInstanceStatus(result.status);
+        updateInstanceCR(result.cr);
       }
 
       // Schedule a new timeout.
@@ -615,12 +721,12 @@ export function AnsibleProviderConnected({
     };
   }, [
     addAlert,
+    addAlertFromError,
     fetchCR,
     instanceStatus.kind,
     updateInstanceCR,
     updateInstanceStatus,
     userNamespace,
-    proxyURL,
   ]);
 
   // Memoize the contents of the context to avoid rerenders on any state or
