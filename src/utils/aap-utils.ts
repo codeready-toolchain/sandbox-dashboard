@@ -3,6 +3,21 @@ import { anyConditionMatches } from "./condition-utils";
 
 export const decode = (str: string): string => atob(str);
 
+/**
+ * Defines the result type that the "fetchCR" function can return. The type
+ * narrowing helps in managing the different states of the instance more
+ * easily.
+ */
+export type FetchCRResult =
+  | { kind: "absent" }
+  | { kind: "ok"; cr: AAPCR; status: AAPInstanceStatus }
+  | {
+      kind: "failed";
+      cr: AAPCR;
+      status: AAPInstanceStatus;
+      failedCondition: StatusCondition;
+    };
+
 export enum AAPInstanceErrorType {
   /** The instance reports a failure condition. */
   CONDITION_REPORTS_FAILURE,

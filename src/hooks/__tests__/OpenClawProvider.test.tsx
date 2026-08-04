@@ -320,9 +320,10 @@ describe("OpenClawProvider", () => {
           MOCK_PROXY_URL,
           readyUserFixture.defaultUserNamespace,
         );
+        expect(screen.getByTestId("status").textContent).toBe(
+          OpenClawStatus.NEW,
+        );
       });
-
-      expect(screen.getByTestId("status").textContent).toBe(OpenClawStatus.NEW);
     });
 
     it("sets status to READY when SpaceRequest and OpenClaw CR are ready", async () => {

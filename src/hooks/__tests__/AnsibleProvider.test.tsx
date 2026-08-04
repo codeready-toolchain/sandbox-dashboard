@@ -12,6 +12,7 @@ import {
 import { ApiError } from "../../error/ApiError";
 import { UserFacingError } from "../../error/UserFacingError";
 import {
+  aapFailedFixture,
   aapIdledFixture,
   aapProvisioningFixture,
   aapReadyFixture,
@@ -186,6 +187,16 @@ describe("AnsibleProvider", () => {
   // ---------------------------------------------------------------------------
 
   describe("initial fetch on mount", () => {
+    it("starts with 'initialFetch' status before the API call resolves", () => {
+      mockedGetAAP.mockImplementation(() => new Promise(() => {}));
+
+      renderProvider();
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "initialFetch",
+      );
+    });
+
     it("fetches the AAP CR on mount and sets 'new' when no instance exists", async () => {
       mockedGetAAP.mockResolvedValue(undefined);
 
@@ -252,6 +263,19 @@ describe("AnsibleProvider", () => {
       );
       expect(screen.getByTestId("status-error-type").textContent).toBe(
         AAPInstanceErrorType.INITIAL_FETCH_FAILED.toString(),
+      );
+    });
+
+    it("sets error status when the instance has a failed condition on mount", async () => {
+      mockedGetAAP.mockResolvedValue(aapFailedFixture.items[0]);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.CONDITION_REPORTS_FAILURE.toString(),
       );
     });
 
@@ -650,13 +674,43 @@ describe("AnsibleProvider", () => {
       );
     });
 
-    it("polls for deletion, stays deleting until cleanup resolves, then transitions to 'new'", async () => {
+    it("polls for deletion and transitions to 'new' once the CR is absent", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockResolvedValue(undefined);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      act(() => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+    });
+
+    it("keeps polling during deletion when the CR still exists", async () => {
       let resolveCleanup!: () => void;
       const cleanupPromise = new Promise<void>((resolve) => {
         resolveCleanup = resolve;
       });
 
       mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
         .mockResolvedValueOnce(aapReadyFixture.items[0])
         .mockResolvedValue(undefined);
       mockedDeleteAAPCR.mockResolvedValue(undefined);
@@ -676,22 +730,234 @@ describe("AnsibleProvider", () => {
         expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
       );
 
+      // First poll: CR still exists, should keep deleting
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2_500);
       });
 
       expect(screen.getByTestId("status-kind").textContent).toBe("deleting");
 
-      await act(async () => {
-        resolveCleanup();
-      });
-
+      // Second poll: CR is now absent, should transition to "new"
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2_500);
       });
 
       await waitFor(() =>
         expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      // Resolve cleanup to avoid dangling promises
+      await act(async () => {
+        resolveCleanup();
+      });
+    });
+
+    it("sets error when CR disappears unexpectedly during provisioning", async () => {
+      mockedGetAAP.mockResolvedValue(undefined);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe(
+          "provisioning",
+        ),
+      );
+
+      // Poll fires: CR is absent during provisioning — unexpected
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets error when CR reports a failed condition during provisioning", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValue(aapFailedFixture.items[0]);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe(
+          "provisioning",
+        ),
+      );
+
+      // Poll fires: CR has a failure condition
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets error when CR disappears unexpectedly during unidling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValue(undefined);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+
+      // Poll fires: CR is absent during unidling — unexpected
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("retries on transient errors then sets error after retries exhausted", async () => {
+      const transientError = new ApiError("server error", 500, "internal");
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValue(transientError);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe(
+          "provisioning",
+        ),
+      );
+
+      // Advance enough time to exhaust all transient retries (3 retries).
+      // Each poll fires every SHORT_INTERVAL (2000ms).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("retries on plain TypeError (network drop) then sets error after retries exhausted", async () => {
+      const networkError = new TypeError("Failed to fetch");
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValueOnce(networkError)
+        .mockRejectedValue(networkError);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe(
+          "provisioning",
+        ),
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("stops polling on non-transient API error during provisioning", async () => {
+      const permanentError = new ApiError("not found", 404, "Not Found");
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(permanentError);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe(
+          "provisioning",
+        ),
+      );
+
+      // First poll: non-transient error should immediately stop polling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
       );
     });
   });
