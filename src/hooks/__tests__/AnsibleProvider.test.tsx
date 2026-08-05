@@ -9,6 +9,7 @@ import {
   getSecret,
   getStatefulSets,
 } from "../../api/kube";
+import { LONG_INTERVAL } from "../../const";
 import { ApiError } from "../../error/ApiError";
 import { UserFacingError } from "../../error/UserFacingError";
 import {
@@ -667,7 +668,7 @@ describe("AnsibleProvider", () => {
       );
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(4_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL * 2 + 500);
       });
 
       await waitFor(() =>
@@ -774,7 +775,7 @@ describe("AnsibleProvider", () => {
 
       // Poll fires: CR is absent during provisioning — unexpected
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>
@@ -808,7 +809,7 @@ describe("AnsibleProvider", () => {
 
       // Poll fires: CR has a failure condition
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>
@@ -877,9 +878,9 @@ describe("AnsibleProvider", () => {
       );
 
       // Advance enough time to exhaust all transient retries (3 retries).
-      // Each poll fires every SHORT_INTERVAL (2000ms).
+      // Each poll fires every LONG_INTERVAL during provisioning.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL * 4 + 500);
       });
 
       await waitFor(() =>
@@ -916,7 +917,7 @@ describe("AnsibleProvider", () => {
       );
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL * 4 + 500);
       });
 
       await waitFor(() =>
@@ -951,7 +952,7 @@ describe("AnsibleProvider", () => {
 
       // First poll: non-transient error should immediately stop polling
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>
@@ -1202,7 +1203,7 @@ describe("AnsibleProvider", () => {
 
       // First poll: recoverable failure — should stay provisioning
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       expect(screen.getByTestId("status-kind").textContent).toBe(
@@ -1211,7 +1212,7 @@ describe("AnsibleProvider", () => {
 
       // Second poll: still recoverable — should keep provisioning
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       expect(screen.getByTestId("status-kind").textContent).toBe(
@@ -1220,7 +1221,7 @@ describe("AnsibleProvider", () => {
 
       // Third poll: instance is ready
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>
@@ -1250,7 +1251,7 @@ describe("AnsibleProvider", () => {
 
       // Poll fires: 31 minutes after creationTimestamp — grace period expired
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>
@@ -1292,7 +1293,7 @@ describe("AnsibleProvider", () => {
 
       // Poll fires: only 5 minutes elapsed but the error is not recoverable
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>

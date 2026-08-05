@@ -16,7 +16,7 @@ import {
   getSecret,
   getStatefulSets,
 } from "../api/kube";
-import { SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
+import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
 import { UserFacingError } from "../error/UserFacingError";
@@ -594,6 +594,13 @@ export function AnsibleProviderConnected({
       }
     })();
 
+    // Since AAP instances can take a long time to provision, it does not make
+    // sense to be checking for a status update very often. For the rest of
+    // the states it does make sense, since the deletion or reprovisioning of
+    // the instance should not take very long.
+    const pollingInterval: number =
+      currentInstanceStatus === "provisioning" ? LONG_INTERVAL : SHORT_INTERVAL;
+
     let cancelled = false;
     const poll = async () => {
       let result: FetchCRResult;
@@ -620,7 +627,7 @@ export function AnsibleProviderConnected({
           );
 
           if (!cancelled) {
-            timerId = setTimeout(poll, SHORT_INTERVAL);
+            timerId = setTimeout(poll, pollingInterval);
           }
           return;
         }
@@ -687,7 +694,7 @@ export function AnsibleProviderConnected({
           currentInstanceStatus === "deleting"
         ) {
           if (!cancelled) {
-            timerId = setTimeout(poll, SHORT_INTERVAL);
+            timerId = setTimeout(poll, pollingInterval);
           }
           return;
         }
@@ -708,7 +715,7 @@ export function AnsibleProviderConnected({
           // the status.
           updateInstanceCR(result.cr);
           if (!cancelled) {
-            timerId = setTimeout(poll, SHORT_INTERVAL);
+            timerId = setTimeout(poll, pollingInterval);
           }
 
           return;
@@ -747,11 +754,11 @@ export function AnsibleProviderConnected({
 
       // Schedule a new timeout.
       if (!cancelled) {
-        timerId = setTimeout(poll, SHORT_INTERVAL);
+        timerId = setTimeout(poll, pollingInterval);
       }
     };
 
-    let timerId = setTimeout(poll, SHORT_INTERVAL);
+    let timerId = setTimeout(poll, pollingInterval);
     return () => {
       cancelled = true;
       clearTimeout(timerId);
