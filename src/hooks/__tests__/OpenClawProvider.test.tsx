@@ -37,7 +37,7 @@ vi.mock("../../utils/logger", () => ({
 }));
 
 const mockAddAlert = vi.fn();
-vi.mock("../../notifications/useNotifications", () => ({
+vi.mock("../NotificationContext", () => ({
   useNotifications: () => ({
     addAlert: mockAddAlert,
     addAlertFromError: vi.fn(),

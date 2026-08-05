@@ -7,6 +7,7 @@ import {
   AnsibleContext,
   type AnsibleContextType,
 } from "../../../hooks/AnsibleContext";
+import { NotificationProvider } from "../../../hooks/NotificationProvider";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
@@ -15,7 +16,6 @@ import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
 import { readyUserFixture } from "../../../mocks/fixtures";
-import { NotificationProvider } from "../../../notifications/NotificationProvider";
 import { ProductType } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";

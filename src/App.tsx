@@ -5,10 +5,10 @@ import { CatalogPage } from "./components/Catalog/CatalogPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./components/Layout/Layout";
 import { AnalyticsProvider } from "./hooks/AnalyticsProvider";
+import { NotificationProvider } from "./hooks/NotificationProvider";
 import { PhoneVerificationProvider } from "./hooks/PhoneVerificationProvider";
 import { UIConfigurationProvider } from "./hooks/UIConfigurationProvider";
 import { UserProvider } from "./hooks/UserProvider";
-import { NotificationProvider } from "./notifications/NotificationProvider";
 
 export function App() {
   return (

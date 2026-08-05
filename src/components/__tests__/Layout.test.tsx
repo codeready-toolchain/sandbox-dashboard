@@ -8,13 +8,13 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../auth/AuthenticatedContext";
+import { NotificationProvider } from "../../hooks/NotificationProvider";
 import {
   UserContext,
   type UserContextType,
   UserSignupPhase,
 } from "../../hooks/UserContext";
 import { readyUserFixture } from "../../mocks/fixtures";
-import { NotificationProvider } from "../../notifications/NotificationProvider";
 import { Layout } from "../Layout/Layout";
 
 vi.mock("../../api/registration", async (importOriginal) => {

@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { setTokenGetter } from "../../api/authFetch";
 import { SUPPORT_EMAIL } from "../../const";
 import { server } from "../../mocks/server";
-import { NotificationProvider } from "../../notifications/NotificationProvider";
+import { NotificationProvider } from "../NotificationProvider";
 import { UserSignupPhase, useUserContext } from "../UserContext";
 import { UserProvider } from "../UserProvider";
 

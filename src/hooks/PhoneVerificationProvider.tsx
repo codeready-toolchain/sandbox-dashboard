@@ -2,8 +2,8 @@ import { AlertVariant } from "@patternfly/react-core";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { PhoneVerificationModal } from "../components/Modals/PhoneVerificationModal";
-import { useNotifications } from "../notifications/useNotifications";
 import logger from "../utils/logger";
+import { useNotifications } from "./NotificationContext";
 import { PhoneVerificationContext } from "./PhoneVerificationContext";
 import { useUserContext } from "./UserContext";
 

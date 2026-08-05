@@ -27,8 +27,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import { useAuth } from "../../auth/useAuth";
+import { useNotifications } from "../../hooks/NotificationContext";
 import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
-import { useNotifications } from "../../notifications/useNotifications";
 import logger from "../../utils/logger";
 import { WorkspaceResetModal } from "../Modals";
 import { PageFooter } from "./PageFooter";
