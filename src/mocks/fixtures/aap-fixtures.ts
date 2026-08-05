@@ -130,6 +130,32 @@ export const aapRecoverableFailureFixture: AAPCRList = {
   ],
 };
 
+export const aapIdledWithFailureFixture: AAPCRList = {
+  items: [
+    {
+      status: {
+        conditions: [
+          {
+            type: "Failure",
+            status: "True",
+            reason: "ReconciliationFailed",
+            message: "Task failed: some operator error",
+          },
+        ],
+        URL: "",
+        adminPasswordSecret: "",
+        adminUser: "",
+      },
+      spec: { idle_aap: true },
+      metadata: {
+        name: "sandbox-aap",
+        uuid: "aap-uuid-123",
+        creationTimestamp: "2025-01-15T00:00:00Z",
+      },
+    },
+  ],
+};
+
 export const aapEmptyFixture: AAPCRList = {
   items: [],
 };

@@ -15,6 +15,7 @@ import { UserFacingError } from "../../error/UserFacingError";
 import {
   aapFailedFixture,
   aapIdledFixture,
+  aapIdledWithFailureFixture,
   aapProvisioningFixture,
   aapReadyFixture,
   aapRecoverableFailureFixture,
@@ -270,6 +271,19 @@ describe("AnsibleProvider", () => {
 
     it("sets error status when the instance has a failed condition on mount", async () => {
       mockedGetAAP.mockResolvedValue(aapFailedFixture.items[0]);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.CONDITION_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets 'error' when instance is idled but has a failure condition", async () => {
+      mockedGetAAP.mockResolvedValue(aapIdledWithFailureFixture.items[0]);
 
       renderProvider();
 

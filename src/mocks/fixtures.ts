@@ -2,6 +2,7 @@ export {
   aapEmptyFixture,
   aapFailedFixture,
   aapIdledFixture,
+  aapIdledWithFailureFixture,
   aapProvisioningFixture,
   aapReadyFixture,
   aapRecoverableFailureFixture,

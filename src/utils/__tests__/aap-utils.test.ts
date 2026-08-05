@@ -61,7 +61,7 @@ describe("aap-utils", () => {
       expect(condition).toBeUndefined();
     });
 
-    it("should return 'idled' when idle_aap is true and conditions are empty", () => {
+    it("should return 'unknown' when idle_aap is true but conditions are empty", () => {
       const cr: AAPCR = {
         status: {
           conditions: [],
@@ -77,11 +77,11 @@ describe("aap-utils", () => {
         spec: { idle_aap: true },
       };
       const [status, condition] = mapAnsibleStatus(cr);
-      expect(status).toEqual({ kind: "idled" });
+      expect(status).toEqual({ kind: "unknown" });
       expect(condition).toBeUndefined();
     });
 
-    it("should return 'idled' when idle_aap is true and status.conditions is missing", () => {
+    it("should return 'unknown' when idle_aap is true but status.conditions is missing", () => {
       const cr: AAPCR = {
         status: {},
         metadata: {
@@ -92,7 +92,7 @@ describe("aap-utils", () => {
         spec: { idle_aap: true },
       };
       const [status, condition] = mapAnsibleStatus(cr);
-      expect(status).toEqual({ kind: "idled" });
+      expect(status).toEqual({ kind: "unknown" });
       expect(condition).toBeUndefined();
     });
 
@@ -318,6 +318,35 @@ describe("aap-utils", () => {
       };
       const [status] = mapAnsibleStatus(cr);
       expect(status).toEqual({ kind: "ready" });
+    });
+
+    it("should return 'error' when idle_aap is true but a failure condition is present", () => {
+      const failureCondition: StatusCondition = {
+        type: "Failure",
+        status: "True",
+        reason: "ReconciliationFailed",
+        message: "Task failed: some operator error",
+      };
+      const cr: AAPCR = {
+        status: {
+          conditions: [failureCondition],
+          URL: "",
+          adminPasswordSecret: "",
+          adminUser: "",
+        },
+        metadata: {
+          name: "test",
+          uuid: "123",
+          creationTimestamp: "2024-01-01",
+        },
+        spec: { idle_aap: true },
+      };
+      const [status, condition] = mapAnsibleStatus(cr);
+      expect(status).toEqual({
+        kind: "error",
+        errorType: AAPInstanceErrorType.CONDITION_REPORTS_FAILURE,
+      });
+      expect(condition).toEqual(failureCondition);
     });
 
     it("should prioritize 'idled' over conditions when idle_aap is true", () => {

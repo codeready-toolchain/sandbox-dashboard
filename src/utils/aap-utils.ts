@@ -85,10 +85,6 @@ export const mapAnsibleStatus = (
     return [{ kind: "new" }, undefined];
   }
 
-  if (cr.spec?.idle_aap) {
-    return [{ kind: "idled" }, undefined];
-  }
-
   if (
     !cr.status ||
     !cr.status.conditions ||
@@ -111,6 +107,14 @@ export const mapAnsibleStatus = (
       },
       failedCondition,
     ];
+  }
+
+  // The AAP instance can be idled even if it is in a failure state, so we
+  // need to check for the idling after checking for any failures. Otherwise
+  // the instances show up as idled, and attempting to unidle them results in
+  // cascading errors.
+  if (cr.spec?.idle_aap) {
+    return [{ kind: "idled" }, undefined];
   }
 
   const successfulCondition = anyConditionMatches(
