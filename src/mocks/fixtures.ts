@@ -4,6 +4,7 @@ export {
   aapIdledFixture,
   aapProvisioningFixture,
   aapReadyFixture,
+  aapRecoverableFailureFixture,
 } from "./fixtures/aap-fixtures";
 export {
   deploymentFixture,

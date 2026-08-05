@@ -104,6 +104,32 @@ export const aapFailedFixture: AAPCRList = {
   ],
 };
 
+export const aapRecoverableFailureFixture: AAPCRList = {
+  items: [
+    {
+      status: {
+        conditions: [
+          {
+            type: "Failure",
+            status: "True",
+            reason: "Failed",
+            message: "unknown playbook failure",
+          },
+        ],
+        URL: "",
+        adminPasswordSecret: "",
+        adminUser: "",
+      },
+      spec: { idle_aap: false },
+      metadata: {
+        name: "sandbox-aap",
+        uuid: "aap-uuid-123",
+        creationTimestamp: "2026-08-05T12:00:00Z",
+      },
+    },
+  ],
+};
+
 export const aapEmptyFixture: AAPCRList = {
   items: [],
 };

@@ -1,5 +1,12 @@
 import type { AAPCR, StatusCondition } from "../types";
 import { anyConditionMatches } from "./condition-utils";
+import logger from "./logger";
+
+/**
+ * Defines thirty minutes in milliseconds, which is the SLA we show in the UI
+ * for the AAP instance provisioinng.
+ */
+const THIRTY_MINUTES = 30 * 60 * 1000;
 
 export const decode = (str: string): string => atob(str);
 
@@ -125,6 +132,32 @@ export const mapAnsibleStatus = (
   }
 
   return [{ kind: "unknown" }, undefined];
+};
+
+/**
+ * Checks whether the instance's errors are considered "recoverable" or not.
+ * @param failedCondition the failed condition to check.
+ * @param creationTimestamp the creation timestamp of the object.
+ * @returns `true` if the failed condition is recoverable and the grace period
+ * has not been depleted.
+ */
+export const isErrorRecoverable = (
+  failedCondition: StatusCondition,
+  creationTimestamp: string,
+): boolean => {
+  if (
+    failedCondition.message === "unknown playbook failure" &&
+    Date.now() - new Date(creationTimestamp).getTime() < THIRTY_MINUTES
+  ) {
+    logger.warn(
+      "AAP instance is reporting recoverable errors",
+      failedCondition.message,
+    );
+
+    return true;
+  } else {
+    return false;
+  }
 };
 
 export const AAPObject: string = `
