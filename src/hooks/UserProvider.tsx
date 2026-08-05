@@ -10,7 +10,7 @@ import {
 
 import { getSignupData, signup } from "../api/registration";
 import { Environment, getConfig } from "../config/config";
-import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
+import { MEDIUM_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { ApiError } from "../error/ApiError";
 import { UserFacingError } from "../error/UserFacingError";
 import { type User } from "../types";
@@ -204,13 +204,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     switch (userSignupPhase) {
       case UserSignupPhase.NOT_STARTED:
       case UserSignupPhase.PENDING_MANUAL_APPROVAL:
-        return LONG_INTERVAL;
+        return MEDIUM_INTERVAL;
       case UserSignupPhase.SIGNING_UP:
       case UserSignupPhase.PENDING_PHONE_VERIFICATION:
       case UserSignupPhase.PROVISIONING:
         return SHORT_INTERVAL;
       default:
-        return LONG_INTERVAL;
+        return MEDIUM_INTERVAL;
     }
   }, [userSignupPhase]);
 
