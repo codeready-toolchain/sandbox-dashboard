@@ -3,8 +3,8 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ErrorSeverity, UserFacingError } from "../../error/UserFacingError";
+import { useNotifications } from "../NotificationContext";
 import { NotificationProvider } from "../NotificationProvider";
-import { useNotifications } from "../useNotifications";
 
 function TestConsumer() {
   const { addAlert, addAlertFromError } = useNotifications();

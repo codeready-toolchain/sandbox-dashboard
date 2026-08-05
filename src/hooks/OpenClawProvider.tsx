@@ -25,7 +25,6 @@ import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
 import { ProvisioningError } from "../error/ProvisioningError";
 import { UserFacingError } from "../error/UserFacingError";
-import { useNotifications } from "../notifications/useNotifications";
 import type { OpenClawCR, SpaceRequestItem } from "../types";
 import logger from "../utils/logger";
 import type { AddedCredential } from "../utils/openclaw-providers";
@@ -40,6 +39,7 @@ import {
   defaultOpenClawWorkspace,
 } from "../utils/openclaw-workspace-content";
 import { isTransient, withRetry } from "../utils/retry";
+import { useNotifications } from "./NotificationContext";
 import { OpenClawContext } from "./OpenClawContext";
 import { useUserContext } from "./UserContext";
 

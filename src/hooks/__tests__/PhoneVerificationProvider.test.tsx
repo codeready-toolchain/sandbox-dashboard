@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 
 import * as registrationApi from "../../api/registration";
 import { readyUserFixture } from "../../mocks/fixtures";
-import { NotificationProvider } from "../../notifications/NotificationProvider";
 import { AnalyticsContext } from "../AnalyticsContext";
+import { NotificationProvider } from "../NotificationProvider";
 import { usePhoneVerificationContext } from "../PhoneVerificationContext";
 import { PhoneVerificationProvider } from "../PhoneVerificationProvider";
 import {

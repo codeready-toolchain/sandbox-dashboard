@@ -22,11 +22,11 @@ import {
   secretFixture,
   statefulSetFixture,
 } from "../../mocks/fixtures";
-import { NotificationProvider } from "../../notifications/NotificationProvider";
 import type { AAPCR, User } from "../../types";
 import { AAPInstanceErrorType } from "../../utils/aap-utils";
 import { useAnsibleContext } from "../AnsibleContext";
 import { AnsibleProvider } from "../AnsibleProvider";
+import { NotificationProvider } from "../NotificationProvider";
 import type { UserContextType } from "../UserContext";
 import { UserContext, UserSignupPhase } from "../UserContext";
 

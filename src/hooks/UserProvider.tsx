@@ -13,7 +13,6 @@ import { Environment, getConfig } from "../config/config";
 import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { ApiError } from "../error/ApiError";
 import { UserFacingError } from "../error/UserFacingError";
-import { useNotifications } from "../notifications/useNotifications";
 import { type User } from "../types";
 import logger from "../utils/logger";
 import {
@@ -21,6 +20,7 @@ import {
   mapUserStatusToSignupPhase,
 } from "../utils/register-utils";
 import { isTransient, withRetry } from "../utils/retry";
+import { useNotifications } from "./NotificationContext";
 import { UserContext, UserSignupPhase } from "./UserContext";
 import { useRecaptcha } from "./useRecaptcha";
 

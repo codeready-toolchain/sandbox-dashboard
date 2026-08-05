@@ -20,7 +20,6 @@ import { SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
 import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
 import { UserFacingError } from "../error/UserFacingError";
-import { useNotifications } from "../notifications/useNotifications";
 import type {
   AAPCR,
   AAPInstanceCredentials,
@@ -37,6 +36,7 @@ import {
 import logger from "../utils/logger";
 import { isTransient, withRetry } from "../utils/retry";
 import { AnsibleContext } from "./AnsibleContext";
+import { useNotifications } from "./NotificationContext";
 import { useUserContext } from "./UserContext";
 
 export function AnsibleProvider({ children }: { children: ReactNode }) {

@@ -1,5 +1,5 @@
 import type { AlertVariant } from "@patternfly/react-core";
-import { createContext } from "react";
+import { createContext, useContext } from "react";
 
 /**
  * Defines the functions which the NotificationContext provides to show
@@ -15,3 +15,13 @@ export interface NotificationContextValue {
  */
 export const NotificationContext =
   createContext<NotificationContextValue | null>(null);
+
+export const useNotifications = (): NotificationContextValue => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error(
+      "useNotifications must be used within NotificationProvider",
+    );
+  }
+  return context;
+};
