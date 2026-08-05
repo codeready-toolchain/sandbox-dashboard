@@ -31,6 +31,7 @@ import {
   AAPInstanceErrorType,
   type AAPInstanceStatus,
   type FetchCRResult,
+  isErrorRecoverable,
   mapAnsibleStatus,
 } from "../utils/aap-utils";
 import logger from "../utils/logger";
@@ -477,6 +478,20 @@ export function AnsibleProviderConnected({
             updateInstanceStatus({ kind: "new" });
             updateInstanceCR(undefined);
           } else if (result.kind === "failed") {
+            // When the instance has been recently created and the identified
+            // error is recoverable, we assume that the user refreshed the
+            // page and that the instance is in a "provisioning" status.
+            if (
+              isErrorRecoverable(
+                result.failedCondition,
+                result.cr.metadata.creationTimestamp,
+              )
+            ) {
+              updateInstanceStatus({ kind: "provisioning" });
+              updateInstanceCR(result.cr);
+              return;
+            }
+
             updateInstanceStatus(result.status);
             updateInstanceCR(result.cr);
             addAlertFromError(
@@ -674,6 +689,28 @@ export function AnsibleProviderConnected({
           if (!cancelled) {
             timerId = setTimeout(poll, SHORT_INTERVAL);
           }
+          return;
+        }
+
+        // Some instance's errors are recoverable and the reconciler might
+        // solve them eventually, so while the provisioning instance is in the
+        // SLA period that we advertise in the UI, we ignore those errors.
+        // After that, we consider that the instance is in a failure state.
+        if (
+          currentInstanceStatus === "provisioning" &&
+          isErrorRecoverable(
+            result.failedCondition,
+            result.cr.metadata.creationTimestamp,
+          )
+        ) {
+          // We update the instance's CR but we do not update its status,
+          // since we want it to still be "provisioning" and keep polling for
+          // the status.
+          updateInstanceCR(result.cr);
+          if (!cancelled) {
+            timerId = setTimeout(poll, SHORT_INTERVAL);
+          }
+
           return;
         }
 

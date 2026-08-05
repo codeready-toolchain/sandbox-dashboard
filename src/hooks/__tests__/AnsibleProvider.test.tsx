@@ -16,6 +16,7 @@ import {
   aapIdledFixture,
   aapProvisioningFixture,
   aapReadyFixture,
+  aapRecoverableFailureFixture,
   deploymentFixture,
   MOCK_PROXY_URL,
   readyUserFixture,
@@ -1169,6 +1170,208 @@ describe("AnsibleProvider", () => {
       );
       expect(mockedCreateAAP).not.toHaveBeenCalled();
       expect(mockedUnIdleAAP).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Recoverable error grace period
+  // ---------------------------------------------------------------------------
+
+  describe("recoverable error grace period", () => {
+    it("keeps polling when 'unknown playbook failure' occurs within the 30 minute window", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
+
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(aapRecoverableFailureFixture.items[0])
+        .mockResolvedValueOnce(aapRecoverableFailureFixture.items[0])
+        .mockResolvedValueOnce(aapReadyFixture.items[0]);
+
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // First poll: recoverable failure — should stay provisioning
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Second poll: still recoverable — should keep provisioning
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Third poll: instance is ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
+    it("sets error when 'unknown playbook failure' persists past the 30 minute window", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:31:00Z"));
+
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValue(aapRecoverableFailureFixture.items[0]);
+
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Poll fires: 31 minutes after creationTimestamp — grace period expired
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("treats non-'unknown playbook failure' errors as immediate failures regardless of time", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:05:00Z"));
+
+      const recentFailedCR = {
+        ...aapFailedFixture.items[0],
+        metadata: {
+          name: "sandbox-aap",
+          uuid: "aap-uuid-123",
+          creationTimestamp: "2026-08-05T12:00:00Z",
+        },
+      };
+
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValue(recentFailedCR);
+
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Poll fires: only 5 minutes elapsed but the error is not recoverable
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets 'provisioning' on mount when recoverable failure is within the grace period", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:15:00Z"));
+
+      mockedGetAAP.mockResolvedValue(aapRecoverableFailureFixture.items[0]);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe(
+          "provisioning",
+        ),
+      );
+    });
+
+    it("sets 'error' on mount when recoverable failure is past the grace period", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:45:00Z"));
+
+      mockedGetAAP.mockResolvedValue(aapRecoverableFailureFixture.items[0]);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.CONDITION_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("does not apply the grace period during unidling and reports failure immediately", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
+
+      const recentRecoverableCR = {
+        ...aapRecoverableFailureFixture.items[0],
+        metadata: {
+          ...aapRecoverableFailureFixture.items[0].metadata,
+          creationTimestamp: "2026-08-05T12:00:00Z",
+        },
+      };
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValue(recentRecoverableCR);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Poll fires: even though the error is "unknown playbook failure" within
+      // 30 minutes, the grace period only applies to provisioning — not
+      // unidling. The failure should be reported immediately.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
     });
   });
 });

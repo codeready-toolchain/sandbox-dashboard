@@ -3,6 +3,7 @@ import {
   AAPInstanceErrorType,
   AAPObject,
   decode,
+  isErrorRecoverable,
   mapAnsibleStatus,
 } from "../aap-utils";
 
@@ -380,6 +381,86 @@ describe("aap-utils", () => {
         errorType: AAPInstanceErrorType.CONDITION_REPORTS_FAILURE,
       });
       expect(condition).toEqual(failureCondition);
+    });
+  });
+
+  describe("isErrorRecoverable", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("returns true for 'unknown playbook failure' within the 30 minute window", () => {
+      const now = new Date("2026-08-05T12:20:00Z");
+      vi.setSystemTime(now);
+
+      const condition: StatusCondition = {
+        type: "Failure",
+        status: "True",
+        reason: "Failed",
+        message: "unknown playbook failure",
+      };
+
+      expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(true);
+    });
+
+    it("returns false for 'unknown playbook failure' after the 30 minute window", () => {
+      const now = new Date("2026-08-05T12:31:00Z");
+      vi.setSystemTime(now);
+
+      const condition: StatusCondition = {
+        type: "Failure",
+        status: "True",
+        reason: "Failed",
+        message: "unknown playbook failure",
+      };
+
+      expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
+    });
+
+    it("returns false for 'unknown playbook failure' at exactly the 30 minute boundary", () => {
+      const now = new Date("2026-08-05T12:30:00Z");
+      vi.setSystemTime(now);
+
+      const condition: StatusCondition = {
+        type: "Failure",
+        status: "True",
+        reason: "Failed",
+        message: "unknown playbook failure",
+      };
+
+      expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
+    });
+
+    it("returns false for a different failure message within the 30 minute window", () => {
+      const now = new Date("2026-08-05T12:10:00Z");
+      vi.setSystemTime(now);
+
+      const condition: StatusCondition = {
+        type: "Failure",
+        status: "True",
+        reason: "Failed",
+        message: "Task failed: some operator error",
+      };
+
+      expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
+    });
+
+    it("returns false for a different failure message after the 30 minute window", () => {
+      const now = new Date("2026-08-05T13:00:00Z");
+      vi.setSystemTime(now);
+
+      const condition: StatusCondition = {
+        type: "Failure",
+        status: "True",
+        reason: "Failed",
+        message: "EDA creation failed",
+      };
+
+      expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
     });
   });
 
