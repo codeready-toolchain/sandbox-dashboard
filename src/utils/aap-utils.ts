@@ -187,6 +187,21 @@ export const AAPObject: string = `
             }
          }
       },
+      "proxy":{
+         "resource_requirements":{
+            "requests":{
+               "cpu":"100m",
+               "memory":"256Mi"
+            },
+            "limits":{
+               "cpu":"500m",
+               "memory":"1000Mi"
+            }
+         }
+      },
+      "metrics":{
+         "disabled":true
+      },
       "redis":{
          "replicas":1,
          "resource_requirements":{
