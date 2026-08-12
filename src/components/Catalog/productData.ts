@@ -128,7 +128,7 @@ export const products: Product[] = [
         bulletPoint: "Enforce policies and consistent configurations",
       },
       {
-        bulletPoint: "40-minute environment provisioning",
+        bulletPoint: "50-minute environment provisioning",
         iconType: BulletPointIconType.WARNING,
       },
     ],

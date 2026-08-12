@@ -3,10 +3,10 @@ import { anyConditionMatches } from "./condition-utils";
 import logger from "./logger";
 
 /**
- * Defines fourty minutes in milliseconds, which is the SLA we show in the UI
+ * Defines fifty minutes in milliseconds, which is the SLA we show in the UI
  * for the AAP instance provisioinng.
  */
-const FOURTY_MINUTES = 40 * 60 * 1000;
+const FIFTY_MINUTES = 50 * 60 * 1000;
 
 export const decode = (str: string): string => atob(str);
 
@@ -151,7 +151,7 @@ export const isErrorRecoverable = (
 ): boolean => {
   if (
     failedCondition.message === "unknown playbook failure" &&
-    Date.now() - new Date(creationTimestamp).getTime() < FOURTY_MINUTES
+    Date.now() - new Date(creationTimestamp).getTime() < FIFTY_MINUTES
   ) {
     logger.warn(
       "AAP instance is reporting recoverable errors",
