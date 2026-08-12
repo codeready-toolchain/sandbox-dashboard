@@ -1,7 +1,14 @@
 import { http, HttpResponse } from "msw";
 
 import { server } from "../../mocks/server";
-import { createAAP, deleteAAPCR, getAAP, unIdleAAP } from "../aap";
+import logger from "../../utils/logger";
+import {
+  createAAP,
+  deleteAAPCR,
+  getAAP,
+  removeUnidleAnnotation,
+  unIdleAAP,
+} from "../aap";
 import { setTokenGetter } from "../authFetch";
 
 const PROXY_URL = "https://proxy.example.com";
@@ -129,10 +136,28 @@ describe("unIdleAAP", () => {
     );
 
     await expect(unIdleAAP(PROXY_URL, NS)).resolves.toBeUndefined();
-    expect(JSON.parse(capturedBody!)).toEqual({
-      spec: { idle_aap: false },
-    });
+    const parsedBody = JSON.parse(capturedBody!);
+    expect(parsedBody.spec).toEqual({ idle_aap: false });
+    expect(parsedBody.metadata.annotations).toHaveProperty(
+      "sandbox.redhat.com/unidle-requested-at",
+    );
     expect(capturedContentType).toBe("application/merge-patch+json");
+  });
+
+  it("should set the unidle annotation to a valid ISO 8601 timestamp", async () => {
+    let capturedBody: string | undefined;
+    server.use(
+      http.patch(`${AAP_BASE}/sandbox-aap`, async ({ request }) => {
+        capturedBody = await request.text();
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+
+    await unIdleAAP(PROXY_URL, NS);
+    const parsedBody = JSON.parse(capturedBody!);
+    const timestamp =
+      parsedBody.metadata.annotations["sandbox.redhat.com/unidle-requested-at"];
+    expect(new Date(timestamp).toISOString()).toBe(timestamp);
   });
 
   it("should throw error on unsuccessful response", async () => {
@@ -146,6 +171,63 @@ describe("unIdleAAP", () => {
     );
 
     await expect(unIdleAAP(PROXY_URL, NS)).rejects.toThrow();
+  });
+});
+
+describe("removeUnidleAnnotation", () => {
+  it("should send a PATCH with the annotation set to null", async () => {
+    let capturedBody: string | undefined;
+    let capturedContentType: string | null = null;
+    server.use(
+      http.patch(`${AAP_BASE}/sandbox-aap`, async ({ request }) => {
+        capturedBody = await request.text();
+        capturedContentType = request.headers.get("Content-Type");
+        return new HttpResponse(null, { status: 200 });
+      }),
+    );
+
+    await removeUnidleAnnotation(PROXY_URL, NS);
+    const parsedBody = JSON.parse(capturedBody!);
+    expect(parsedBody).toEqual({
+      metadata: {
+        annotations: {
+          "sandbox.redhat.com/unidle-requested-at": null,
+        },
+      },
+    });
+    expect(capturedContentType).toBe("application/merge-patch+json");
+  });
+
+  it("should not throw when the API returns an error", async () => {
+    const warnSpy = vi.spyOn(logger, "warn");
+
+    server.use(
+      http.patch(`${AAP_BASE}/sandbox-aap`, () => {
+        return HttpResponse.json(
+          { message: "Internal error" },
+          { status: 500 },
+        );
+      }),
+    );
+
+    await expect(
+      removeUnidleAnnotation(PROXY_URL, NS),
+    ).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("should not throw when the network request fails entirely", async () => {
+    server.use(
+      http.patch(`${AAP_BASE}/sandbox-aap`, () => {
+        return HttpResponse.error();
+      }),
+    );
+
+    await expect(
+      removeUnidleAnnotation(PROXY_URL, NS),
+    ).resolves.toBeUndefined();
   });
 });
 
