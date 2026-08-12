@@ -41,8 +41,7 @@ export function WorkspaceResetModal({
     setTechnicalDetails(null);
   };
 
-  const { copyToClipboard, copyToClipboardLabel } =
-    useCopyToClipboard(technicalDetails);
+  const { copyToClipboard, copyToClipboardLabel } = useCopyToClipboard();
 
   const handleClose = () => {
     resetState();
@@ -115,7 +114,9 @@ export function WorkspaceResetModal({
             title={error}
             actionLinks={
               technicalDetails && (
-                <AlertActionLink onClick={copyToClipboard}>
+                <AlertActionLink
+                  onClick={() => copyToClipboard(technicalDetails)}
+                >
                   {copyToClipboardLabel}
                 </AlertActionLink>
               )
