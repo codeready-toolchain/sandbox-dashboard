@@ -38,9 +38,7 @@ export function ErrorModal({
   isErrorModalOpen,
   onErrorModalClose,
 }: ErrorModalProps) {
-  const { copyToClipboard, copyToClipboardLabel } = useCopyToClipboard(
-    copyableTechnicalDetails,
-  );
+  const { copyToClipboard, copyToClipboardLabel } = useCopyToClipboard();
 
   const fullAlertText = copyableTechnicalDetails
     ? `${alertText} Please copy the technical details and contact ${SUPPORT_EMAIL} for support.`
@@ -63,7 +61,9 @@ export function ErrorModal({
           title={alertTitle}
           actionLinks={
             copyableTechnicalDetails && (
-              <AlertActionLink onClick={copyToClipboard}>
+              <AlertActionLink
+                onClick={() => copyToClipboard(copyableTechnicalDetails)}
+              >
                 {copyToClipboardLabel}
               </AlertActionLink>
             )

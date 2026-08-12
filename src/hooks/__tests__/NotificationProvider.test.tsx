@@ -74,7 +74,7 @@ describe("NotificationProvider", () => {
     expect(screen.getByText("Description")).toBeInTheDocument();
   });
 
-  it("auto-dismisses non-danger alerts after timeout", async () => {
+  it("does not auto-dismiss non-danger alerts", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
     render(
@@ -90,10 +90,10 @@ describe("NotificationProvider", () => {
     expect(screen.getByText("Test alert")).toBeInTheDocument();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(9000);
+      await vi.advanceTimersByTimeAsync(30000);
     });
 
-    expect(screen.queryByText("Test alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Test alert")).toBeInTheDocument();
 
     vi.useRealTimers();
   });
