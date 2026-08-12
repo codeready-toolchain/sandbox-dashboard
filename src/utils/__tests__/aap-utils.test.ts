@@ -422,8 +422,8 @@ describe("aap-utils", () => {
       vi.useRealTimers();
     });
 
-    it("returns true for 'unknown playbook failure' within the 30 minute window", () => {
-      const now = new Date("2026-08-05T12:20:00Z");
+    it("returns true for 'unknown playbook failure' within the 40 minute window", () => {
+      const now = new Date("2026-08-05T12:30:00Z");
       vi.setSystemTime(now);
 
       const condition: StatusCondition = {
@@ -436,8 +436,8 @@ describe("aap-utils", () => {
       expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(true);
     });
 
-    it("returns false for 'unknown playbook failure' after the 30 minute window", () => {
-      const now = new Date("2026-08-05T12:31:00Z");
+    it("returns false for 'unknown playbook failure' after the 40 minute window", () => {
+      const now = new Date("2026-08-05T12:41:00Z");
       vi.setSystemTime(now);
 
       const condition: StatusCondition = {
@@ -450,8 +450,8 @@ describe("aap-utils", () => {
       expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
     });
 
-    it("returns false for 'unknown playbook failure' at exactly the 30 minute boundary", () => {
-      const now = new Date("2026-08-05T12:30:00Z");
+    it("returns false for 'unknown playbook failure' at exactly the 40 minute boundary", () => {
+      const now = new Date("2026-08-05T12:40:00Z");
       vi.setSystemTime(now);
 
       const condition: StatusCondition = {
@@ -464,7 +464,7 @@ describe("aap-utils", () => {
       expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
     });
 
-    it("returns false for a different failure message within the 30 minute window", () => {
+    it("returns false for a different failure message within the 40 minute window", () => {
       const now = new Date("2026-08-05T12:10:00Z");
       vi.setSystemTime(now);
 
@@ -478,7 +478,7 @@ describe("aap-utils", () => {
       expect(isErrorRecoverable(condition, "2026-08-05T12:00:00Z")).toBe(false);
     });
 
-    it("returns false for a different failure message after the 30 minute window", () => {
+    it("returns false for a different failure message after the 40 minute window", () => {
       const now = new Date("2026-08-05T13:00:00Z");
       vi.setSystemTime(now);
 

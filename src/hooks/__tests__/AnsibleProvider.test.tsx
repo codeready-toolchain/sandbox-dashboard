@@ -1193,7 +1193,7 @@ describe("AnsibleProvider", () => {
   // ---------------------------------------------------------------------------
 
   describe("recoverable error grace period", () => {
-    it("keeps polling when 'unknown playbook failure' occurs within the 30 minute window", async () => {
+    it("keeps polling when 'unknown playbook failure' occurs within the 40 minute window", async () => {
       vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
 
       mockedGetAAP
@@ -1243,8 +1243,8 @@ describe("AnsibleProvider", () => {
       );
     });
 
-    it("sets error when 'unknown playbook failure' persists past the 30 minute window", async () => {
-      vi.setSystemTime(new Date("2026-08-05T12:31:00Z"));
+    it("sets error when 'unknown playbook failure' persists past the 40 minute window", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:41:00Z"));
 
       mockedGetAAP
         .mockResolvedValueOnce(undefined)
@@ -1263,7 +1263,7 @@ describe("AnsibleProvider", () => {
         "provisioning",
       );
 
-      // Poll fires: 31 minutes after creationTimestamp — grace period expired
+      // Poll fires: 41 minutes after creationTimestamp — grace period expired
       await act(async () => {
         await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
@@ -1375,7 +1375,7 @@ describe("AnsibleProvider", () => {
       expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
 
       // Poll fires: even though the error is "unknown playbook failure" within
-      // 30 minutes, the grace period only applies to provisioning — not
+      // 40 minutes, the grace period only applies to provisioning — not
       // unidling. The failure should be reported immediately.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2_500);
