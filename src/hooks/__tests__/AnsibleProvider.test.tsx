@@ -1193,7 +1193,7 @@ describe("AnsibleProvider", () => {
   // ---------------------------------------------------------------------------
 
   describe("recoverable error grace period", () => {
-    it("keeps polling when 'unknown playbook failure' occurs within the 40 minute window", async () => {
+    it("keeps polling when 'unknown playbook failure' occurs within the 50 minute window", async () => {
       vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
 
       mockedGetAAP
@@ -1243,8 +1243,8 @@ describe("AnsibleProvider", () => {
       );
     });
 
-    it("sets error when 'unknown playbook failure' persists past the 40 minute window", async () => {
-      vi.setSystemTime(new Date("2026-08-05T12:41:00Z"));
+    it("sets error when 'unknown playbook failure' persists past the 50 minute window", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:51:00Z"));
 
       mockedGetAAP
         .mockResolvedValueOnce(undefined)
@@ -1263,7 +1263,7 @@ describe("AnsibleProvider", () => {
         "provisioning",
       );
 
-      // Poll fires: 41 minutes after creationTimestamp — grace period expired
+      // Poll fires: 51 minutes after creationTimestamp — grace period expired
       await act(async () => {
         await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
@@ -1333,7 +1333,7 @@ describe("AnsibleProvider", () => {
     });
 
     it("sets 'error' on mount when recoverable failure is past the grace period", async () => {
-      vi.setSystemTime(new Date("2026-08-05T12:45:00Z"));
+      vi.setSystemTime(new Date("2026-08-05T12:55:00Z"));
 
       mockedGetAAP.mockResolvedValue(aapRecoverableFailureFixture.items[0]);
 
@@ -1375,7 +1375,7 @@ describe("AnsibleProvider", () => {
       expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
 
       // Poll fires: even though the error is "unknown playbook failure" within
-      // 40 minutes, the grace period only applies to provisioning — not
+      // 50 minutes, the grace period only applies to provisioning — not
       // unidling. The failure should be reported immediately.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2_500);

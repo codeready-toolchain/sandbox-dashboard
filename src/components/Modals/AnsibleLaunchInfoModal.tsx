@@ -279,7 +279,7 @@ export function AnsibleLaunchInfoModal({
             <Spinner size="lg" />
             <Content component="p" style={{ marginTop: "16px" }}>
               Your Ansible Automation Platform instance is being provisioned.
-              This can take up to 40 minutes. You can close this dialog and come
+              This can take up to 50 minutes. You can close this dialog and come
               back later.
             </Content>
           </div>
