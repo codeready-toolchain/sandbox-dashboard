@@ -23,6 +23,7 @@ import {
   getStatefulSets,
 } from "../api/kube";
 import {
+  AAP_OPERATOR_LABEL_SELECTOR,
   LONG_INTERVAL,
   SHORT_INTERVAL,
   SUPPORT_EMAIL,
@@ -398,16 +399,8 @@ export function AnsibleProviderConnected({
     let statefulSets: StatefulSetData | undefined;
     try {
       [deployments, statefulSets] = await Promise.all([
-        getDeployments(
-          proxyURL,
-          userNamespace,
-          "app.kubernetes.io/managed-by=aap-operator",
-        ),
-        getStatefulSets(
-          proxyURL,
-          userNamespace,
-          "app.kubernetes.io/managed-by=aap-operator",
-        ),
+        getDeployments(proxyURL, userNamespace, AAP_OPERATOR_LABEL_SELECTOR),
+        getStatefulSets(proxyURL, userNamespace, AAP_OPERATOR_LABEL_SELECTOR),
       ]);
 
       await deleteAAPCR(proxyURL, userNamespace);
