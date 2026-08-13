@@ -4,3 +4,7 @@ export const LONG_INTERVAL = 60_000;
 
 /** Shared support email address used across error messages and contact links. */
 export const SUPPORT_EMAIL = "devsandbox@redhat.com";
+
+/** Annotation key used to timestamp when an AAP unidle was requested. */
+export const UNIDLE_REQUESTED_AT_ANNOTATION =
+  "sandbox.redhat.com/unidle-requested-at";

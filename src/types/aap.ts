@@ -1,3 +1,5 @@
+import { UNIDLE_REQUESTED_AT_ANNOTATION } from "../const";
+
 /**
  * Defines the structure of the Ansible Automation Platform's CR.
  */
@@ -6,6 +8,9 @@ export type AAPCR = {
     name: string;
     uuid: string;
     creationTimestamp: string;
+    annotations?: {
+      [key in typeof UNIDLE_REQUESTED_AT_ANNOTATION]?: string;
+    };
   };
   spec: {
     idle_aap: boolean;

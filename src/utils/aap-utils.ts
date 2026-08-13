@@ -1,3 +1,4 @@
+import { UNIDLE_REQUESTED_AT_ANNOTATION } from "../const";
 import type { AAPCR, StatusCondition } from "../types";
 import { anyConditionMatches } from "./condition-utils";
 import logger from "./logger";
@@ -76,15 +77,22 @@ export type AAPInstanceStatus =
 /**
  * Maps the current ansible status to a format the UI can understand.
  * @param crList The CR List response that the back end returns.
- * @returns the
+ * @param now the timestamp of the current instant in time. Used to compare it
+ * with the CR's timestamps to determine the grace period. Having it in the
+ * function's signature helps with testing.
+ * @returns the status of the AAP instance.
  */
 export const mapAnsibleStatus = (
   cr: AAPCR | undefined,
+  now: number = Date.now(),
 ): [AAPInstanceStatus, StatusCondition | undefined] => {
+  // When there's no CR object that means that it's not provisioned yet.
   if (!cr) {
     return [{ kind: "new" }, undefined];
   }
 
+  // A CR without the elements to determine its status will be considered as
+  // "unknown". We could make assumptions, but we prefer not to do so.
   if (
     !cr.status ||
     !cr.status.conditions ||
@@ -93,6 +101,9 @@ export const mapAnsibleStatus = (
     return [{ kind: "unknown" }, undefined];
   }
 
+  // When there is a failure condition, but the failure is recoverable and/or
+  // we're in the grace period, we let the error slide and keep the operation
+  // going. Otherwise we hard fail and notify it to the rest of the codebase.
   const aapInstanceConditions = cr.status.conditions;
   const failedCondition = anyConditionMatches(
     "Failure",
@@ -100,6 +111,21 @@ export const mapAnsibleStatus = (
     aapInstanceConditions,
   );
   if (failedCondition) {
+    if (
+      isErrorRecoverable(failedCondition, cr.metadata.creationTimestamp, now)
+    ) {
+      return [{ kind: "provisioning" }, failedCondition];
+    }
+
+    const unidleTimestamp =
+      cr.metadata.annotations?.[UNIDLE_REQUESTED_AT_ANNOTATION];
+    if (
+      unidleTimestamp &&
+      isErrorRecoverable(failedCondition, unidleTimestamp, now)
+    ) {
+      return [{ kind: "unidling" }, failedCondition];
+    }
+
     return [
       {
         kind: "error",
@@ -117,6 +143,7 @@ export const mapAnsibleStatus = (
     return [{ kind: "idled" }, undefined];
   }
 
+  // On success we simply can report it back.
   const successfulCondition = anyConditionMatches(
     "Successful",
     "True",
@@ -126,13 +153,19 @@ export const mapAnsibleStatus = (
     return [{ kind: "ready" }, successfulCondition];
   }
 
+  // When the instance is still reconciling determine if it's a provisioning
+  // or unidling state.
   const runningCondition = anyConditionMatches(
     "Running",
     "True",
     aapInstanceConditions,
   );
   if (runningCondition) {
-    return [{ kind: "provisioning" }, runningCondition];
+    if (cr.metadata.annotations?.[UNIDLE_REQUESTED_AT_ANNOTATION]) {
+      return [{ kind: "unidling" }, runningCondition];
+    } else {
+      return [{ kind: "provisioning" }, runningCondition];
+    }
   }
 
   return [{ kind: "unknown" }, undefined];
@@ -141,17 +174,21 @@ export const mapAnsibleStatus = (
 /**
  * Checks whether the instance's errors are considered "recoverable" or not.
  * @param failedCondition the failed condition to check.
- * @param creationTimestamp the creation timestamp of the object.
+ * @param timestamp the timestamp of the object that we will use to determine
+ * the grace period.
+ * @param now the timestamp of the current instant to determine the grace
+ * period with.
  * @returns `true` if the failed condition is recoverable and the grace period
  * has not been depleted.
  */
 export const isErrorRecoverable = (
   failedCondition: StatusCondition,
-  creationTimestamp: string,
+  timestamp: string,
+  now: number,
 ): boolean => {
   if (
     failedCondition.message === "unknown playbook failure" &&
-    Date.now() - new Date(creationTimestamp).getTime() < FIFTY_MINUTES
+    now - new Date(timestamp).getTime() < FIFTY_MINUTES
   ) {
     logger.warn(
       "AAP instance is reporting recoverable errors",

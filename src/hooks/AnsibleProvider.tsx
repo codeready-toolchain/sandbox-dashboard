@@ -8,7 +8,13 @@ import {
   useState,
 } from "react";
 
-import { createAAP, deleteAAPCR, getAAP, unIdleAAP } from "../api/aap";
+import {
+  createAAP,
+  deleteAAPCR,
+  getAAP,
+  removeUnidleAnnotation,
+  unIdleAAP,
+} from "../api/aap";
 import {
   deletePVCsForSTS,
   deleteSecretsAndPVCs,
@@ -16,7 +22,12 @@ import {
   getSecret,
   getStatefulSets,
 } from "../api/kube";
-import { LONG_INTERVAL, SHORT_INTERVAL, SUPPORT_EMAIL } from "../const";
+import {
+  LONG_INTERVAL,
+  SHORT_INTERVAL,
+  SUPPORT_EMAIL,
+  UNIDLE_REQUESTED_AT_ANNOTATION,
+} from "../const";
 import { AggregatedOperationError } from "../error/AggregatedOperationError";
 import { ApiError } from "../error/ApiError";
 import { UserFacingError } from "../error/UserFacingError";
@@ -31,7 +42,6 @@ import {
   AAPInstanceErrorType,
   type AAPInstanceStatus,
   type FetchCRResult,
-  isErrorRecoverable,
   mapAnsibleStatus,
 } from "../utils/aap-utils";
 import logger from "../utils/logger";
@@ -478,20 +488,6 @@ export function AnsibleProviderConnected({
             updateInstanceStatus({ kind: "new" });
             updateInstanceCR(undefined);
           } else if (result.kind === "failed") {
-            // When the instance has been recently created and the identified
-            // error is recoverable, we assume that the user refreshed the
-            // page and that the instance is in a "provisioning" status.
-            if (
-              isErrorRecoverable(
-                result.failedCondition,
-                result.cr.metadata.creationTimestamp,
-              )
-            ) {
-              updateInstanceStatus({ kind: "provisioning" });
-              updateInstanceCR(result.cr);
-              return;
-            }
-
             updateInstanceStatus(result.status);
             updateInstanceCR(result.cr);
             addAlertFromError(
@@ -503,6 +499,16 @@ export function AnsibleProviderConnected({
               ),
             );
           } else {
+            // When the instance is ready, check if for some reason it has the
+            // annotation we use for timestamping the unidling request. If it
+            // does, attempt removing it.
+            if (
+              result.status.kind === "ready" &&
+              result.cr.metadata.annotations?.[UNIDLE_REQUESTED_AT_ANNOTATION]
+            ) {
+              removeUnidleAnnotation(proxyURL, userNamespace);
+            }
+
             updateInstanceStatus(result.status);
             updateInstanceCR(result.cr);
           }
@@ -536,6 +542,7 @@ export function AnsibleProviderConnected({
   }, [
     addAlertFromError,
     fetchCR,
+    proxyURL,
     updateInstanceCR,
     updateInstanceStatus,
     userNamespace,
@@ -594,12 +601,15 @@ export function AnsibleProviderConnected({
       }
     })();
 
-    // Since AAP instances can take a long time to provision, it does not make
-    // sense to be checking for a status update very often. For the rest of
-    // the states it does make sense, since the deletion or reprovisioning of
-    // the instance should not take very long.
+    // Since AAP instances can take a long time to provision/reprovision, it
+    // does not make sense to be checking for a status update very often. For
+    // the rest of the states it does make sense, since for example the
+    // deletion of the instance should not take very long.
     const pollingInterval: number =
-      currentInstanceStatus === "provisioning" ? LONG_INTERVAL : SHORT_INTERVAL;
+      currentInstanceStatus === "provisioning" ||
+      currentInstanceStatus === "unidling"
+        ? LONG_INTERVAL
+        : SHORT_INTERVAL;
 
     let cancelled = false;
     const poll = async () => {
@@ -699,28 +709,6 @@ export function AnsibleProviderConnected({
           return;
         }
 
-        // Some instance's errors are recoverable and the reconciler might
-        // solve them eventually, so while the provisioning instance is in the
-        // SLA period that we advertise in the UI, we ignore those errors.
-        // After that, we consider that the instance is in a failure state.
-        if (
-          currentInstanceStatus === "provisioning" &&
-          isErrorRecoverable(
-            result.failedCondition,
-            result.cr.metadata.creationTimestamp,
-          )
-        ) {
-          // We update the instance's CR but we do not update its status,
-          // since we want it to still be "provisioning" and keep polling for
-          // the status.
-          updateInstanceCR(result.cr);
-          if (!cancelled) {
-            timerId = setTimeout(poll, pollingInterval);
-          }
-
-          return;
-        }
-
         // The instance ended up in a "failure" state, so we do not want to
         // keep polling and we want to notify the user that something went
         // wrong.
@@ -752,6 +740,16 @@ export function AnsibleProviderConnected({
         updateInstanceCR(result.cr);
       }
 
+      // When the instance becomes ready, we might need to remove the
+      // annotation we set when unidling the instance.
+      if (
+        result.status.kind === "ready" &&
+        currentInstanceStatus === "unidling" &&
+        result.cr.metadata.annotations?.[UNIDLE_REQUESTED_AT_ANNOTATION]
+      ) {
+        removeUnidleAnnotation(proxyURL, userNamespace);
+      }
+
       // Schedule a new timeout.
       if (!cancelled) {
         timerId = setTimeout(poll, pollingInterval);
@@ -768,6 +766,7 @@ export function AnsibleProviderConnected({
     addAlertFromError,
     fetchCR,
     instanceStatus.kind,
+    proxyURL,
     updateInstanceCR,
     updateInstanceStatus,
     userNamespace,

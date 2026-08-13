@@ -1,7 +1,13 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 
-import { createAAP, deleteAAPCR, getAAP, unIdleAAP } from "../../api/aap";
+import {
+  createAAP,
+  deleteAAPCR,
+  getAAP,
+  removeUnidleAnnotation,
+  unIdleAAP,
+} from "../../api/aap";
 import {
   deletePVCsForSTS,
   deleteSecretsAndPVCs,
@@ -9,7 +15,11 @@ import {
   getSecret,
   getStatefulSets,
 } from "../../api/kube";
-import { LONG_INTERVAL } from "../../const";
+import {
+  LONG_INTERVAL,
+  SHORT_INTERVAL,
+  UNIDLE_REQUESTED_AT_ANNOTATION,
+} from "../../const";
 import { ApiError } from "../../error/ApiError";
 import { UserFacingError } from "../../error/UserFacingError";
 import {
@@ -25,7 +35,7 @@ import {
   secretFixture,
   statefulSetFixture,
 } from "../../mocks/fixtures";
-import type { AAPCR, User } from "../../types";
+import type { AAPCR, StatusCondition, User } from "../../types";
 import { AAPInstanceErrorType } from "../../utils/aap-utils";
 import { useAnsibleContext } from "../AnsibleContext";
 import { AnsibleProvider } from "../AnsibleProvider";
@@ -56,6 +66,7 @@ const mockedGetDeployments = vi.mocked(getDeployments);
 const mockedGetStatefulSets = vi.mocked(getStatefulSets);
 const mockedDeleteSecretsAndPVCs = vi.mocked(deleteSecretsAndPVCs);
 const mockedDeletePVCsForSTS = vi.mocked(deletePVCsForSTS);
+const mockedRemoveUnidleAnnotation = vi.mocked(removeUnidleAnnotation);
 
 function makeUserContext(
   overrides: Partial<UserContextType> = {},
@@ -68,6 +79,71 @@ function makeUserContext(
     ...overrides,
   };
 }
+
+const RUNNING_CONDITIONS: StatusCondition[] = [
+  {
+    type: "Running",
+    status: "True",
+    reason: "Running",
+    message: "Running reconciliation",
+  },
+];
+
+const RECOVERABLE_FAILURE_CONDITIONS: StatusCondition[] = [
+  {
+    type: "Failure",
+    status: "True",
+    reason: "Failed",
+    message: "unknown playbook failure",
+  },
+];
+
+function makeAnnotatedAAPCR({
+  conditions,
+  creationTimestamp,
+  unidleRequestedAt = "2026-08-05T14:00:00Z",
+}: {
+  conditions: StatusCondition[];
+  creationTimestamp: string;
+  unidleRequestedAt?: string;
+}): AAPCR {
+  return {
+    status: { conditions },
+    spec: { idle_aap: false },
+    metadata: {
+      name: "sandbox-aap",
+      uuid: "aap-uuid-123",
+      creationTimestamp,
+      annotations: {
+        [UNIDLE_REQUESTED_AT_ANNOTATION]: unidleRequestedAt,
+      },
+    },
+  };
+}
+
+function makeReadyCRWithAnnotation(
+  unidleRequestedAt = "2026-08-05T14:00:00Z",
+): AAPCR {
+  return {
+    ...aapReadyFixture.items[0],
+    metadata: {
+      ...aapReadyFixture.items[0].metadata,
+      annotations: {
+        [UNIDLE_REQUESTED_AT_ANNOTATION]: unidleRequestedAt,
+      },
+    },
+  };
+}
+
+const unidlingRunningCR = makeAnnotatedAAPCR({
+  conditions: RUNNING_CONDITIONS,
+  creationTimestamp: "2025-01-15T00:00:00Z",
+});
+
+const annotatedRecoverableFailureCR = makeAnnotatedAAPCR({
+  conditions: RECOVERABLE_FAILURE_CONDITIONS,
+  creationTimestamp: "2026-01-15T00:00:00Z",
+});
 
 /**
  * Test consumer that exposes context values via testids and buttons so we
@@ -247,6 +323,16 @@ describe("AnsibleProvider", () => {
       );
     });
 
+    it("sets 'unidling' when getAAP returns a Running instance with unidle annotation", async () => {
+      mockedGetAAP.mockResolvedValue(unidlingRunningCR);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+    });
+
     it("sets 'new' when getAAP returns undefined (no instance)", async () => {
       mockedGetAAP.mockResolvedValue(undefined);
 
@@ -410,6 +496,56 @@ describe("AnsibleProvider", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // unidleInstance error handling
+  // ---------------------------------------------------------------------------
+
+  describe("unidleInstance error handling", () => {
+    it("throws UserFacingError and keeps 'idled' status when unIdleAAP rejects", async () => {
+      mockedGetAAP.mockResolvedValue(aapIdledFixture.items[0]);
+      mockedUnIdleAAP.mockRejectedValue(new Error("network failure"));
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("unidle-error").textContent).toBe(
+          "UserFacingError",
+        ),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe("idled");
+    });
+
+    it("throws UserFacingError when unIdleAAP rejects with an ApiError", async () => {
+      mockedGetAAP.mockResolvedValue(aapIdledFixture.items[0]);
+      mockedUnIdleAAP.mockRejectedValue(
+        new ApiError("unIdleAAP failed", 500, "Internal Server Error"),
+      );
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("unidle-error").textContent).toBe(
+          "UserFacingError",
+        ),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe("idled");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // deleteInstance
   // ---------------------------------------------------------------------------
 
@@ -485,6 +621,72 @@ describe("AnsibleProvider", () => {
         expect(screen.getByTestId("delete-error").textContent).toBe(
           "UserFacingError",
         ),
+      );
+    });
+
+    it("reverts status to previous state when CR deletion fails", async () => {
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedDeleteAAPCR.mockRejectedValue(
+        new ApiError("deleteAAPCR failed", 500, "Internal Server Error"),
+      );
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("delete-error").textContent).toBe(
+          "UserFacingError",
+        ),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe("ready");
+    });
+
+    it("sets DELETION_RESOURCES_ERROR when resource cleanup fails", async () => {
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+      mockedDeleteSecretsAndPVCs.mockRejectedValue(new Error("cleanup failed"));
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("delete-error").textContent).toBe(
+          "UserFacingError",
+        ),
+      );
+      expect(screen.getByTestId("status-kind").textContent).toBe("error");
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.DELETION_RESOURCES_ERROR.toString(),
+      );
+    });
+
+    it("sets 'deleted' when CR deletion succeeds but no resource cleanup errors", async () => {
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleted"),
       );
     });
   });
@@ -834,6 +1036,105 @@ describe("AnsibleProvider", () => {
       );
     });
 
+    it("keeps polling during deletion when the CR reports failure conditions", async () => {
+      let resolveCleanup!: () => void;
+      const cleanupPromise = new Promise<void>((resolve) => {
+        resolveCleanup = resolve;
+      });
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockResolvedValueOnce(aapFailedFixture.items[0])
+        .mockResolvedValueOnce(aapFailedFixture.items[0])
+        .mockResolvedValue(undefined);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+      mockedDeleteSecretsAndPVCs.mockImplementation(() => cleanupPromise);
+      mockedDeletePVCsForSTS.mockImplementation(() => cleanupPromise);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      act(() => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
+      );
+
+      // First poll: CR has failure condition — should keep deleting (ignores failure)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("deleting");
+
+      // Second poll: still failed — should keep deleting
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("deleting");
+
+      // Third poll: CR absent — deletion successful
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        resolveCleanup();
+      });
+    });
+
+    it("polls with unidling status when CR has Running condition with unidle annotation", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValue(aapReadyFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // First poll: Running + annotation → unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Second poll: still Running + annotation → still unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Third poll: ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
     it("sets error when CR disappears unexpectedly during unidling", async () => {
       mockedGetAAP
         .mockResolvedValueOnce(aapIdledFixture.items[0])
@@ -855,7 +1156,71 @@ describe("AnsibleProvider", () => {
 
       // Poll fires: CR is absent during unidling — unexpected
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets UNIDLING_POLLING_REPORTS_FAILURE when a non-recoverable failure occurs during unidling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValue(aapFailedFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Poll fires: non-recoverable failure during unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("retries on transient errors during unidling then sets error after retries exhausted", async () => {
+      const transientError = new ApiError("server error", 500, "internal");
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValue(transientError);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Advance enough time to exhaust all transient retries (3 retries).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL * 4 + 500);
       });
 
       await waitFor(() =>
@@ -974,6 +1339,242 @@ describe("AnsibleProvider", () => {
       );
       expect(screen.getByTestId("status-error-type").textContent).toBe(
         AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("stops polling on non-transient API error during deletion", async () => {
+      const permanentError = new ApiError("forbidden", 403, "Forbidden");
+      mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockRejectedValue(permanentError);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      act(() => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("retries on transient errors during deletion then sets error after retries exhausted", async () => {
+      const transientError = new ApiError("server error", 500, "internal");
+      mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValue(transientError);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      act(() => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL * 4 + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.DELETING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("resets the transient retry counter after a successful poll", async () => {
+      const transientError = new ApiError("server error", 500, "internal");
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValueOnce(aapProvisioningFixture.items[0])
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValue(aapReadyFixture.items[0]);
+
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Polls 1-2: transient errors (retries used: 2)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL * 2 + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Poll 3: success — resets the retry counter
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Polls 4-5: two more transient errors — should still be fine
+      // because the counter was reset
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL * 2 + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Poll 6: success again — becomes ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
+    it("polls from mount-detected unidling (Running + annotation) through to ready", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValue(aapReadyFixture.items[0]);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+
+      // First poll: still Running + annotation → unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Second poll: ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
+    it("sets error when CR disappears during mount-detected unidling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValue(undefined);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+
+      // Poll: CR absent during unidling — unexpected
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets error when failure occurs during mount-detected unidling polling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValue(aapFailedFixture.items[0]);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+
+      // Poll: non-recoverable failure during unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("stops polling on non-transient API error during unidling", async () => {
+      const permanentError = new ApiError("forbidden", 403, "Forbidden");
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockRejectedValue(permanentError);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
       );
     });
   });
@@ -1149,10 +1750,28 @@ describe("AnsibleProvider", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // provisionInstance with unrecognized CR status
+  // provisionInstance with existing CR
   // ---------------------------------------------------------------------------
 
-  describe("provisionInstance with existing CR in unrecognized status", () => {
+  describe("provisionInstance with existing CR", () => {
+    it("sets status to 'provisioning' without calling createAAP when CR exists in error state", async () => {
+      mockedGetAAP.mockResolvedValue(aapFailedFixture.items[0]);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+      expect(mockedCreateAAP).not.toHaveBeenCalled();
+    });
+
     it("sets status to 'provisioning' and polls when CR exists with unknown status", async () => {
       const unknownCR = {
         status: {
@@ -1347,20 +1966,14 @@ describe("AnsibleProvider", () => {
       );
     });
 
-    it("does not apply the grace period during unidling and reports failure immediately", async () => {
-      vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
-
-      const recentRecoverableCR = {
-        ...aapRecoverableFailureFixture.items[0],
-        metadata: {
-          ...aapRecoverableFailureFixture.items[0].metadata,
-          creationTimestamp: "2026-08-05T12:00:00Z",
-        },
-      };
+    it("keeps polling when recoverable failure occurs during unidling within the grace window", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:10:00Z"));
 
       mockedGetAAP
         .mockResolvedValueOnce(aapIdledFixture.items[0])
-        .mockResolvedValue(recentRecoverableCR);
+        .mockResolvedValueOnce(annotatedRecoverableFailureCR)
+        .mockResolvedValueOnce(annotatedRecoverableFailureCR)
+        .mockResolvedValueOnce(aapReadyFixture.items[0]);
       mockedUnIdleAAP.mockResolvedValue(undefined);
 
       renderProvider();
@@ -1374,11 +1987,54 @@ describe("AnsibleProvider", () => {
 
       expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
 
-      // Poll fires: even though the error is "unknown playbook failure" within
-      // 50 minutes, the grace period only applies to provisioning — not
-      // unidling. The failure should be reported immediately.
+      // First poll: recoverable failure with unidle annotation within grace
+      // period — should stay unidling.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_500);
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Second poll: still recoverable — should keep unidling.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Third poll: instance is ready.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
+    it("sets error when recoverable failure persists past the unidling grace window", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:51:00Z"));
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValue(annotatedRecoverableFailureCR);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Poll fires: 51 minutes past the unidle annotation — grace period
+      // expired. Should report failure.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
       });
 
       await waitFor(() =>
@@ -1386,6 +2042,776 @@ describe("AnsibleProvider", () => {
       );
       expect(screen.getByTestId("status-error-type").textContent).toBe(
         AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets 'unidling' on mount when CR has unidle annotation and recoverable failure within grace period", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:15:00Z"));
+
+      mockedGetAAP.mockResolvedValue(annotatedRecoverableFailureCR);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+    });
+
+    it("sets 'error' on mount when CR has unidle annotation but grace period is expired", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:55:00Z"));
+
+      mockedGetAAP.mockResolvedValue(annotatedRecoverableFailureCR);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.CONDITION_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("sets error when recoverable failure transitions to non-recoverable during unidling polling", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:10:00Z"));
+
+      const nonRecoverableCR = makeAnnotatedAAPCR({
+        conditions: [
+          {
+            type: "Failure",
+            status: "True",
+            reason: "ReconciliationFailed",
+            message: "Task failed: some operator error",
+          },
+        ],
+        creationTimestamp: "2026-01-15T00:00:00Z",
+      });
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValueOnce(annotatedRecoverableFailureCR)
+        .mockResolvedValue(nonRecoverableCR);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // First poll: recoverable failure within grace → stays unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Second poll: non-recoverable failure → error
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("mounts with unidling grace, polls, and becomes ready end-to-end", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:10:00Z"));
+
+      const readyCRWithAnnotation = makeReadyCRWithAnnotation();
+
+      mockedGetAAP
+        .mockResolvedValueOnce(annotatedRecoverableFailureCR)
+        .mockResolvedValueOnce(annotatedRecoverableFailureCR)
+        .mockResolvedValue(readyCRWithAnnotation);
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+
+      // On mount: recoverable failure with unidle annotation → "unidling"
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+
+      // First poll: still recoverable → stays unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Second poll: ready → "ready" + annotation cleanup
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
+    it("sets error when recoverable failure transitions to non-recoverable during provisioning polling", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
+
+      const nonRecoverableFailureCR: AAPCR = {
+        status: {
+          conditions: [
+            {
+              type: "Failure",
+              status: "True",
+              reason: "ReconciliationFailed",
+              message: "EDA creation failed",
+            },
+          ],
+        },
+        spec: { idle_aap: false },
+        metadata: {
+          name: "sandbox-aap",
+          uuid: "aap-uuid-123",
+          creationTimestamp: "2026-08-05T12:00:00Z",
+        },
+      };
+
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(aapRecoverableFailureFixture.items[0])
+        .mockResolvedValue(nonRecoverableFailureCR);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // First poll: recoverable failure within grace → stays provisioning
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Second poll: non-recoverable failure → error
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // removeUnidleAnnotation cleanup
+  // ---------------------------------------------------------------------------
+
+  describe("removeUnidleAnnotation cleanup", () => {
+    it("calls removeUnidleAnnotation on initial fetch when instance is ready and has the annotation", async () => {
+      mockedGetAAP.mockResolvedValue(
+        makeReadyCRWithAnnotation("2026-08-05T12:00:00Z"),
+      );
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+      );
+    });
+
+    it("does NOT call removeUnidleAnnotation on initial fetch when instance is ready without the annotation", async () => {
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).not.toHaveBeenCalled();
+    });
+
+    it("calls removeUnidleAnnotation when instance becomes ready during unidling polling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValue(makeReadyCRWithAnnotation());
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Poll fires: instance is ready with annotation
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+      );
+    });
+
+    it("does NOT call removeUnidleAnnotation when instance becomes ready during provisioning polling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValue(aapReadyFixture.items[0]);
+      mockedCreateAAP.mockResolvedValue(undefined);
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).not.toHaveBeenCalled();
+    });
+
+    it("calls removeUnidleAnnotation when becoming ready from mount-detected unidling (Running + annotation)", async () => {
+      const readyCRWithAnnotation = makeReadyCRWithAnnotation();
+
+      mockedGetAAP
+        .mockResolvedValueOnce(unidlingRunningCR)
+        .mockResolvedValue(readyCRWithAnnotation);
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("unidling"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+      );
+    });
+
+    it("does NOT call removeUnidleAnnotation during unidling polling when ready CR has no annotation", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValue(aapReadyFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+      mockedRemoveUnidleAnnotation.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      expect(mockedRemoveUnidleAnnotation).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // provisionInstance from non-standard states
+  // ---------------------------------------------------------------------------
+
+  describe("provisionInstance from non-standard states", () => {
+    it("sets 'provisioning' without calling createAAP when status is 'idled' and CR exists", async () => {
+      mockedGetAAP.mockResolvedValue(aapIdledFixture.items[0]);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+      expect(mockedCreateAAP).not.toHaveBeenCalled();
+    });
+
+    it("sets 'provisioning' without calling createAAP when status is 'unidling' and CR exists", async () => {
+      mockedGetAAP.mockResolvedValue(aapIdledFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(mockedCreateAAP).not.toHaveBeenCalled();
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Provider state reset on prop changes
+  // ---------------------------------------------------------------------------
+
+  describe("provider state reset on prop changes", () => {
+    it("resets state and re-fetches when proxyURL changes", async () => {
+      const altProxyURL = "https://proxy-alt.example.com";
+      const altReadyCR: AAPCR = {
+        ...aapReadyFixture.items[0],
+        metadata: {
+          ...aapReadyFixture.items[0].metadata,
+          uuid: "alt-uuid",
+        },
+      };
+
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+
+      const initialCtx = makeUserContext();
+      const { rerender } = render(<Wrapper userCtx={initialCtx} />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+      expect(mockedGetAAP).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+      );
+
+      mockedGetAAP.mockReset();
+      mockedGetAAP.mockResolvedValue(altReadyCR);
+
+      const altUser: User = {
+        ...readyUserFixture,
+        proxyURL: altProxyURL,
+      };
+      rerender(<Wrapper userCtx={makeUserContext({ user: altUser })} />);
+
+      await waitFor(() =>
+        expect(mockedGetAAP).toHaveBeenCalledWith(
+          altProxyURL,
+          readyUserFixture.defaultUserNamespace,
+        ),
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+
+    it("resets state and re-fetches when userNamespace changes", async () => {
+      const altNamespace = "janedoe-dev";
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+
+      const initialCtx = makeUserContext();
+      const { rerender } = render(<Wrapper userCtx={initialCtx} />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+      expect(mockedGetAAP).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+      );
+
+      mockedGetAAP.mockReset();
+      mockedGetAAP.mockResolvedValue(undefined);
+
+      const altUser: User = {
+        ...readyUserFixture,
+        defaultUserNamespace: altNamespace,
+      };
+      rerender(<Wrapper userCtx={makeUserContext({ user: altUser })} />);
+
+      await waitFor(() =>
+        expect(mockedGetAAP).toHaveBeenCalledWith(MOCK_PROXY_URL, altNamespace),
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Grace period expiry mid-polling
+  // ---------------------------------------------------------------------------
+
+  describe("grace period expiry mid-polling", () => {
+    it("transitions from 'unidling' to error when the unidling grace period expires during polling", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:10:00Z"));
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValueOnce(annotatedRecoverableFailureCR)
+        .mockResolvedValue(annotatedRecoverableFailureCR);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // First poll at T+10min: within grace → stays unidling
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Advance time past the 50min mark from unidle annotation
+      vi.setSystemTime(new Date("2026-08-05T14:51:00Z"));
+
+      // Second poll: grace expired → error
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.UNIDLING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("transitions from 'provisioning' to error when the creation grace period expires during polling", async () => {
+      vi.setSystemTime(new Date("2026-08-05T12:10:00Z"));
+
+      mockedGetAAP
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(aapRecoverableFailureFixture.items[0])
+        .mockResolvedValue(aapRecoverableFailureFixture.items[0]);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() => expect(mockedGetAAP).toHaveBeenCalled());
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // First poll within grace → stays provisioning
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe(
+        "provisioning",
+      );
+
+      // Advance time past the 50min mark from creation
+      vi.setSystemTime(new Date("2026-08-05T12:51:00Z"));
+
+      // Second poll: grace expired → error
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("error"),
+      );
+      expect(screen.getByTestId("status-error-type").textContent).toBe(
+        AAPInstanceErrorType.PROVISIONING_POLLING_REPORTS_FAILURE.toString(),
+      );
+    });
+
+    it("falls back from creation grace to unidling grace when creation expires but unidle annotation is still valid", async () => {
+      vi.setSystemTime(new Date("2026-08-05T14:10:00Z"));
+
+      const crWithBothTimestamps = makeAnnotatedAAPCR({
+        conditions: RECOVERABLE_FAILURE_CONDITIONS,
+        creationTimestamp: "2026-08-05T13:00:00Z",
+      });
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValueOnce(crWithBothTimestamps)
+        .mockResolvedValue(aapReadyFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Advance time so creation grace (from 13:00) is expired but unidle
+      // annotation (from 14:00) is still valid.
+      vi.setSystemTime(new Date("2026-08-05T14:20:00Z"));
+
+      // Poll: creation grace expired (80min), but unidle grace still valid (20min)
+      // → mapAnsibleStatus returns "unidling", which keeps us in unidling.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Next poll: ready
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Credential cache invalidation
+  // ---------------------------------------------------------------------------
+
+  describe("credential cache invalidation", () => {
+    it("invalidates cached credentials when the instance is deleted", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockResolvedValue(undefined);
+      mockedGetSecret.mockResolvedValue(secretFixture);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      // Fetch credentials — should call getSecret
+      await act(async () => {
+        screen.getByTestId("fetch-credentials").click();
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("creds-result").textContent).toBeTruthy(),
+      );
+
+      expect(mockedGetSecret).toHaveBeenCalledTimes(1);
+
+      // Delete the instance → credentials are cleared
+      act(() => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
+      );
+
+      // Poll: CR absent → transitions to "new"
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
+      );
+
+      // Re-provision → polls → gets ready
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedCreateAAP.mockResolvedValue(undefined);
+
+      await act(async () => {
+        screen.getByTestId("provision-instance").click();
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      // Fetch credentials again — should call getSecret again (cache was cleared)
+      await act(async () => {
+        screen.getByTestId("fetch-credentials").click();
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("creds-result").textContent).toBeTruthy(),
+      );
+
+      expect(mockedGetSecret).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Polling interval selection
+  // ---------------------------------------------------------------------------
+
+  describe("polling interval", () => {
+    it("uses LONG_INTERVAL when unidling", async () => {
+      mockedGetAAP
+        .mockResolvedValueOnce(aapIdledFixture.items[0])
+        .mockResolvedValueOnce(aapProvisioningFixture.items[0])
+        .mockResolvedValue(aapReadyFixture.items[0]);
+      mockedUnIdleAAP.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("idled"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("unidle-instance").click();
+      });
+
+      expect(screen.getByTestId("status-kind").textContent).toBe("unidling");
+
+      // Advance by less than LONG_INTERVAL — should NOT have polled yet
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      expect(mockedGetAAP).toHaveBeenCalledTimes(1);
+
+      // Advance to reach LONG_INTERVAL — should now poll
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LONG_INTERVAL - SHORT_INTERVAL);
+      });
+
+      expect(mockedGetAAP).toHaveBeenCalledTimes(2);
+    });
+
+    it("uses SHORT_INTERVAL when deleting", async () => {
+      let resolveDelete!: () => void;
+      mockedDeleteAAPCR.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveDelete = resolve;
+          }),
+      );
+
+      mockedGetAAP
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockResolvedValueOnce(aapReadyFixture.items[0])
+        .mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      act(() => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleting"),
+      );
+
+      const callCountAfterMount = mockedGetAAP.mock.calls.length;
+
+      // Advance by SHORT_INTERVAL — should trigger a poll
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      expect(mockedGetAAP.mock.calls.length).toBeGreaterThan(
+        callCountAfterMount,
+      );
+
+      // Resolve the deletion and let the next poll find CR absent
+      await act(async () => {
+        resolveDelete();
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SHORT_INTERVAL + 500);
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("new"),
       );
     });
   });

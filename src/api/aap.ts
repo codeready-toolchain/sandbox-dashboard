@@ -1,6 +1,8 @@
+import { UNIDLE_REQUESTED_AT_ANNOTATION } from "../const";
 import { ApiError } from "../error/ApiError";
 import type { AAPCR, AAPCRList } from "../types";
 import { AAPObject } from "../utils/aap-utils";
+import logger from "../utils/logger";
 import { authFetch } from "./authFetch";
 
 const aapBasePath = (namespace: string) =>
@@ -69,6 +71,11 @@ export async function unIdleAAP(
     {
       method: "PATCH",
       body: JSON.stringify({
+        metadata: {
+          annotations: {
+            [UNIDLE_REQUESTED_AT_ANNOTATION]: new Date().toISOString(),
+          },
+        },
         spec: {
           idle_aap: false,
         },
@@ -81,6 +88,49 @@ export async function unIdleAAP(
 
   if (!response.ok) {
     throw await ApiError.fromResponse("unIdleAAP failed", response);
+  }
+}
+
+/**
+ * Removes the "unidle-requested-at" annotation that we set when we unidle
+ * the instance. Since it's a best-effort operation, any thrown error gets
+ * just logged but not thrown.
+ * @param proxyURL the URL of the proxy to send the request to.
+ * @param namespace the namespace to update the resource in.
+ */
+export async function removeUnidleAnnotation(
+  proxyURL: string,
+  namespace: string,
+): Promise<void> {
+  try {
+    const response = await authFetch(
+      `${proxyURL}${aapBasePath(namespace)}/sandbox-aap`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          metadata: {
+            annotations: {
+              [UNIDLE_REQUESTED_AT_ANNOTATION]: null,
+            },
+          },
+        }),
+        headers: {
+          "Content-Type": "application/merge-patch+json",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      logger.warn(
+        "Unable to remove the custom unidling timestamp annotation from resource",
+        `status: ${response.status}`,
+      );
+    }
+  } catch (error) {
+    logger.warn(
+      "Unable to remove the custom unidling timestamp annotation from resource",
+      error,
+    );
   }
 }
 
