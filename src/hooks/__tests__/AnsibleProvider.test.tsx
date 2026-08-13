@@ -16,6 +16,7 @@ import {
   getStatefulSets,
 } from "../../api/kube";
 import {
+  AAP_OPERATOR_LABEL_SELECTOR,
   LONG_INTERVAL,
   SHORT_INTERVAL,
   UNIDLE_REQUESTED_AT_ANNOTATION,
@@ -550,7 +551,7 @@ describe("AnsibleProvider", () => {
   // ---------------------------------------------------------------------------
 
   describe("deleteInstance", () => {
-    it("deletes the CR and related resources", async () => {
+    it("deletes the CR and related resources using the broad AAP label selector", async () => {
       mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
       mockedDeleteAAPCR.mockResolvedValue(undefined);
 
@@ -563,8 +564,16 @@ describe("AnsibleProvider", () => {
         screen.getByTestId("delete-instance").click();
       });
 
-      expect(mockedGetDeployments).toHaveBeenCalled();
-      expect(mockedGetStatefulSets).toHaveBeenCalled();
+      expect(mockedGetDeployments).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+        AAP_OPERATOR_LABEL_SELECTOR,
+      );
+      expect(mockedGetStatefulSets).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        readyUserFixture.defaultUserNamespace,
+        AAP_OPERATOR_LABEL_SELECTOR,
+      );
       expect(mockedDeleteAAPCR).toHaveBeenCalledWith(
         MOCK_PROXY_URL,
         readyUserFixture.defaultUserNamespace,
@@ -685,6 +694,57 @@ describe("AnsibleProvider", () => {
         screen.getByTestId("delete-instance").click();
       });
 
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("deleted"),
+      );
+    });
+
+    it("passes fetched deployments and statefulSets to the cleanup functions", async () => {
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      expect(mockedDeleteSecretsAndPVCs).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        deploymentFixture,
+        readyUserFixture.defaultUserNamespace,
+      );
+      expect(mockedDeleteSecretsAndPVCs).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        statefulSetFixture,
+        readyUserFixture.defaultUserNamespace,
+      );
+      expect(mockedDeletePVCsForSTS).toHaveBeenCalledWith(
+        MOCK_PROXY_URL,
+        statefulSetFixture,
+        readyUserFixture.defaultUserNamespace,
+      );
+    });
+
+    it("completes deletion when no deployments or statefulSets are found", async () => {
+      mockedGetDeployments.mockResolvedValue({ items: [] });
+      mockedGetStatefulSets.mockResolvedValue({ items: [] });
+      mockedGetAAP.mockResolvedValue(aapReadyFixture.items[0]);
+      mockedDeleteAAPCR.mockResolvedValue(undefined);
+
+      renderProvider();
+      await waitFor(() =>
+        expect(screen.getByTestId("status-kind").textContent).toBe("ready"),
+      );
+
+      await act(async () => {
+        screen.getByTestId("delete-instance").click();
+      });
+
+      expect(mockedDeleteAAPCR).toHaveBeenCalled();
       await waitFor(() =>
         expect(screen.getByTestId("status-kind").textContent).toBe("deleted"),
       );
