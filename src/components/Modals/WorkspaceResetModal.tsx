@@ -102,7 +102,6 @@ export function WorkspaceResetModal({
       onClose={handleClose}
       aria-label="Reset workspaces"
       variant="small"
-      data-testid="workspace-reset-modal"
     >
       <ModalHeader title="Reset Workspaces" />
       <ModalBody>
@@ -122,7 +121,6 @@ export function WorkspaceResetModal({
               )
             }
             style={{ marginBottom: "16px" }}
-            data-testid="workspace-reset-error"
           />
         )}
         <Content component="p">
@@ -148,7 +146,6 @@ export function WorkspaceResetModal({
           onClick={handleClick}
           isDisabled={stage === "submitting"}
           isLoading={stage === "submitting"}
-          data-testid="workspace-reset-button"
         >
           {buttonLabel()}
         </Button>

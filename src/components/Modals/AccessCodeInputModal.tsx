@@ -124,7 +124,7 @@ function CodeBoxes({
   };
 
   return (
-    <Flex gap={{ default: "gapSm" }}>
+    <Flex gap={{ default: "gapSm" }} role="group" aria-label="Activation code">
       {Array.from({ length: CODE_LENGTH }).map((_, i) => (
         <FlexItem key={i}>
           <input
@@ -140,7 +140,6 @@ function CodeBoxes({
             onPaste={i === 0 ? handlePaste : undefined}
             disabled={disabled}
             aria-label={`Activation code character ${i + 1}`}
-            data-testid={`code-box-${i}`}
             style={{
               width: "48px",
               height: "56px",
@@ -250,7 +249,6 @@ export function AccessCodeInputModal({
       onClose={handleClose}
       aria-label="Enter the activation code"
       variant="small"
-      data-testid="access-code-modal"
     >
       <ModalHeader title="Enter the activation code" />
       <ModalBody>
@@ -261,7 +259,6 @@ export function AccessCodeInputModal({
             isPlain
             title={error}
             style={{ marginBottom: "16px" }}
-            data-testid="access-code-error"
           />
         )}
         <Content component="p" style={{ marginBottom: "16px" }}>
@@ -280,7 +277,6 @@ export function AccessCodeInputModal({
           onClick={handleSubmit}
           isDisabled={submitting}
           isLoading={submitting}
-          data-testid="access-code-submit"
         >
           {submitting ? "Starting..." : "Start trial"}
         </Button>

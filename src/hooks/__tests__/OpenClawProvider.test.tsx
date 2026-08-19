@@ -29,7 +29,8 @@ import { OpenClawStatus } from "../../utils/openclaw-utils";
 import { useOpenClawContext } from "../OpenClawContext";
 import { OpenClawProvider } from "../OpenClawProvider";
 import type { UserContextType } from "../UserContext";
-import { UserContext, UserSignupPhase } from "../UserContext";
+import { UserContext } from "../UserContext";
+import { UserSignupPhase } from "../userSignupPhase";
 
 vi.mock("../../api/openclaw");
 vi.mock("../../utils/logger", () => ({

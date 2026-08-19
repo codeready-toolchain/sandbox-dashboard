@@ -1,11 +1,8 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import {
-  UserContext,
-  type UserContextType,
-  UserSignupPhase,
-} from "../../../hooks/UserContext";
+import { UserContext, type UserContextType } from "../../../hooks/UserContext";
+import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { CatalogPage } from "../CatalogPage";
 

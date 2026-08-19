@@ -50,12 +50,12 @@ export const readyUserFixture: User = {
   endDate: "2025-01-31T00:00:00Z",
 };
 
-export const verifyUserFixture: User = {
+export const pendingManualApprovalFixture: User = {
   ...readyUserFixture,
   status: {
     ready: false,
     reason: "",
-    verificationRequired: true,
+    verificationRequired: false,
   },
 };
 
@@ -65,6 +65,15 @@ export const provisioningUserFixture: User = {
     ready: false,
     reason: "Provisioning",
     verificationRequired: false,
+  },
+};
+
+export const pendingPhoneVerificationFixture: User = {
+  ...readyUserFixture,
+  status: {
+    ready: false,
+    reason: "",
+    verificationRequired: true,
   },
 };
 

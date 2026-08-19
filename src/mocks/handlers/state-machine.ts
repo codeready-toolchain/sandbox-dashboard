@@ -41,6 +41,13 @@ export class StateMachine<T> {
    * @param phase The phase to transition the machine to.
    */
   public setPhase(phase: T): void {
+    // When manually setting the phase, clear any timers to avoid race
+    // conditions and accidental overrides.
+    if (this.transitionTimer) {
+      clearTimeout(this.transitionTimer);
+      this.transitionTimer = null;
+    }
+
     this.currentPhase = phase;
   }
 

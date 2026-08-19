@@ -8,7 +8,8 @@ import { OpenClawProvider } from "../../hooks/OpenClawProvider";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
 import { useUIConfigurationContext } from "../../hooks/UIConfigurationContext";
 import useProductURLResolver from "../../hooks/useProductURLResolver";
-import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
+import { useUserContext } from "../../hooks/UserContext";
+import { UserSignupPhase } from "../../hooks/userSignupPhase";
 import useTriedProducts from "../../hooks/useTriedProducts";
 import { type Product, ProductType } from "../../types/product";
 import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
@@ -93,65 +94,54 @@ export function CatalogGrid() {
   }
 
   return (
-    <>
-      <div className="sandbox-catalog-grid" data-testid="sandbox-catalog-grid">
-        {enabledProducts.map((product: Product) => {
-          switch (product.type) {
-            case ProductType.AAP:
-              return (
-                <div
-                  key={product.type}
-                  className="sandbox-catalog-card-wrapper"
-                >
-                  <AnsibleProvider>
-                    <AnsibleCatalogCard
-                      product={product}
-                      isGreenCornerVisible={isProductTried(product)}
-                      markProductAsTried={markProductAsTried}
-                    />
-                  </AnsibleProvider>
-                </div>
-              );
-            case ProductType.OPENCLAW:
-              return (
-                <div
-                  key={product.type}
-                  className="sandbox-catalog-card-wrapper"
-                >
-                  <OpenClawProvider>
-                    <OpenClawCatalogCard
-                      product={product}
-                      isGreenCornerVisible={isProductTried(product)}
-                      markProductAsTried={markProductAsTried}
-                    />
-                  </OpenClawProvider>
-                </div>
-              );
-            default:
-              return (
-                <div
-                  key={product.type}
-                  className="sandbox-catalog-card-wrapper"
-                >
-                  <CatalogCard
+    <section aria-label="Product catalog" className="sandbox-catalog-grid">
+      {enabledProducts.map((product: Product) => {
+        switch (product.type) {
+          case ProductType.AAP:
+            return (
+              <div key={product.type} className="sandbox-catalog-card-wrapper">
+                <AnsibleProvider>
+                  <AnsibleCatalogCard
                     product={product}
-                    primaryButtonLabel={ButtonLabel.TRY_IT}
                     isGreenCornerVisible={isProductTried(product)}
-                    isPrimaryButtonDisabled={
-                      userSignupPhase === UserSignupPhase.INITIAL_FETCH
-                    }
-                    isPrimaryButtonSpinnerVisible={false}
-                    isPrimaryButtonExtIconVisible
-                    isDeleteButtonVisible={false}
-                    onClickPrimaryButton={() =>
-                      handleOnClickPrimaryButtonSimpleCards(product)
-                    }
+                    markProductAsTried={markProductAsTried}
                   />
-                </div>
-              );
-          }
-        })}
-      </div>
-    </>
+                </AnsibleProvider>
+              </div>
+            );
+          case ProductType.OPENCLAW:
+            return (
+              <div key={product.type} className="sandbox-catalog-card-wrapper">
+                <OpenClawProvider>
+                  <OpenClawCatalogCard
+                    product={product}
+                    isGreenCornerVisible={isProductTried(product)}
+                    markProductAsTried={markProductAsTried}
+                  />
+                </OpenClawProvider>
+              </div>
+            );
+          default:
+            return (
+              <div key={product.type} className="sandbox-catalog-card-wrapper">
+                <CatalogCard
+                  product={product}
+                  primaryButtonLabel={ButtonLabel.TRY_IT}
+                  isGreenCornerVisible={isProductTried(product)}
+                  isPrimaryButtonDisabled={
+                    userSignupPhase === UserSignupPhase.INITIAL_FETCH
+                  }
+                  isPrimaryButtonSpinnerVisible={false}
+                  isPrimaryButtonExtIconVisible
+                  isDeleteButtonVisible={false}
+                  onClickPrimaryButton={() =>
+                    handleOnClickPrimaryButtonSimpleCards(product)
+                  }
+                />
+              </div>
+            );
+        }
+      })}
+    </section>
   );
 }

@@ -11,7 +11,8 @@ import * as cookieUtils from "../../utils/cookie-utils";
 import { useAnalyticsContext } from "../AnalyticsContext";
 import { AnalyticsProvider } from "../AnalyticsProvider";
 import { UIConfigurationContext } from "../UIConfigurationContext";
-import { UserContext, UserSignupPhase } from "../UserContext";
+import { UserContext } from "../UserContext";
+import { UserSignupPhase } from "../userSignupPhase";
 
 vi.mock("@segment/analytics-next", () => ({
   AnalyticsBrowser: {

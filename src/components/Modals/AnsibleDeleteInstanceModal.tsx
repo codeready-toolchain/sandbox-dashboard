@@ -48,7 +48,6 @@ export function AnsibleDeleteInstanceModal({
       onClose={onClose}
       aria-label="Delete Ansible Automation Platform instance"
       variant="small"
-      data-testid="ansible-delete-modal"
     >
       <ModalHeader title="Delete AAP Instance" />
       <ModalBody>

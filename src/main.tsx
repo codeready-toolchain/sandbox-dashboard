@@ -12,13 +12,15 @@ import { Environment, getConfig } from "./config/config";
 async function bootstrap() {
   const configuration = getConfig();
 
-  // Start the mocked back end if we are in development mode.
+  // Mock the backend when launching the UI in development mode.
   if (
     configuration.environment === Environment.DEVELOPMENT ||
     configuration.environment === Environment.DEVELOPMENT_KEYCLOAK
   ) {
-    const { worker } = await import("./mocks/browser");
-    await worker.start({ onUnhandledRequest: "bypass" });
+    // Dynamically import the function here instead of a top-level static
+    // import so that we do not include all this code in production.
+    const { setUpMockedBackend } = await import("./mocks/browser");
+    await setUpMockedBackend();
   }
 
   // Initialize Keycloak and trigger the SSO flow.

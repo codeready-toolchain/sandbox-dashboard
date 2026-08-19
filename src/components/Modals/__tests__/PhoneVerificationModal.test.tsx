@@ -2,14 +2,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import * as registrationApi from "../../../api/registration";
+import { SUPPORT_EMAIL } from "../../../const";
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
-import {
-  UserContext,
-  type UserContextType,
-  UserSignupPhase,
-} from "../../../hooks/UserContext";
+import { UserContext, type UserContextType } from "../../../hooks/UserContext";
+import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { PhoneVerificationModal } from "../PhoneVerificationModal";
+import {
+  getPhoneNumberInput,
+  getPhoneVerificationDialog,
+  getVerificationCodeInput,
+  queryPhoneVerificationDialog,
+} from "./phoneVerificationTestHelpers";
 
 vi.mock("../../../api/registration", () => ({
   initiatePhoneVerification: vi.fn(),
@@ -55,25 +59,30 @@ describe("PhoneVerificationModal", () => {
 
   it("renders nothing when closed", () => {
     renderModal(false);
-    expect(
-      screen.queryByTestId("phone-verification-modal"),
-    ).not.toBeInTheDocument();
+    expect(queryPhoneVerificationDialog()).not.toBeInTheDocument();
   });
 
   it("renders the phone step initially", () => {
     renderModal();
+    expect(getPhoneVerificationDialog()).toBeInTheDocument();
     expect(screen.getByText("Verify your phone number")).toBeInTheDocument();
-    expect(screen.getByTestId("country-code-input")).toBeInTheDocument();
-    expect(screen.getByTestId("phone-number-input")).toBeInTheDocument();
-    expect(screen.getByText("Send code")).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Country code" }),
+    ).toBeInTheDocument();
+    expect(getPhoneNumberInput()).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Send code" }),
+    ).toBeInTheDocument();
   });
 
   it("shows validation error for empty phone number", async () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.click(screen.getByText("Send code"));
-    expect(screen.getByTestId("phone-verification-error")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+    expect(
+      screen.getByText("Please enter a valid phone number."),
+    ).toBeInTheDocument();
   });
 
   it("submits phone number and moves to code step", async () => {
@@ -81,9 +90,9 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.clear(screen.getByTestId("phone-number-input"));
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
-    await user.click(screen.getByText("Send code"));
+    await user.clear(getPhoneNumberInput());
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
 
     await waitFor(() => {
       expect(screen.getByText("Enter verification code")).toBeInTheDocument();
@@ -101,12 +110,14 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
-    await user.click(screen.getByText("Send code"));
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("phone-verification-error"),
+        screen.getByText(
+          `Unable to verify your phone number. Please contact ${SUPPORT_EMAIL}`,
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -117,15 +128,15 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
-    await user.click(screen.getByText("Send code"));
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("verification-code-input")).toBeInTheDocument();
+      expect(getVerificationCodeInput()).toBeInTheDocument();
     });
 
-    await user.type(screen.getByTestId("verification-code-input"), "123456");
-    await user.click(screen.getByText("Verify"));
+    await user.type(getVerificationCodeInput(), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify" }));
 
     await waitFor(() => {
       expect(mockOnVerified).toHaveBeenCalled();
@@ -139,7 +150,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.click(screen.getByText("Cancel"));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(mockOnClose).toHaveBeenCalled();
   });
 
@@ -154,9 +165,9 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
+    await user.type(getPhoneNumberInput(), "5551234567");
 
-    const submitBtn = screen.getByTestId("phone-verification-submit");
+    const submitBtn = screen.getByRole("button", { name: "Send code" });
     await user.click(submitBtn);
     await user.click(submitBtn);
 
@@ -181,16 +192,16 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
-    await user.click(screen.getByTestId("phone-verification-submit"));
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("verification-code-input")).toBeInTheDocument();
+      expect(getVerificationCodeInput()).toBeInTheDocument();
     });
 
-    await user.type(screen.getByTestId("verification-code-input"), "123456");
+    await user.type(getVerificationCodeInput(), "123456");
 
-    const verifyBtn = screen.getByTestId("phone-verification-submit");
+    const verifyBtn = screen.getByRole("button", { name: "Verify" });
     await user.click(verifyBtn);
     await user.click(verifyBtn);
 

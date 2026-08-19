@@ -32,7 +32,6 @@ export function CatalogPage() {
             variant="link"
             isInline
             onClick={() => setIsAccessCodeModalOpen(true)}
-            data-testid="activation-code-link"
           >
             Click here
           </Button>

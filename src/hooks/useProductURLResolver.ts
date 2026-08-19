@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from "react";
 
 import type { Product, URLTemplateVars } from "../types/product";
-import { UserSignupPhase, useUserContext } from "./UserContext";
+import { useUserContext } from "./UserContext";
+import { UserSignupPhase } from "./userSignupPhase";
 
 /**
  * Resolves the URL for the products taking into account the user's data.

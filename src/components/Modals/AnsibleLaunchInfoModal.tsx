@@ -60,7 +60,6 @@ function PasswordField({ password }: { password: string }) {
           value={showPassword ? password : "*".repeat(25)}
           readOnlyVariant="default"
           aria-label="Password"
-          data-testid="ansible-password-field"
         />
       </InputGroupItem>
       <InputGroupItem>
@@ -74,7 +73,6 @@ function PasswordField({ password }: { password: string }) {
             variant="control"
             onClick={handlePasswordCopy}
             aria-label="Copy password"
-            data-testid="copy-password"
           >
             <CopyIcon />
           </Button>
@@ -86,7 +84,6 @@ function PasswordField({ password }: { password: string }) {
             variant="control"
             onClick={() => setShowPassword((prev) => !prev)}
             aria-label="Show password"
-            data-testid="toggle-password-visibility"
           >
             {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
           </Button>
@@ -270,7 +267,6 @@ export function AnsibleLaunchInfoModal({
       onClose={onClose}
       aria-label="Ansible Automation Platform"
       variant="medium"
-      data-testid="ansible-launch-info-modal"
     >
       <ModalHeader title={titleContent} />
       <ModalBody>
@@ -359,7 +355,6 @@ export function AnsibleLaunchInfoModal({
                     isReadOnly
                     hoverTip="Copy username"
                     clickTip="Username copied!"
-                    data-testid="ansible-username"
                   >
                     {instanceCredentialsStatus.credentials.username}
                   </ClipboardCopy>
@@ -454,7 +449,6 @@ export function AnsibleLaunchInfoModal({
             rel="noopener noreferrer"
             icon={<ExternalLinkAltIcon />}
             iconPosition="end"
-            data-testid="get-started-button"
             onClick={() =>
               trackAnalytics(
                 "Get Started - Ansible",

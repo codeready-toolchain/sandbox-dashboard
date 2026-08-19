@@ -66,7 +66,7 @@ describe("AnsibleLaunchInfoModal", () => {
   it("renders nothing when closed", () => {
     renderModal({}, { isOpen: false });
     expect(
-      screen.queryByTestId("ansible-launch-info-modal"),
+      screen.queryByRole("dialog", { name: "Ansible Automation Platform" }),
     ).not.toBeInTheDocument();
   });
 
@@ -88,8 +88,8 @@ describe("AnsibleLaunchInfoModal", () => {
     expect(
       screen.getByText(/Log in to your AAP admin account/),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("ansible-username")).toBeInTheDocument();
-    expect(screen.getByTestId("ansible-password-field")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("admin")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
   it("shows Red Hat account section when credentials are ready", async () => {
@@ -106,10 +106,12 @@ describe("AnsibleLaunchInfoModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("toggle-password-visibility"),
+        screen.getByRole("button", { name: "Show password" }),
       ).toBeInTheDocument();
     });
-    expect(screen.getByTestId("copy-password")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy password" }),
+    ).toBeInTheDocument();
   });
 
   it("toggles password visibility", async () => {
@@ -117,18 +119,16 @@ describe("AnsibleLaunchInfoModal", () => {
     renderModal({ instanceStatus: { kind: "ready" } });
 
     await waitFor(() => {
-      expect(screen.getByTestId("ansible-password-field")).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
     });
 
-    const passwordField = screen.getByTestId(
-      "ansible-password-field",
-    ) as HTMLInputElement;
+    const passwordField = screen.getByLabelText("Password") as HTMLInputElement;
     expect(passwordField.value).not.toContain("secret-password");
 
-    await user.click(screen.getByTestId("toggle-password-visibility"));
+    await user.click(screen.getByRole("button", { name: "Show password" }));
     expect(passwordField.value).toBe("secret-password");
 
-    await user.click(screen.getByTestId("toggle-password-visibility"));
+    await user.click(screen.getByRole("button", { name: "Show password" }));
     expect(passwordField.value).not.toContain("secret-password");
   });
 
@@ -136,9 +136,11 @@ describe("AnsibleLaunchInfoModal", () => {
     renderModal({ instanceStatus: { kind: "ready" } });
 
     await waitFor(() => {
-      expect(screen.getByTestId("get-started-button")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Get started/ }),
+      ).toBeInTheDocument();
     });
-    expect(screen.getByTestId("get-started-button")).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Get started/ })).toHaveAttribute(
       "href",
       "https://aap.example.com",
     );
@@ -350,7 +352,9 @@ describe("AnsibleLaunchInfoModal", () => {
   it("does not show Get started button when status is 'deleting'", () => {
     renderModal({ instanceStatus: { kind: "deleting" } });
 
-    expect(screen.queryByTestId("get-started-button")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Get started/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not fetch credentials when status is not 'ready'", () => {
@@ -436,8 +440,8 @@ describe("AnsibleLaunchInfoModal", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("ansible-username")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("admin")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("ansible-password-field")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 });

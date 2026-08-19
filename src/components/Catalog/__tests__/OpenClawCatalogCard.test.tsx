@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
@@ -7,7 +7,8 @@ import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
+import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { type Product, ProductType } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
@@ -65,27 +66,34 @@ function renderCard(
   };
 }
 
+function getCard() {
+  return screen.getByRole("article", { name: "OpenClaw product card" });
+}
+
+function getPrimaryButton(name: RegExp | string) {
+  return within(getCard()).getByRole("button", { name });
+}
+
 describe("OpenClawCatalogCard", () => {
   it("shows 'Loading' button and disables it when status is INITIAL_FETCH", () => {
     renderCard({ status: OpenClawStatus.INITIAL_FETCH });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Loading");
-    expect(mainButton).toBeDisabled();
+    const button = getPrimaryButton(/Loading/);
+    expect(button.textContent).toContain("Loading");
+    expect(button).toBeDisabled();
   });
 
   it("renders 'Loading' status label when status is INITIAL_FETCH", () => {
     renderCard({ status: OpenClawStatus.INITIAL_FETCH });
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Loading");
+    expect(getCard().textContent).toContain("Loading");
   });
 
   it("hides delete button when status is INITIAL_FETCH", () => {
     renderCard({ status: OpenClawStatus.INITIAL_FETCH });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
@@ -103,11 +111,11 @@ describe("OpenClawCatalogCard", () => {
       markProductAsTried,
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Launch"));
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     windowOpenSpy.mockRestore();
   });
@@ -126,11 +134,11 @@ describe("OpenClawCatalogCard", () => {
       markProductAsTried,
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Launch"));
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     windowOpenSpy.mockRestore();
   });
@@ -149,11 +157,11 @@ describe("OpenClawCatalogCard", () => {
       markProductAsTried,
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Launch"));
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     windowOpenSpy.mockRestore();
   });
@@ -166,34 +174,34 @@ describe("OpenClawCatalogCard", () => {
       unidleInstance,
     });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Re-provision"));
 
     expect(unidleInstance).toHaveBeenCalledWith();
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("opens info modal when status is PROVISIONING", async () => {
     renderCard({ status: OpenClawStatus.PROVISIONING });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton(/Provisioning/));
 
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("opens info modal when status is NEW (provision flow)", async () => {
     renderCard({ status: OpenClawStatus.NEW });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Provision"));
 
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("opens info modal when status is FAILED", async () => {
     renderCard({ status: OpenClawStatus.FAILED });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Provision"));
 
-    expect(screen.getByTestId("openclaw-launch-modal")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("calls signupUser when signup phase is NOT_STARTED instead of performing actions", async () => {
@@ -218,7 +226,7 @@ describe("OpenClawCatalogCard", () => {
       },
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Launch"));
 
     expect(signupUser).toHaveBeenCalled();
     expect(windowOpenSpy).not.toHaveBeenCalled();
@@ -261,7 +269,7 @@ describe("OpenClawCatalogCard", () => {
       </NotificationProvider>,
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Launch"));
 
     expect(openPhoneVerificationModal).toHaveBeenCalledTimes(1);
     expect(unidleInstance).not.toHaveBeenCalled();
@@ -284,7 +292,7 @@ describe("OpenClawCatalogCard", () => {
       { userSignupPhase: UserSignupPhase.PROVISIONING },
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Launch"));
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(unidleInstance).not.toHaveBeenCalled();
@@ -296,10 +304,13 @@ describe("OpenClawCatalogCard", () => {
   it("opens the delete confirmation modal when delete button is clicked", async () => {
     renderCard({ status: OpenClawStatus.READY });
 
-    const deleteButton = screen.getByTestId("delete-instance-button");
-    await userEvent.click(deleteButton);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
 
-    expect(screen.getByTestId("delete-instance-modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: /Delete.*OpenClaw/ }),
+    ).toBeInTheDocument();
   });
 
   it("calls deleteInstance when delete is confirmed", async () => {
@@ -307,10 +318,16 @@ describe("OpenClawCatalogCard", () => {
 
     renderCard({ status: OpenClawStatus.READY, deleteInstance });
 
-    await userEvent.click(screen.getByTestId("delete-instance-button"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
 
-    const confirmButton = screen.getByTestId("confirm-delete-instance");
-    await userEvent.click(confirmButton);
+    const deleteModal = screen.getByRole("dialog", {
+      name: /Delete.*OpenClaw/,
+    });
+    await userEvent.click(
+      within(deleteModal).getByRole("button", { name: /Delete instance/ }),
+    );
 
     await waitFor(() => {
       expect(deleteInstance).toHaveBeenCalledWith();
@@ -321,7 +338,7 @@ describe("OpenClawCatalogCard", () => {
     renderCard({ status: OpenClawStatus.USER_NOT_READY });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
@@ -333,12 +350,10 @@ describe("OpenClawCatalogCard", () => {
       unidleInstance,
     });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Try it"));
 
     expect(unidleInstance).not.toHaveBeenCalled();
-    expect(
-      screen.queryByTestId("openclaw-launch-modal"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("disables primary button when userSignupPhase is INITIAL_FETCH", () => {
@@ -346,7 +361,6 @@ describe("OpenClawCatalogCard", () => {
       userSignupPhase: UserSignupPhase.INITIAL_FETCH,
     });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton).toBeDisabled();
+    expect(getPrimaryButton(/Loading/)).toBeDisabled();
   });
 });

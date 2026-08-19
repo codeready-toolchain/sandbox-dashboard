@@ -21,6 +21,10 @@ function renderModal(isOpen = true) {
   );
 }
 
+function getCodeBox(index: number) {
+  return screen.getByLabelText(`Activation code character ${index + 1}`);
+}
+
 describe("AccessCodeInputModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -28,7 +32,9 @@ describe("AccessCodeInputModal", () => {
 
   it("renders nothing when closed", () => {
     renderModal(false);
-    expect(screen.queryByTestId("access-code-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Enter the activation code" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the 5 code boxes", () => {
@@ -38,7 +44,7 @@ describe("AccessCodeInputModal", () => {
       screen.getByText("If you have an activation code, enter it now."),
     ).toBeInTheDocument();
     for (let i = 0; i < 5; i++) {
-      expect(screen.getByTestId(`code-box-${i}`)).toBeInTheDocument();
+      expect(getCodeBox(i)).toBeInTheDocument();
     }
     expect(screen.getByText("Start trial")).toBeInTheDocument();
   });
@@ -47,10 +53,12 @@ describe("AccessCodeInputModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("code-box-0"), "A");
+    await user.type(getCodeBox(0), "A");
     await user.click(screen.getByText("Start trial"));
 
-    expect(screen.getByTestId("access-code-error")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Please enter all 5 characters of your activation code/),
+    ).toBeInTheDocument();
   });
 
   it("submits the full code and calls onVerified", async () => {
@@ -58,11 +66,11 @@ describe("AccessCodeInputModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("code-box-0"), "A");
-    await user.type(screen.getByTestId("code-box-1"), "B");
-    await user.type(screen.getByTestId("code-box-2"), "C");
-    await user.type(screen.getByTestId("code-box-3"), "D");
-    await user.type(screen.getByTestId("code-box-4"), "E");
+    await user.type(getCodeBox(0), "A");
+    await user.type(getCodeBox(1), "B");
+    await user.type(getCodeBox(2), "C");
+    await user.type(getCodeBox(3), "D");
+    await user.type(getCodeBox(4), "E");
     await user.click(screen.getByText("Start trial"));
 
     await waitFor(() => {
@@ -78,15 +86,17 @@ describe("AccessCodeInputModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("code-box-0"), "X");
-    await user.type(screen.getByTestId("code-box-1"), "Y");
-    await user.type(screen.getByTestId("code-box-2"), "Z");
-    await user.type(screen.getByTestId("code-box-3"), "1");
-    await user.type(screen.getByTestId("code-box-4"), "2");
+    await user.type(getCodeBox(0), "X");
+    await user.type(getCodeBox(1), "Y");
+    await user.type(getCodeBox(2), "Z");
+    await user.type(getCodeBox(3), "1");
+    await user.type(getCodeBox(4), "2");
     await user.click(screen.getByText("Start trial"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("access-code-error")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Unable to verify your code/),
+      ).toBeInTheDocument();
     });
   });
 
@@ -102,11 +112,11 @@ describe("AccessCodeInputModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    const box0 = screen.getByTestId("code-box-0");
+    const box0 = getCodeBox(0);
     await user.click(box0);
     await user.type(box0, "A");
 
-    expect(screen.getByTestId("code-box-1")).toHaveFocus();
+    expect(getCodeBox(1)).toHaveFocus();
   });
 
   it("prevents duplicate submissions on rapid double-click", async () => {
@@ -121,13 +131,13 @@ describe("AccessCodeInputModal", () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.type(screen.getByTestId("code-box-0"), "A");
-    await user.type(screen.getByTestId("code-box-1"), "B");
-    await user.type(screen.getByTestId("code-box-2"), "C");
-    await user.type(screen.getByTestId("code-box-3"), "D");
-    await user.type(screen.getByTestId("code-box-4"), "E");
+    await user.type(getCodeBox(0), "A");
+    await user.type(getCodeBox(1), "B");
+    await user.type(getCodeBox(2), "C");
+    await user.type(getCodeBox(3), "D");
+    await user.type(getCodeBox(4), "E");
 
-    const submitBtn = screen.getByTestId("access-code-submit");
+    const submitBtn = screen.getByRole("button", { name: /Start trial/ });
     await user.click(submitBtn);
     await user.click(submitBtn);
 

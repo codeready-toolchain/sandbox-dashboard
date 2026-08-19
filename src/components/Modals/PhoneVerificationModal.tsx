@@ -207,7 +207,6 @@ export function PhoneVerificationModal({
       onClose={handleClose}
       aria-label="Phone verification"
       variant="small"
-      data-testid="phone-verification-modal"
     >
       <ModalHeader
         title={
@@ -224,7 +223,6 @@ export function PhoneVerificationModal({
             isPlain
             title={error}
             style={{ marginBottom: "16px" }}
-            data-testid="phone-verification-error"
           />
         )}
         {step === "phone" ? (
@@ -240,7 +238,6 @@ export function PhoneVerificationModal({
                 onChange={(_e, val) => setCountryCode(val)}
                 isRequired
                 placeholder="+1"
-                data-testid="country-code-input"
               />
             </FormGroup>
             <FormGroup label="Phone number" isRequired fieldId="phone-number">
@@ -250,7 +247,6 @@ export function PhoneVerificationModal({
                 onChange={(_e, val) => setPhoneNumber(val)}
                 isRequired
                 placeholder="555-123-4567"
-                data-testid="phone-number-input"
               />
             </FormGroup>
           </Form>
@@ -271,7 +267,6 @@ export function PhoneVerificationModal({
                 onChange={(_e, val) => setVerificationCode(val)}
                 isRequired
                 placeholder="Enter code"
-                data-testid="verification-code-input"
               />
             </FormGroup>
           </Form>
@@ -285,7 +280,6 @@ export function PhoneVerificationModal({
           form={step === "phone" ? "phone-form" : "code-form"}
           isDisabled={submitting}
           isLoading={submitting}
-          data-testid="phone-verification-submit"
         >
           {step === "phone" ? "Send code" : "Verify"}
         </Button>

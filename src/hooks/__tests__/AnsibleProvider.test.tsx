@@ -42,7 +42,8 @@ import { useAnsibleContext } from "../AnsibleContext";
 import { AnsibleProvider } from "../AnsibleProvider";
 import { NotificationProvider } from "../NotificationProvider";
 import type { UserContextType } from "../UserContext";
-import { UserContext, UserSignupPhase } from "../UserContext";
+import { UserContext } from "../UserContext";
+import { UserSignupPhase } from "../userSignupPhase";
 
 vi.mock("../../api/aap");
 vi.mock("../../api/kube");
@@ -252,6 +253,12 @@ describe("AnsibleProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.__config__ = {
+      registrationServiceURL: "https://registration.example.com",
+      recaptchaSiteKey: "test-site-key",
+      // Non-dev so provisioning/unidling keep LONG_INTERVAL as the tests expect.
+      environment: "prod",
+    };
     mockedGetDeployments.mockResolvedValue(deploymentFixture);
     mockedGetStatefulSets.mockResolvedValue(statefulSetFixture);
     mockedDeleteSecretsAndPVCs.mockResolvedValue(undefined);

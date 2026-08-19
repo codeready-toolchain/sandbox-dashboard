@@ -9,11 +9,8 @@ import {
   type AuthenticatedContextValue,
 } from "../../auth/AuthenticatedContext";
 import { NotificationProvider } from "../../hooks/NotificationProvider";
-import {
-  UserContext,
-  type UserContextType,
-  UserSignupPhase,
-} from "../../hooks/UserContext";
+import { UserContext, type UserContextType } from "../../hooks/UserContext";
+import { UserSignupPhase } from "../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../mocks/fixtures";
 import { Layout } from "../Layout/Layout";
 
@@ -150,7 +147,7 @@ describe("Layout", () => {
 
     await user.click(screen.getByText("John Doe"));
     expect(
-      screen.getByTestId("reset-workspaces-menu-item"),
+      screen.getByRole("menuitem", { name: "Reset Workspaces" }),
     ).toBeInTheDocument();
   });
 
@@ -162,7 +159,7 @@ describe("Layout", () => {
 
     await user.click(screen.getByText("John Doe"));
     expect(
-      screen.queryByTestId("reset-workspaces-menu-item"),
+      screen.queryByRole("menuitem", { name: "Reset Workspaces" }),
     ).not.toBeInTheDocument();
   });
 
@@ -195,14 +192,22 @@ describe("Layout", () => {
     });
 
     await user.click(screen.getByText("John Doe"));
-    await user.click(screen.getByText("Reset Workspaces"));
+    await user.click(
+      screen.getByRole("menuitem", { name: "Reset Workspaces" }),
+    );
 
     await waitFor(() => {
-      expect(screen.getByTestId("workspace-reset-modal")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Reset workspaces" }),
+      ).toBeInTheDocument();
     });
 
-    await user.click(screen.getByTestId("workspace-reset-button"));
-    await user.click(screen.getByTestId("workspace-reset-button"));
+    await user.click(
+      screen.getByRole("button", { name: "I understand and I want to reset" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Reset my workspaces" }),
+    );
 
     await waitFor(() => {
       expect(refetchUserData).toHaveBeenCalled();

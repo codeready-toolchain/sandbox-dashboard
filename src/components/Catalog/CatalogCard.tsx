@@ -89,6 +89,8 @@ function GreenCorner({ isVisible }: { isVisible: boolean }) {
   return (
     <Tooltip content="Tried" position="top">
       <div
+        role="status"
+        aria-label="Product tried"
         style={{
           width: "35px",
           height: "35px",
@@ -129,7 +131,12 @@ export function CatalogCard({
   onClickDeleteButton,
 }: CatalogCardProps) {
   return (
-    <Card isCompact data-testid="catalog-card" className="sandbox-card">
+    <Card
+      isCompact
+      aria-label={`${product.title} product card`}
+      component="article"
+      className="sandbox-card"
+    >
       <CardHeader className="sandbox-card-header">
         <GreenCorner isVisible={isGreenCornerVisible} />
         <Flex
@@ -152,11 +159,7 @@ export function CatalogCard({
               </FlexItem>
               {statusLabel && (
                 <FlexItem>
-                  <Label
-                    color={statusLabel.color}
-                    isCompact
-                    data-testid="status-label"
-                  >
+                  <Label color={statusLabel.color} isCompact>
                     {statusLabel.label}
                   </Label>
                 </FlexItem>
@@ -195,7 +198,6 @@ export function CatalogCard({
                 ) : undefined
               }
               iconPosition="end"
-              data-testid="try-it-button"
               data-analytics-linktype="cta"
               data-analytics-text={primaryButtonLabel}
               data-analytics-category={`Developer Sandbox|Catalog|${product.title}`}
@@ -223,7 +225,6 @@ export function CatalogCard({
                   variant="danger"
                   onClick={onClickDeleteButton}
                   aria-label="Delete instance"
-                  data-testid="delete-instance-button"
                 >
                   Delete instance
                 </Button>

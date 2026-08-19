@@ -22,6 +22,7 @@ import {
   getSecret,
   getStatefulSets,
 } from "../api/kube";
+import { Environment, getConfig } from "../config/config";
 import {
   AAP_OPERATOR_LABEL_SELECTOR,
   LONG_INTERVAL,
@@ -598,11 +599,16 @@ export function AnsibleProviderConnected({
     // does not make sense to be checking for a status update very often. For
     // the rest of the states it does make sense, since for example the
     // deletion of the instance should not take very long.
+    //
+    // The polling interval stays short for when we are in development mode.
     const pollingInterval: number =
-      currentInstanceStatus === "provisioning" ||
-      currentInstanceStatus === "unidling"
-        ? LONG_INTERVAL
-        : SHORT_INTERVAL;
+      getConfig().environment === Environment.DEVELOPMENT ||
+      getConfig().environment === Environment.DEVELOPMENT_KEYCLOAK
+        ? SHORT_INTERVAL
+        : currentInstanceStatus === "provisioning" ||
+            currentInstanceStatus === "unidling"
+          ? LONG_INTERVAL
+          : SHORT_INTERVAL;
 
     let cancelled = false;
     const poll = async () => {
