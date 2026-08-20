@@ -6,8 +6,9 @@ import { setTokenGetter } from "../../api/authFetch";
 import { SUPPORT_EMAIL } from "../../const";
 import { server } from "../../mocks/server";
 import { NotificationProvider } from "../NotificationProvider";
-import { UserSignupPhase, useUserContext } from "../UserContext";
+import { useUserContext } from "../UserContext";
 import { UserProvider } from "../UserProvider";
+import { UserSignupPhase } from "../userSignupPhase";
 
 function ContextConsumer() {
   const ctx = useUserContext();
@@ -115,6 +116,34 @@ describe("UserProvider", () => {
     expect(
       screen.getByText("Unable to sign you up into Developer Sandbox"),
     ).toBeInTheDocument();
+  });
+
+  it("does not retry the initial user fetch after unmount", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.get("*/api/v1/signup", () => {
+        calls++;
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+
+    const { unmount } = renderProvider();
+
+    await waitFor(() => {
+      expect(calls).toBe(1);
+    });
+
+    unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(calls).toBe(1);
+    expect(
+      screen.queryByText("Unable to sign you up into Developer Sandbox"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a suspended alert when the backend reports the user has been suspended", async () => {

@@ -1,7 +1,7 @@
 import { SUPPORT_EMAIL } from "../const";
 import { ApiError } from "../error/ApiError";
 import { UserFacingError } from "../error/UserFacingError";
-import { UserSignupPhase } from "../hooks/UserContext";
+import { UserSignupPhase } from "../hooks/userSignupPhase";
 import type { User } from "../types";
 import logger from "./logger";
 

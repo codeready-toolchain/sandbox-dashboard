@@ -10,12 +10,16 @@ function getBaseURL(): string {
 
 /**
  * Fetches the user's signup data.
+ * @param signal optional abort signal forwarded to the underlying request.
  * @returns the signup data or `undefined` if we get a "not found" error.
  * @throws {ApiError} if any errors occur.
  */
-export async function getSignupData(): Promise<User | undefined> {
+export async function getSignupData(
+  signal?: AbortSignal,
+): Promise<User | undefined> {
   const response = await authFetch(`${getBaseURL()}/signup`, {
     method: "GET",
+    signal,
   });
   if (!response.ok) {
     if (response.status === 404) {

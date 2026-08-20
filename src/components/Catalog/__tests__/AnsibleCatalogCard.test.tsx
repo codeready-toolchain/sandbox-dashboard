@@ -10,7 +10,8 @@ import {
 import { NotificationProvider } from "../../../hooks/NotificationProvider";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
+import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { type Product, ProductType } from "../../../types/product";
 import { AAPInstanceErrorType } from "../../../utils/aap-utils";
@@ -86,6 +87,23 @@ function renderCard(
   };
 }
 
+/**
+ * Returns the rendered product card article element.
+ */
+function getCard() {
+  return screen.getByRole("article", {
+    name: "Ansible Automation Platform product card",
+  });
+}
+
+/**
+ * Returns the primary action button inside the card by matching its
+ * accessible name against the provided label text.
+ */
+function getPrimaryButton(name: RegExp | string) {
+  return within(getCard()).getByRole("button", { name });
+}
+
 describe("AnsibleCatalogCard", () => {
   it("calls provisionInstance and opens info modal on primary button click when user is ready", async () => {
     const provisionInstance = vi.fn().mockResolvedValue(undefined);
@@ -97,12 +115,13 @@ describe("AnsibleCatalogCard", () => {
       markProductAsTried,
     );
 
-    const button = screen.getByTestId("try-it-button");
-    await userEvent.click(button);
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(provisionInstance).toHaveBeenCalled();
     expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
-    expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Ansible Automation Platform" }),
+    ).toBeInTheDocument();
   });
 
   it("calls signupUser when signup phase is NOT_STARTED instead of provisioning", async () => {
@@ -118,8 +137,7 @@ describe("AnsibleCatalogCard", () => {
       { provisionInstance, instanceStatus: { kind: "new" } },
     );
 
-    const button = screen.getByTestId("try-it-button");
-    await userEvent.click(button);
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(signupUser).toHaveBeenCalled();
     expect(provisionInstance).not.toHaveBeenCalled();
@@ -133,7 +151,7 @@ describe("AnsibleCatalogCard", () => {
       { provisionInstance, instanceStatus: { kind: "new" } },
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(openPhoneVerificationModal).toHaveBeenCalledTimes(1);
     expect(provisionInstance).not.toHaveBeenCalled();
@@ -149,8 +167,7 @@ describe("AnsibleCatalogCard", () => {
       markProductAsTried,
     );
 
-    const button = screen.getByTestId("try-it-button");
-    await userEvent.click(button);
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(provisionInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
@@ -159,10 +176,15 @@ describe("AnsibleCatalogCard", () => {
   it("opens the delete confirmation modal when delete button is clicked", async () => {
     renderCard({}, { instanceStatus: { kind: "ready" } });
 
-    const deleteButton = screen.getByTestId("delete-instance-button");
-    await userEvent.click(deleteButton);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
 
-    expect(screen.getByTestId("ansible-delete-modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", {
+        name: "Delete Ansible Automation Platform instance",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("does not render delete button when instanceStatus is 'userNotReady' (NOOP provider when proxyURL is missing)", () => {
@@ -172,30 +194,29 @@ describe("AnsibleCatalogCard", () => {
     );
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
   it("shows 'Loading' button when instanceStatus is 'initialFetch'", () => {
     renderCard({}, { instanceStatus: { kind: "initialFetch" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Loading");
-    expect(mainButton).toBeDisabled();
+    const button = getPrimaryButton(/Loading/);
+    expect(button).toBeDisabled();
   });
 
   it("does not render delete button when instanceStatus is 'initialFetch'", () => {
     renderCard({}, { instanceStatus: { kind: "initialFetch" } });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
   it("renders 'Loading' status label when instanceStatus is 'initialFetch'", () => {
     renderCard({}, { instanceStatus: { kind: "initialFetch" } });
 
-    const card = screen.getByTestId("catalog-card");
+    const card = getCard();
     expect(card.textContent).toContain("Loading");
     expect(card.textContent).not.toContain("Ready");
     expect(card.textContent).not.toContain("Provisioning");
@@ -206,9 +227,9 @@ describe("AnsibleCatalogCard", () => {
   it("shows 'Provision' button when instanceStatus is 'userNotReady'", () => {
     renderCard({}, { instanceStatus: { kind: "userNotReady" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provision");
-    expect(mainButton.textContent).not.toContain("Provisioning");
+    const button = getPrimaryButton("Provision");
+    expect(button.textContent).toContain("Provision");
+    expect(button.textContent).not.toContain("Provisioning");
   });
 
   it("does not call provisionInstance or open modal when instanceStatus is 'userNotReady'", async () => {
@@ -221,19 +242,19 @@ describe("AnsibleCatalogCard", () => {
       markProductAsTried,
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(provisionInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
     expect(
-      screen.queryByTestId("ansible-launch-info-modal"),
+      screen.queryByRole("dialog", { name: "Ansible Automation Platform" }),
     ).not.toBeInTheDocument();
   });
 
   it("does not render a status label when instanceStatus is 'userNotReady'", () => {
     renderCard({}, { instanceStatus: { kind: "userNotReady" } });
 
-    const card = screen.getByTestId("catalog-card");
+    const card = getCard();
     expect(card.textContent).not.toContain("Ready");
     expect(card.textContent).not.toContain("Provisioning");
     expect(card.textContent).not.toContain("Idled");
@@ -243,37 +264,38 @@ describe("AnsibleCatalogCard", () => {
   it("shows 'Provision' button when instanceStatus is 'new'", () => {
     renderCard({}, { instanceStatus: { kind: "new" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provision");
-    expect(mainButton.textContent).not.toContain("Provisioning");
+    const button = getPrimaryButton("Provision");
+    expect(button.textContent).toContain("Provision");
+    expect(button.textContent).not.toContain("Provisioning");
   });
 
   it("shows 'Provisioning...' button when instanceStatus is 'provisioning'", () => {
     renderCard({}, { instanceStatus: { kind: "provisioning" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provisioning...");
+    expect(getPrimaryButton(/Provisioning/).textContent).toContain(
+      "Provisioning...",
+    );
   });
 
   it("shows 'Launch' button when instanceStatus is 'ready'", () => {
     renderCard({}, { instanceStatus: { kind: "ready" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Launch");
+    expect(getPrimaryButton("Launch").textContent).toContain("Launch");
   });
 
   it("shows 'Re-provision' button when instanceStatus is 'idled'", () => {
     renderCard({}, { instanceStatus: { kind: "idled" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Re-provision");
+    expect(getPrimaryButton("Re-provision").textContent).toContain(
+      "Re-provision",
+    );
   });
 
   it("hides delete button when instanceStatus is 'new'", () => {
     renderCard({}, { instanceStatus: { kind: "new" } });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
@@ -281,7 +303,7 @@ describe("AnsibleCatalogCard", () => {
     renderCard({}, { instanceStatus: { kind: "notDeployed" } });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
@@ -289,7 +311,7 @@ describe("AnsibleCatalogCard", () => {
     renderCard({}, { instanceStatus: { kind: "unknown" } });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
@@ -297,53 +319,56 @@ describe("AnsibleCatalogCard", () => {
     renderCard({}, { instanceStatus: { kind: "deleted" } });
 
     expect(
-      screen.queryByTestId("delete-instance-button"),
+      screen.queryByRole("button", { name: "Delete instance" }),
     ).not.toBeInTheDocument();
   });
 
   it("shows delete button when instanceStatus is 'ready'", () => {
     renderCard({}, { instanceStatus: { kind: "ready" } });
 
-    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("shows delete button when instanceStatus is 'provisioning'", () => {
     renderCard({}, { instanceStatus: { kind: "provisioning" } });
 
-    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("shows delete button when instanceStatus is 'idled'", () => {
     renderCard({}, { instanceStatus: { kind: "idled" } });
 
-    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("renders 'Ready' status label when instanceStatus is 'ready'", () => {
     renderCard({}, { instanceStatus: { kind: "ready" } });
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Ready");
+    expect(getCard().textContent).toContain("Ready");
   });
 
   it("renders 'Provisioning' status label when instanceStatus is 'provisioning'", () => {
     renderCard({}, { instanceStatus: { kind: "provisioning" } });
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Provisioning");
+    expect(getCard().textContent).toContain("Provisioning");
   });
 
   it("renders 'Idled' status label when instanceStatus is 'idled'", () => {
     renderCard({}, { instanceStatus: { kind: "idled" } });
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Idled");
+    expect(getCard().textContent).toContain("Idled");
   });
 
   it("does not render a status label when instanceStatus is 'new'", () => {
     renderCard({}, { instanceStatus: { kind: "new" } });
 
-    const card = screen.getByTestId("catalog-card");
+    const card = getCard();
     expect(card.textContent).not.toContain("Ready");
     expect(card.textContent).not.toContain("Provisioning");
     expect(card.textContent).not.toContain("Idled");
@@ -352,15 +377,13 @@ describe("AnsibleCatalogCard", () => {
   it("shows 'Provision' button for 'notDeployed' status", () => {
     renderCard({}, { instanceStatus: { kind: "notDeployed" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provision");
+    expect(getPrimaryButton("Provision").textContent).toContain("Provision");
   });
 
   it("shows 'Provision' button for 'unknown' status", () => {
     renderCard({}, { instanceStatus: { kind: "unknown" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provision");
+    expect(getPrimaryButton("Provision").textContent).toContain("Provision");
   });
 
   it("shows a generic alert when provisionInstance throws a non-UserFacingError", async () => {
@@ -370,7 +393,7 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { provisionInstance, instanceStatus: { kind: "new" } });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(provisionInstance).toHaveBeenCalled();
     expect(
@@ -390,7 +413,7 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { provisionInstance, instanceStatus: { kind: "new" } });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton("Provision"));
 
     expect(provisionInstance).toHaveBeenCalled();
     expect(screen.getByText("Provision failed")).toBeInTheDocument();
@@ -408,7 +431,7 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { provisionInstance, instanceStatus: { kind: "new" } });
 
-    const button = screen.getByTestId("try-it-button");
+    const button = getPrimaryButton("Provision");
 
     await userEvent.click(button);
     await userEvent.click(button);
@@ -431,8 +454,7 @@ describe("AnsibleCatalogCard", () => {
       },
     );
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provision");
+    expect(getPrimaryButton("Provision").textContent).toContain("Provision");
   });
 
   it("shows delete button when instanceStatus is 'error'", () => {
@@ -446,33 +468,39 @@ describe("AnsibleCatalogCard", () => {
       },
     );
 
-    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("shows 'Deleting...' button for 'deleting' status", () => {
     renderCard({}, { instanceStatus: { kind: "deleting" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Deleting...");
+    expect(getPrimaryButton(/Deleting/).textContent).toContain("Deleting...");
   });
 
   it("shows delete button when instanceStatus is 'deleting'", () => {
     renderCard({}, { instanceStatus: { kind: "deleting" } });
 
-    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("shows 'Provisioning...' button for 'unidling' status", () => {
     renderCard({}, { instanceStatus: { kind: "unidling" } });
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton.textContent).toContain("Provisioning...");
+    expect(getPrimaryButton(/Provisioning/).textContent).toContain(
+      "Provisioning...",
+    );
   });
 
   it("shows delete button when instanceStatus is 'unidling'", () => {
     renderCard({}, { instanceStatus: { kind: "unidling" } });
 
-    expect(screen.getByTestId("delete-instance-button")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("does not call provisionInstance when clicking during provisioning", async () => {
@@ -483,10 +511,12 @@ describe("AnsibleCatalogCard", () => {
       { provisionInstance, instanceStatus: { kind: "provisioning" } },
     );
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton(/Provisioning/));
 
     expect(provisionInstance).not.toHaveBeenCalled();
-    expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Ansible Automation Platform" }),
+    ).toBeInTheDocument();
   });
 
   it("does not call unidleInstance when clicking during unidling", async () => {
@@ -494,10 +524,46 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { unidleInstance, instanceStatus: { kind: "unidling" } });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton(/Provisioning/));
 
     expect(unidleInstance).not.toHaveBeenCalled();
-    expect(screen.getByTestId("ansible-launch-info-modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Ansible Automation Platform" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a toast when unidleInstance throws a UserFacingError", async () => {
+    const unidleInstance = vi
+      .fn()
+      .mockRejectedValue(
+        new UserFacingError("Reprovision failed", "Could not unidle"),
+      );
+
+    renderCard({}, { unidleInstance, instanceStatus: { kind: "idled" } });
+
+    await userEvent.click(getPrimaryButton("Re-provision"));
+
+    expect(unidleInstance).toHaveBeenCalled();
+    expect(screen.getByText("Reprovision failed")).toBeInTheDocument();
+    expect(screen.getByText("Could not unidle")).toBeInTheDocument();
+  });
+
+  it("stores provisioningError when unidleInstance throws a non-UserFacingError", async () => {
+    const unidleInstance = vi
+      .fn()
+      .mockRejectedValue(new Error("network failure"));
+
+    renderCard({}, { unidleInstance, instanceStatus: { kind: "idled" } });
+
+    await userEvent.click(getPrimaryButton("Re-provision"));
+
+    expect(unidleInstance).toHaveBeenCalled();
+    expect(
+      screen.getByText("Unable to reprovision your instance"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/We were unable to reprovision your instance/),
+    ).toBeInTheDocument();
   });
 
   it("blocks primary button click during deletion", async () => {
@@ -505,7 +571,7 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { provisionInstance, instanceStatus: { kind: "deleting" } });
 
-    await userEvent.click(screen.getByTestId("try-it-button"));
+    await userEvent.click(getPrimaryButton(/Deleting/));
 
     expect(provisionInstance).not.toHaveBeenCalled();
   });
@@ -521,22 +587,19 @@ describe("AnsibleCatalogCard", () => {
       },
     );
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Failed");
+    expect(getCard().textContent).toContain("Failed");
   });
 
   it("renders 'Deleting' status label for 'deleting' status", () => {
     renderCard({}, { instanceStatus: { kind: "deleting" } });
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Deleting");
+    expect(getCard().textContent).toContain("Deleting");
   });
 
   it("renders 'Provisioning' status label for 'unidling' status", () => {
     renderCard({}, { instanceStatus: { kind: "unidling" } });
 
-    const card = screen.getByTestId("catalog-card");
-    expect(card.textContent).toContain("Provisioning");
+    expect(getCard().textContent).toContain("Provisioning");
   });
 
   it("calls deleteInstance when delete is confirmed and dismisses the modal", async () => {
@@ -544,17 +607,24 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
 
-    const deleteButton = screen.getByTestId("delete-instance-button");
-    await userEvent.click(deleteButton);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
 
-    expect(screen.getByTestId("ansible-delete-modal")).toBeInTheDocument();
+    const deleteModal = screen.getByRole("dialog", {
+      name: "Delete Ansible Automation Platform instance",
+    });
+    expect(deleteModal).toBeInTheDocument();
 
-    const confirmDelete = screen.getByTestId("confirm-delete-aap");
-    await userEvent.click(confirmDelete);
+    await userEvent.click(
+      within(deleteModal).getByRole("button", { name: "Delete" }),
+    );
 
     expect(deleteInstance).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByTestId("ansible-delete-modal"),
+      screen.queryByRole("dialog", {
+        name: "Delete Ansible Automation Platform instance",
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -572,8 +642,15 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
 
-    await userEvent.click(screen.getByTestId("delete-instance-button"));
-    await userEvent.click(screen.getByTestId("confirm-delete-aap"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
+    const deleteModal = screen.getByRole("dialog", {
+      name: "Delete Ansible Automation Platform instance",
+    });
+    await userEvent.click(
+      within(deleteModal).getByRole("button", { name: "Delete" }),
+    );
 
     expect(deleteInstance).toHaveBeenCalledTimes(1);
     const errorAlert = screen.getByTestId("ansible-automation-platform-error");
@@ -590,8 +667,15 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
 
-    await userEvent.click(screen.getByTestId("delete-instance-button"));
-    await userEvent.click(screen.getByTestId("confirm-delete-aap"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
+    const deleteModal = screen.getByRole("dialog", {
+      name: "Delete Ansible Automation Platform instance",
+    });
+    await userEvent.click(
+      within(deleteModal).getByRole("button", { name: "Delete" }),
+    );
 
     expect(deleteInstance).toHaveBeenCalledTimes(1);
     expect(
@@ -615,9 +699,16 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
 
-    await userEvent.click(screen.getByTestId("delete-instance-button"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
 
-    const confirmButton = screen.getByTestId("confirm-delete-aap");
+    const deleteModal = screen.getByRole("dialog", {
+      name: "Delete Ansible Automation Platform instance",
+    });
+    const confirmButton = within(deleteModal).getByRole("button", {
+      name: "Delete",
+    });
     await userEvent.click(confirmButton);
     await userEvent.click(confirmButton);
 
@@ -643,15 +734,21 @@ describe("AnsibleCatalogCard", () => {
 
     renderCard({}, { deleteInstance, instanceStatus: { kind: "ready" } });
 
-    await userEvent.click(screen.getByTestId("delete-instance-button"));
-    await userEvent.click(screen.getByTestId("confirm-delete-aap"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete instance" }),
+    );
+    const deleteModal = screen.getByRole("dialog", {
+      name: "Delete Ansible Automation Platform instance",
+    });
+    await userEvent.click(
+      within(deleteModal).getByRole("button", { name: "Delete" }),
+    );
 
     expect(
       screen.getByTestId("ansible-automation-platform-error"),
     ).toBeInTheDocument();
 
-    const closeButton = screen.getByRole("button", { name: "Close" });
-    await userEvent.click(closeButton);
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(
       screen.queryByTestId("ansible-automation-platform-error"),
@@ -664,7 +761,6 @@ describe("AnsibleCatalogCard", () => {
       { instanceStatus: { kind: "new" } },
     );
 
-    const mainButton = screen.getByTestId("try-it-button") as HTMLButtonElement;
-    expect(mainButton).toBeDisabled();
+    expect(getPrimaryButton(/Loading/)).toBeDisabled();
   });
 });

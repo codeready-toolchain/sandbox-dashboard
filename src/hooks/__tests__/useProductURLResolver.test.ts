@@ -11,7 +11,8 @@ import {
 } from "../../types/product";
 import useProductURLResolver from "../useProductURLResolver";
 import type { UserContextType } from "../UserContext";
-import { UserContext, UserSignupPhase } from "../UserContext";
+import { UserContext } from "../UserContext";
+import { UserSignupPhase } from "../userSignupPhase";
 
 function makeContext(
   overrides: Partial<UserContextType> = {},

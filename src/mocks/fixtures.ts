@@ -18,9 +18,9 @@ export {
   localKeycloakAuthConfigFixture,
   MOCK_PROXY_URL,
   MOCK_REG_SERVICE_URL,
+  pendingManualApprovalFixture,
   provisioningUserFixture,
   readyUserFixture,
   segmentWriteKeyFixture,
   uiConfigFixture,
-  verifyUserFixture,
 } from "./fixtures/registration-fixtures";

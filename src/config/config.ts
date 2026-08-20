@@ -1,3 +1,5 @@
+import type { StateMachine } from "../mocks/handlers/state-machine";
+
 /**
  * Defines the environments that the user interface supports, namely:
  *
@@ -71,11 +73,114 @@ export interface AppConfigRaw {
 }
 
 /**
- * Define the structure for the raw configuration of the application.
+ * Defines a set of functions that can be used to override certain
+ * behaviors from the mocked MSW back end in order to be able to test the
+ * different scenarios with Playwright.
+ */
+export interface PlaywrightOverrides {
+  /**
+   * Defines the overrides for the Ansible Automation Platform
+   * interactions.
+   */
+  __aap__?: {
+    /**
+     * Forces an error when attempting to unidle the instance.
+     */
+    __forceUnidleError__?: boolean;
+
+    /**
+     * The initial state in the state machine.
+     */
+    __initialState__?: number;
+
+    /**
+     * Defines the state machine used by MSW to return different requests.
+     */
+    __stateMachine__?: StateMachine<number>;
+  };
+
+  /**
+   * Defines the overrides for the activation code feature.
+   */
+  __activationCode__?: {
+    /**
+     * Forces an error when the user submits an activation code.
+     */
+    __forceError__?: boolean;
+  };
+
+  /**
+   * Defines the overrides for phone verification.
+   */
+  __phoneVerification__?: {
+    /**
+     * When set, the send-code request fails with this body text so the
+     * UI can map it to a user-facing alert.
+     */
+    __initiateError__?: string;
+
+    /**
+     * When set, the verify-code request fails with this body text so the
+     * UI can map it to a user-facing alert.
+     */
+    __completeError__?: string;
+  };
+
+  /**
+   * Defines the overrides for the UI configuration endpoint.
+   */
+  __uiconfig__?: {
+    /**
+     * Product type ids to omit from the catalog.
+     */
+    __disabledIntegrations__?: string[];
+  };
+
+  /**
+   * Defines the overrides for the user signup.
+   */
+  __signup__?: {
+    /**
+     * Forces an error when signing up the user.
+     */
+    __forceSignupError__?: boolean;
+
+    /**
+     * Defines the initial state for the user signup.
+     */
+    __initialState__?: number;
+
+    /**
+     * Defines the state machine used by MSW to return different requests.
+     */
+    __stateMachine__?: StateMachine<number>;
+  };
+
+  /**
+   * Defines the overrides for the "reset workspaces" feature.
+   */
+  __workspaces__?: {
+    /**
+     * Forces an error when the user attempts to reset their workspaces.
+     */
+    __forceError__?: boolean;
+  };
+}
+
+/**
+ * Define the structure for the global variables that need to be accessed.
  */
 declare global {
   interface Window {
+    /** Defines the raw application's configuration. */
     __config__?: AppConfigRaw;
+
+    /**
+     * Defines a set of functions that can be used to override certain
+     * behaviors from the mocked MSW back end in order to be able to test the
+     * different scenarios with Playwright.
+     */
+    __playwrightOverrides__?: PlaywrightOverrides;
   }
 }
 

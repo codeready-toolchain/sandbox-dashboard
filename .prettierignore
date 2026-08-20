@@ -1,4 +1,14 @@
 dist
 node_modules
+public/config.js
 public/mockServiceWorker.js
 tmp
+coverage
+package-lock.json
+
+e2e/node_modules
+e2e/test-results
+e2e/playwright-report
+e2e/blob-report
+e2e/playwright/.cache
+e2e/playwright/.auth

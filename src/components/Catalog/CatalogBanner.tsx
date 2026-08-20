@@ -17,7 +17,8 @@ import OutlinedQuestionCircleIcon from "@patternfly/react-icons/dist/esm/icons/o
 
 import SalesImage from "../../assets/images/banner/sales.svg";
 import BannerImage from "../../assets/images/banner/sandbox-banner-image.svg";
-import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
+import { useUserContext } from "../../hooks/UserContext";
+import { UserSignupPhase } from "../../hooks/userSignupPhase";
 import { calculateDaysBetweenDates } from "../../utils/common";
 
 export function CatalogBanner() {

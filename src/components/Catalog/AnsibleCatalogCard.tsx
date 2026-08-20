@@ -7,7 +7,8 @@ import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
 import { useNotifications } from "../../hooks/NotificationContext";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
-import { UserSignupPhase, useUserContext } from "../../hooks/UserContext";
+import { useUserContext } from "../../hooks/UserContext";
+import { UserSignupPhase } from "../../hooks/userSignupPhase";
 import type { Product } from "../../types/product";
 import type { AAPInstanceStatus } from "../../utils/aap-utils";
 import logger from "../../utils/logger";
@@ -193,15 +194,16 @@ export function AnsibleCatalogCard({
         } catch (error) {
           if (error instanceof UserFacingError) {
             setProvisioningError(error);
+            addAlertFromError(error);
           } else {
-            setProvisioningError(
-              new UserFacingError(
-                "Unable to reprovision your instance",
-                `We were unable to reprovision your instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
-                error,
-                `${error}`,
-              ),
+            const fallbackError = new UserFacingError(
+              "Unable to reprovision your instance",
+              `We were unable to reprovision your instance. Please try again later, and if the issue persists, please contact ${SUPPORT_EMAIL}`,
+              error,
+              `${error}`,
             );
+            setProvisioningError(fallbackError);
+            addAlertFromError(fallbackError);
           }
         } finally {
           unidleInFlight.current = false;
@@ -242,6 +244,7 @@ export function AnsibleCatalogCard({
     }
     return;
   }, [
+    addAlertFromError,
     instanceStatus.kind,
     markProductAsTried,
     openPhoneVerificationModal,

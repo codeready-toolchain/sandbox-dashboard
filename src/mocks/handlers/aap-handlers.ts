@@ -2,10 +2,12 @@ import { http, HttpResponse, type RequestHandler } from "msw";
 
 import {
   aapEmptyFixture,
+  aapFailedFixture,
   aapIdledFixture,
   aapProvisioningFixture,
   aapReadyFixture,
 } from "../fixtures/aap-fixtures";
+import { AAPMockPhase } from "./aap-mock-phase";
 import { StateMachine } from "./state-machine";
 
 /**
@@ -19,19 +21,28 @@ interface AAPPatchBody {
 }
 
 /**
- * Defines the different states the mocked AAP instance can be in.
+ * Define an initial state of the state machine taking into account the
+ * Playwright overrides, if any.
  */
-export enum AAPMockPhase {
-  NOT_CREATED,
-  PROVISIONING,
-  READY,
-  IDLED,
-  DELETING,
-}
+const initialState: AAPMockPhase =
+  (typeof window !== "undefined"
+    ? window.__playwrightOverrides__?.__aap__?.__initialState__
+    : undefined) ?? AAPMockPhase.NOT_CREATED;
+
 /**
  * Create the state machine for our requests.
  */
-const aapState = new StateMachine<AAPMockPhase>(AAPMockPhase.NOT_CREATED);
+const aapState = new StateMachine<AAPMockPhase>(initialState);
+
+/**
+ * Expose the state machine so that the Playwright tests can override it at
+ * will to test the different scenarios.
+ */
+if (typeof window !== "undefined") {
+  window.__playwrightOverrides__ ??= {};
+  window.__playwrightOverrides__.__aap__ ??= {};
+  window.__playwrightOverrides__.__aap__.__stateMachine__ = aapState;
+}
 
 export const aapMockHandlers: RequestHandler[] = [
   http.get(
@@ -47,6 +58,8 @@ export const aapMockHandlers: RequestHandler[] = [
           return HttpResponse.json(aapIdledFixture);
         case AAPMockPhase.READY:
           return HttpResponse.json(aapReadyFixture);
+        case AAPMockPhase.FAILED:
+          return HttpResponse.json(aapFailedFixture);
       }
     },
   ),
@@ -73,6 +86,13 @@ export const aapMockHandlers: RequestHandler[] = [
       if (body?.spec?.idle_aap) {
         aapState.setPhase(AAPMockPhase.IDLED);
       } else {
+        if (
+          typeof window !== "undefined" &&
+          window.__playwrightOverrides__?.__aap__?.__forceUnidleError__
+        ) {
+          return new HttpResponse(null, { status: 500 });
+        }
+
         aapState.setPhase(AAPMockPhase.PROVISIONING);
         aapState.scheduleTransition(AAPMockPhase.READY);
       }

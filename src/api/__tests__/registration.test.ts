@@ -68,6 +68,15 @@ describe("getSignupData", () => {
     expect(error.statusCode).toBe(500);
     expect(error.body).toContain("internal failure");
   });
+
+  it("propagates abort when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(getSignupData(controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
 });
 
 describe("getRecaptchaToken", () => {

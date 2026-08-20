@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
@@ -14,7 +14,8 @@ import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContex
 import type { UIConfigurationContextType } from "../../../hooks/UIConfigurationContext";
 import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
+import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { ProductType } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
@@ -103,24 +104,20 @@ function renderGrid(
   return { ansibleCtx, openClawCtx };
 }
 
-function getOpenShiftCardWithButton(): {
-  card: HTMLElement;
-  tryItButton: HTMLButtonElement;
-} {
-  const card = screen
-    .getAllByTestId("catalog-card")
-    .find(
-      (c) =>
-        c.textContent?.includes("OpenShift") &&
-        !c.textContent?.includes("OpenShift AI") &&
-        !c.textContent?.includes("OpenShift Virtualization"),
-    );
+function getOpenShiftCard(): HTMLElement {
+  const cards = screen.getAllByRole("article");
+  const card = cards.find(
+    (c) =>
+      c.textContent?.includes("OpenShift") &&
+      !c.textContent?.includes("OpenShift AI") &&
+      !c.textContent?.includes("OpenShift Virtualization"),
+  );
   expect(card).toBeDefined();
+  return card!;
+}
 
-  const tryItButton = card!.querySelector("[data-testid='try-it-button']");
-  expect(tryItButton).not.toBeNull();
-
-  return { card: card!, tryItButton: tryItButton as HTMLButtonElement };
+function getOpenShiftTryItButton(): HTMLElement {
+  return within(getOpenShiftCard()).getByRole("button", { name: "Try it" });
 }
 
 describe("CatalogGrid", () => {
@@ -130,13 +127,15 @@ describe("CatalogGrid", () => {
 
   it("renders nothing while disabledIntegrations is undefined", () => {
     renderGrid(makeContext(), {}, {}, { disabledIntegrations: undefined });
-    expect(screen.queryAllByTestId("catalog-card")).toHaveLength(0);
-    expect(screen.queryByTestId("sandbox-catalog-grid")).toBeNull();
+    expect(screen.queryAllByRole("article")).toHaveLength(0);
+    expect(
+      screen.queryByRole("region", { name: "Product catalog" }),
+    ).toBeNull();
   });
 
   it("renders all product cards when no integrations are disabled", () => {
     renderGrid(makeContext());
-    const cards = screen.getAllByTestId("catalog-card");
+    const cards = screen.getAllByRole("article");
     expect(cards).toHaveLength(products.length);
   });
 
@@ -149,7 +148,7 @@ describe("CatalogGrid", () => {
         disabledIntegrations: [products[0].type],
       },
     );
-    const cards = screen.getAllByTestId("catalog-card");
+    const cards = screen.getAllByRole("article");
     expect(cards).toHaveLength(products.length - 1);
   });
 
@@ -160,13 +159,15 @@ describe("CatalogGrid", () => {
       { status: OpenClawStatus.READY },
     );
 
-    const { card: openshiftCard, tryItButton: mainButton } =
-      getOpenShiftCardWithButton();
+    const openshiftCard = getOpenShiftCard();
+    const mainButton = within(openshiftCard).getByRole("button", {
+      name: "Try it",
+    });
     expect(mainButton.textContent).toContain("Try it");
 
     expect(
-      openshiftCard.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
+      within(openshiftCard).queryByRole("button", { name: "Delete instance" }),
+    ).not.toBeInTheDocument();
 
     expect(openshiftCard.textContent).not.toContain("Ready");
     expect(openshiftCard.textContent).not.toContain("Provisioning");
@@ -179,9 +180,7 @@ describe("CatalogGrid", () => {
 
     renderGrid(makeContext());
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(windowOpenSpy).toHaveBeenCalled();
     windowOpenSpy.mockRestore();
@@ -198,9 +197,7 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(signupUser).toHaveBeenCalledTimes(1);
   });
@@ -218,9 +215,7 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(signupUser).not.toHaveBeenCalled();
@@ -238,9 +233,7 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     windowOpenSpy.mockRestore();
@@ -257,9 +250,7 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     windowOpenSpy.mockRestore();
@@ -272,8 +263,11 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-    expect(tryItButton).toBeDisabled();
+    const openshiftCard = getOpenShiftCard();
+    const button = within(openshiftCard).getByRole("button", {
+      name: /Try it/,
+    });
+    expect(button).toBeDisabled();
   });
 
   it("renders AAP card with the correct product type", () => {
@@ -282,11 +276,11 @@ describe("CatalogGrid", () => {
     const aapCard = products.find((p) => p.type === ProductType.AAP);
     expect(aapCard).toBeDefined();
 
-    const cards = screen.getAllByTestId("catalog-card");
-    const aapCardEl = cards.find((c) =>
-      c.textContent?.includes(aapCard!.title),
-    );
-    expect(aapCardEl).toBeDefined();
+    expect(
+      screen.getByRole("article", {
+        name: `${aapCard!.title} product card`,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("renders OpenClaw card with the correct product type", () => {
@@ -295,11 +289,11 @@ describe("CatalogGrid", () => {
     const openClawCard = products.find((p) => p.type === ProductType.OPENCLAW);
     expect(openClawCard).toBeDefined();
 
-    const cards = screen.getAllByTestId("catalog-card");
-    const openClawCardEl = cards.find((c) =>
-      c.textContent?.includes(openClawCard!.title),
-    );
-    expect(openClawCardEl).toBeDefined();
+    expect(
+      screen.getByRole("article", {
+        name: `${openClawCard!.title} product card`,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("opens phone verification modal for simple cards when signup phase is PENDING_PHONE_VERIFICATION", async () => {
@@ -309,8 +303,7 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(mockOpenPhoneVerificationModal).toHaveBeenCalledTimes(1);
   });
@@ -326,8 +319,7 @@ describe("CatalogGrid", () => {
       }),
     );
 
-    const { tryItButton } = getOpenShiftCardWithButton();
-    await userEvent.click(tryItButton);
+    await userEvent.click(getOpenShiftTryItButton());
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     windowOpenSpy.mockRestore();

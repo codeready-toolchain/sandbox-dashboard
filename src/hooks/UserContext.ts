@@ -1,25 +1,11 @@
 import { createContext, useContext } from "react";
 
 import { type User } from "../types";
-
-/**
- * Defines the phases in which the "user signup" currently is.
- */
-export enum UserSignupPhase {
-  INITIAL_FETCH,
-  NOT_STARTED,
-  BLOCKED,
-  SIGNING_UP,
-  PENDING_PHONE_VERIFICATION,
-  PENDING_MANUAL_APPROVAL,
-  PROVISIONING,
-  PROVISIONING_TIMED_OUT,
-  READY,
-}
+import type { UserSignupPhase } from "./userSignupPhase";
 
 export interface UserContextType {
   /** Triggers a refetch of the "userSignup". */
-  refetchUserData: () => Promise<void>;
+  refetchUserData: (signal?: AbortSignal) => Promise<void>;
   /** Signs up the user in the Developer Sandbox. */
   signupUser: () => void;
   /** The user object representing the logged in and signed up user. */

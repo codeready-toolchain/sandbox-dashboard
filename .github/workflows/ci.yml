@@ -53,3 +53,41 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test
+
+  e2e-test:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          cache: npm
+          cache-dependency-path: |
+            e2e/package-lock.json
+            package-lock.json
+          node-version: "24"
+      - name: Install the app's configuration
+        run: cp public/config.js.example public/config.js
+        working-directory: .
+      - name: Install app dependencies
+        run: npm ci
+        working-directory: .
+      - name: Install Playwright dependencies
+        run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - name: Run Playwright tests
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 30

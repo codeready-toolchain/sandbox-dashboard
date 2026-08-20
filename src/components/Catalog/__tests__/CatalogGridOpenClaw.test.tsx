@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
@@ -12,7 +12,8 @@ import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import { UIConfigurationContext } from "../../../hooks/UIConfigurationContext";
 import type { UserContextType } from "../../../hooks/UserContext";
-import { UserContext, UserSignupPhase } from "../../../hooks/UserContext";
+import { UserContext } from "../../../hooks/UserContext";
+import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { CatalogGrid } from "../CatalogGrid";
@@ -78,22 +79,15 @@ function renderGrid(openClawOverrides: Partial<OpenClawContextType> = {}) {
 }
 
 function getOpenClawCard(): HTMLElement {
-  const card = screen
-    .getAllByTestId("catalog-card")
-    .find((c) => c.textContent?.includes("OpenClaw"));
-  expect(card).toBeDefined();
-  return card!;
+  return screen.getByRole("article", { name: "OpenClaw product card" });
 }
 
 describe("CatalogGrid – OpenClaw card rendering", () => {
   it("shows 'Loading' button and disables it when OpenClaw status is INITIAL_FETCH", () => {
     renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
 
-    const openclawCard = getOpenClawCard();
-
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const card = getOpenClawCard();
+    const mainButton = within(card).getByRole("button", { name: /Loading/ });
     expect(mainButton.textContent).toContain("Loading");
     expect(mainButton).toBeDisabled();
   });
@@ -101,45 +95,38 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   it("renders 'Loading' status label on OpenClaw card when status is INITIAL_FETCH", () => {
     renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
 
-    const openclawCard = getOpenClawCard();
-    const statusLabel = openclawCard.querySelector(
-      "[data-testid='status-label']",
-    );
-    expect(statusLabel).not.toBeNull();
-    expect(statusLabel!.textContent).toContain("Loading");
+    const card = getOpenClawCard();
+    expect(card.textContent).toContain("Loading");
   });
 
   it("does not show delete button when OpenClaw status is INITIAL_FETCH", () => {
     renderGrid({ status: OpenClawStatus.INITIAL_FETCH });
 
-    const openclawCard = getOpenClawCard();
+    const card = getOpenClawCard();
     expect(
-      openclawCard.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
+      within(card).queryByRole("button", { name: "Delete instance" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not show delete button when OpenClaw status is UNKNOWN", () => {
     renderGrid({ status: OpenClawStatus.UNKNOWN });
 
-    const openclawCard = getOpenClawCard();
+    const card = getOpenClawCard();
     expect(
-      openclawCard.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
+      within(card).queryByRole("button", { name: "Delete instance" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides delete button and shows 'Deleting...' on main button when OpenClaw status is DELETING", () => {
     renderGrid({ status: OpenClawStatus.DELETING });
 
-    const openclawCard = getOpenClawCard();
+    const card = getOpenClawCard();
 
     expect(
-      openclawCard.querySelector("[data-testid='delete-instance-button']"),
-    ).toBeNull();
+      within(card).queryByRole("button", { name: "Delete instance" }),
+    ).not.toBeInTheDocument();
 
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
-    expect(mainButton).toBeDefined();
+    const mainButton = within(card).getByRole("button", { name: /Deleting/ });
     expect(mainButton.textContent).toContain("Deleting...");
     expect(mainButton).toBeDisabled();
   });
@@ -147,70 +134,64 @@ describe("CatalogGrid – OpenClaw card rendering", () => {
   it("shows 'Provisioning...' on main button when OpenClaw status is PROVISIONING", () => {
     renderGrid({ status: OpenClawStatus.PROVISIONING });
 
-    const openclawCard = getOpenClawCard();
-
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const card = getOpenClawCard();
+    const mainButton = within(card).getByRole("button", {
+      name: /Provisioning/,
+    });
     expect(mainButton.textContent).toContain("Provisioning...");
   });
 
   it("renders 'Ready' status label on OpenClaw card when status is READY", () => {
     renderGrid({ status: OpenClawStatus.READY });
 
-    const openclawCard = getOpenClawCard();
-    expect(openclawCard.textContent).toContain("Ready");
+    const card = getOpenClawCard();
+    expect(card.textContent).toContain("Ready");
 
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const mainButton = within(card).getByRole("button", { name: "Launch" });
     expect(mainButton.textContent).toContain("Launch");
   });
 
   it("renders 'Idled' status label on OpenClaw card when status is IDLED", () => {
     renderGrid({ status: OpenClawStatus.IDLED });
 
-    const openclawCard = getOpenClawCard();
-    expect(openclawCard.textContent).toContain("Idled");
+    const card = getOpenClawCard();
+    expect(card.textContent).toContain("Idled");
 
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const mainButton = within(card).getByRole("button", {
+      name: "Re-provision",
+    });
     expect(mainButton.textContent).toContain("Re-provision");
   });
 
   it("renders 'Failed' status label and 'Provision' button on OpenClaw card when status is FAILED", () => {
     renderGrid({ status: OpenClawStatus.FAILED });
 
-    const openclawCard = getOpenClawCard();
-    expect(openclawCard.textContent).toContain("Failed");
+    const card = getOpenClawCard();
+    expect(card.textContent).toContain("Failed");
 
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const mainButton = within(card).getByRole("button", { name: "Provision" });
     expect(mainButton.textContent).toContain("Provision");
     expect(mainButton.textContent).not.toContain("Provisioning");
 
     expect(
-      openclawCard.querySelector("[data-testid='delete-instance-button']"),
-    ).not.toBeNull();
+      within(card).getByRole("button", { name: "Delete instance" }),
+    ).toBeInTheDocument();
   });
 
   it("renders 'Deleting' status label on OpenClaw card when status is DELETING", () => {
     renderGrid({ status: OpenClawStatus.DELETING });
 
-    const openclawCard = getOpenClawCard();
-    expect(openclawCard.textContent).toContain("Deleting");
+    const card = getOpenClawCard();
+    expect(card.textContent).toContain("Deleting");
   });
 
   it("does not disable the main button when OpenClaw status is PROVISIONING", () => {
     renderGrid({ status: OpenClawStatus.PROVISIONING });
 
-    const openclawCard = getOpenClawCard();
-
-    const mainButton = openclawCard.querySelector(
-      "[data-testid='try-it-button']",
-    ) as HTMLButtonElement;
+    const card = getOpenClawCard();
+    const mainButton = within(card).getByRole("button", {
+      name: /Provisioning/,
+    });
     expect(mainButton).not.toBeDisabled();
   });
 });

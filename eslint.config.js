@@ -5,7 +5,21 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "tmp", "public/mockServiceWorker.js"] },
+  {
+    ignores: [
+      "dist",
+      "tmp",
+      "coverage",
+      "public/mockServiceWorker.js",
+      "e2e/node_modules",
+      "e2e/test-results",
+      "e2e/playwright-report",
+      "e2e/blob-report",
+      "e2e/playwright/.cache",
+      "e2e/playwright/.auth",
+    ],
+  },
+
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

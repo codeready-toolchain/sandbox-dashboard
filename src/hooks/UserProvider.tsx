@@ -19,10 +19,11 @@ import {
   mapFetchUserErrorToErrorMessage,
   mapUserStatusToSignupPhase,
 } from "../utils/register-utils";
-import { isTransient, withRetry } from "../utils/retry";
+import { isAbortError, isTransient, withRetry } from "../utils/retry";
 import { useNotifications } from "./NotificationContext";
-import { UserContext, UserSignupPhase } from "./UserContext";
+import { UserContext } from "./UserContext";
 import { useRecaptcha } from "./useRecaptcha";
+import { UserSignupPhase } from "./userSignupPhase";
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const config = getConfig();
@@ -87,20 +88,32 @@ export function UserProvider({ children }: { children: ReactNode }) {
   /**
    * Fetches the user's signup data, critical for the application to work.
    */
-  const fetchUser = useCallback(async (): Promise<void> => {
-    const result: User | undefined = await getSignupData();
+  const fetchUser = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      const result: User | undefined = await getSignupData(signal);
 
-    // Make sure that the user has changed before changing the state and
-    // scheduling a rerender.
-    if (JSON.stringify(userRef.current) !== JSON.stringify(result)) {
-      userRef.current = result;
-      setUser(result);
-    }
+      // Make sure that the user has changed before changing the state and
+      // scheduling a rerender.
+      if (JSON.stringify(userRef.current) !== JSON.stringify(result)) {
+        if (signal?.aborted) {
+          return;
+        }
+        userRef.current = result;
+        if (signal?.aborted) {
+          return;
+        }
+        setUser(result);
+      }
 
-    updateSignupPhase(
-      mapUserStatusToSignupPhase(userSignupPhaseRef.current, result),
-    );
-  }, [updateSignupPhase]);
+      if (signal?.aborted) {
+        return;
+      }
+      updateSignupPhase(
+        mapUserStatusToSignupPhase(userSignupPhaseRef.current, result),
+      );
+    },
+    [updateSignupPhase],
+  );
 
   /**
    * Creates a user signup in the back end.
@@ -175,12 +188,31 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Initial user fetch when the provider is mounted.
   useEffect(() => {
-    withRetry(() => fetchUser(), 3, 3_000).catch((error) => {
+    // Use a guard to avoid acting on stale requests.
+    let cancelled = false;
+    const controller = new AbortController();
+
+    withRetry(
+      () => fetchUser(controller.signal),
+      3,
+      3_000,
+      isTransient,
+      controller.signal,
+    ).catch((error) => {
+      if (cancelled) {
+        return;
+      }
+
       logger.error("Unable to obtain the user's signup information", error);
 
       updateSignupPhase(UserSignupPhase.BLOCKED);
       addAlertFromError(mapFetchUserErrorToErrorMessage(error));
     });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [addAlertFromError, fetchUser, updateSignupPhase]);
 
   // Determine if we should be polling to fetch the latest user data.
@@ -201,6 +233,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Determine the polling interval for the user data.
   const pollInterval = useMemo<number>(() => {
+    // On development environments keep the interval short to ease
+    // development.
+    if (
+      getConfig().environment === Environment.DEVELOPMENT ||
+      getConfig().environment === Environment.DEVELOPMENT_KEYCLOAK
+    ) {
+      return SHORT_INTERVAL;
+    }
+
     switch (userSignupPhase) {
       case UserSignupPhase.NOT_STARTED:
       case UserSignupPhase.PENDING_MANUAL_APPROVAL:
@@ -223,6 +264,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     const poll = async () => {
       // Capture the phase of the user signup before polling for the fresh
       // user data again.
@@ -232,9 +274,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       // Refresh the user's signup.
       try {
-        await fetchUser();
+        await fetchUser(controller.signal);
+        if (cancelled) {
+          return;
+        }
         pollTransientRetriesLeft.current = maxTransientErrorRetries;
       } catch (error) {
+        if (cancelled || isAbortError(error)) {
+          return;
+        }
+
         let technicalDetails: string | undefined;
         if (error instanceof ApiError) {
           if (isTransient(error) && pollTransientRetriesLeft.current > 0) {
@@ -279,6 +328,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
             `We were unable to set up your Developer Sandbox account. Please contact support at ${SUPPORT_EMAIL}`,
           );
 
+          if (cancelled) {
+            return;
+          }
           updateSignupPhase(UserSignupPhase.PROVISIONING_TIMED_OUT);
           return;
         }
@@ -300,7 +352,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             break;
           case UserSignupPhase.READY:
             addAlert(
-              AlertVariant.info,
+              AlertVariant.success,
               "Everything is set!",
               `Your user has been signed up, and you are ready to try our Red Hat products.`,
             );
@@ -316,6 +368,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     let timerId = setTimeout(poll, pollInterval);
     return () => {
       cancelled = true;
+      controller.abort();
       clearTimeout(timerId);
     };
   }, [

@@ -2,16 +2,19 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import * as registrationApi from "../../api/registration";
+import {
+  getPhoneNumberInput,
+  getPhoneVerificationDialog,
+  getVerificationCodeInput,
+  queryPhoneVerificationDialog,
+} from "../../components/Modals/__tests__/phoneVerificationTestHelpers";
 import { readyUserFixture } from "../../mocks/fixtures";
 import { AnalyticsContext } from "../AnalyticsContext";
 import { NotificationProvider } from "../NotificationProvider";
 import { usePhoneVerificationContext } from "../PhoneVerificationContext";
 import { PhoneVerificationProvider } from "../PhoneVerificationProvider";
-import {
-  UserContext,
-  type UserContextType,
-  UserSignupPhase,
-} from "../UserContext";
+import { UserContext, type UserContextType } from "../UserContext";
+import { UserSignupPhase } from "../userSignupPhase";
 
 vi.mock("../../api/registration", () => ({
   initiatePhoneVerification: vi.fn(),
@@ -65,9 +68,7 @@ describe("PhoneVerificationProvider", () => {
 
   it("does not show the phone verification modal by default", () => {
     renderProvider();
-    expect(
-      screen.queryByTestId("phone-verification-modal"),
-    ).not.toBeInTheDocument();
+    expect(queryPhoneVerificationDialog()).not.toBeInTheDocument();
   });
 
   it("opens the phone verification modal via context function", async () => {
@@ -75,21 +76,19 @@ describe("PhoneVerificationProvider", () => {
 
     await userEvent.click(screen.getByTestId("open-modal"));
 
-    expect(screen.getByTestId("phone-verification-modal")).toBeInTheDocument();
+    expect(getPhoneVerificationDialog()).toBeInTheDocument();
   });
 
   it("closes the modal when onClose is triggered", async () => {
     renderProvider();
 
     await userEvent.click(screen.getByTestId("open-modal"));
-    expect(screen.getByTestId("phone-verification-modal")).toBeInTheDocument();
+    expect(getPhoneVerificationDialog()).toBeInTheDocument();
 
-    await userEvent.click(screen.getByText("Cancel"));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     await waitFor(() => {
-      expect(
-        screen.queryByTestId("phone-verification-modal"),
-      ).not.toBeInTheDocument();
+      expect(queryPhoneVerificationDialog()).not.toBeInTheDocument();
     });
   });
 
@@ -104,24 +103,22 @@ describe("PhoneVerificationProvider", () => {
 
     await user.click(screen.getByTestId("open-modal"));
 
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
-    await user.click(screen.getByText("Send code"));
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("verification-code-input")).toBeInTheDocument();
+      expect(getVerificationCodeInput()).toBeInTheDocument();
     });
 
-    await user.type(screen.getByTestId("verification-code-input"), "123456");
-    await user.click(screen.getByText("Verify"));
+    await user.type(getVerificationCodeInput(), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify" }));
 
     await waitFor(() => {
       expect(refetchUserData).toHaveBeenCalled();
     });
 
     await waitFor(() => {
-      expect(
-        screen.queryByTestId("phone-verification-modal"),
-      ).not.toBeInTheDocument();
+      expect(queryPhoneVerificationDialog()).not.toBeInTheDocument();
     });
   });
 
@@ -138,15 +135,15 @@ describe("PhoneVerificationProvider", () => {
 
     await user.click(screen.getByTestId("open-modal"));
 
-    await user.type(screen.getByTestId("phone-number-input"), "5551234567");
-    await user.click(screen.getByText("Send code"));
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("verification-code-input")).toBeInTheDocument();
+      expect(getVerificationCodeInput()).toBeInTheDocument();
     });
 
-    await user.type(screen.getByTestId("verification-code-input"), "123456");
-    await user.click(screen.getByText("Verify"));
+    await user.type(getVerificationCodeInput(), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify" }));
 
     await waitFor(() => {
       expect(refetchUserData).toHaveBeenCalled();

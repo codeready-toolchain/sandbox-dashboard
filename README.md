@@ -15,7 +15,9 @@ Standalone React SPA for the [Red Hat Developer Sandbox](https://developers.redh
 make dev            # start dev server with MSW mocks
 make start-keycloak # start a local Keycloak instance
 make lint           # run linter
-make test           # run unit tests
+make test-unit      # run unit tests
+make test-e2e       # run Playwright e2e tests
+make test-all       # run both the unit tests and the end to end tests
 make build          # production build
 make image          # build container image with Podman
 ```
@@ -66,6 +68,43 @@ SSO configuration details, and configure your UI's settings so that they point
 to the stage's SSO instance. There is only one request that gets proxied
 through your Vite instance, which is the `/token` call. Without that proxied
 request the UI is not able to fetch an SSO token due to CORS restrictions.
+
+## Testing
+
+### Unit tests
+
+```sh
+make test-unit
+npm run test:watch
+```
+
+### End-to-end tests
+
+We use Playwright for the end-to-end tests, and it needs some preparation
+the first time you run them.
+
+```sh
+make install-e2e
+```
+
+Then:
+
+```sh
+make test-e2e      # headless
+make test-e2e-ui   # Playwright UI
+```
+
+Run a single spec file:
+
+```sh
+npm --prefix e2e test -- tests/signup.spec.ts
+```
+
+### Run both
+
+```sh
+make test-all
+```
 
 ## Design
 

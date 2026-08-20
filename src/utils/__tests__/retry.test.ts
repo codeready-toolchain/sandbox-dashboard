@@ -1,5 +1,5 @@
 import { ApiError } from "../../error/ApiError";
-import { withRetry } from "../retry";
+import { isTransient, withRetry } from "../retry";
 
 describe("withRetry", () => {
   it("returns the result on first success", async () => {
@@ -93,5 +93,38 @@ describe("withRetry", () => {
 
     await expect(withRetry(fn, 5, 0, () => false)).rejects.toThrow("custom");
     expect(calls).toBe(1);
+  });
+
+  it("does not invoke the function when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fn = vi.fn(() => Promise.resolve("ok"));
+
+    await expect(
+      withRetry(fn, 3, 0, isTransient, controller.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("stops retrying when the abort signal is aborted during the delay", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    let calls = 0;
+    const fn = () => {
+      calls++;
+      return Promise.reject(new Error("transient"));
+    };
+
+    const promise = withRetry(fn, 3, 3_000, isTransient, controller.signal);
+    await Promise.resolve();
+    expect(calls).toBe(1);
+
+    controller.abort();
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    expect(calls).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toBe(1);
+    vi.useRealTimers();
   });
 });
