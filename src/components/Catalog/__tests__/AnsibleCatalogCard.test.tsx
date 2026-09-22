@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { UserFacingError } from "../../../error/UserFacingError";
@@ -9,6 +9,9 @@ import {
 } from "../../../hooks/AnsibleContext";
 import { NotificationProvider } from "../../../hooks/NotificationProvider";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
+import { mockUserActivation } from "../../../hooks/signupAction/__tests__/userActivationTestHelpers";
+import { SignupActionProvider } from "../../../hooks/signupAction/SignupActionProvider";
+import { SIGNUP_WATCHER_INTERVAL_MS } from "../../../hooks/signupAction/signupActionUtils";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
@@ -49,6 +52,35 @@ function makeAnsibleContext(
   };
 }
 
+function renderCardTree(
+  sandboxCtx: UserContextType,
+  ansibleCtx: AnsibleContextType,
+  markProductAsTried: (product: Product) => void,
+  openPhoneVerificationModal: () => void,
+) {
+  return (
+    <NotificationProvider>
+      <UserContext.Provider value={sandboxCtx}>
+        <SignupActionProvider>
+          <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+            <AnsibleContext.Provider value={ansibleCtx}>
+              <PhoneVerificationContext.Provider
+                value={{ openPhoneVerificationModal }}
+              >
+                <AnsibleCatalogCard
+                  product={aapProduct}
+                  isGreenCornerVisible={false}
+                  markProductAsTried={markProductAsTried}
+                />
+              </PhoneVerificationContext.Provider>
+            </AnsibleContext.Provider>
+          </AnalyticsContext.Provider>
+        </SignupActionProvider>
+      </UserContext.Provider>
+    </NotificationProvider>
+  );
+}
+
 function renderCard(
   sandboxOverrides: Partial<UserContextType> = {},
   ansibleOverrides: Partial<AnsibleContextType> = {},
@@ -59,24 +91,13 @@ function renderCard(
   const defaultMarkTried = markProductAsTried ?? vi.fn();
   const openPhoneVerificationModal = vi.fn();
 
-  render(
-    <NotificationProvider>
-      <UserContext.Provider value={sandboxCtx}>
-        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
-          <AnsibleContext.Provider value={ansibleCtx}>
-            <PhoneVerificationContext.Provider
-              value={{ openPhoneVerificationModal }}
-            >
-              <AnsibleCatalogCard
-                product={aapProduct}
-                isGreenCornerVisible={false}
-                markProductAsTried={defaultMarkTried}
-              />
-            </PhoneVerificationContext.Provider>
-          </AnsibleContext.Provider>
-        </AnalyticsContext.Provider>
-      </UserContext.Provider>
-    </NotificationProvider>,
+  const view = render(
+    renderCardTree(
+      sandboxCtx,
+      ansibleCtx,
+      defaultMarkTried,
+      openPhoneVerificationModal,
+    ),
   );
 
   return {
@@ -84,6 +105,19 @@ function renderCard(
     ansibleCtx,
     markProductAsTried: defaultMarkTried,
     openPhoneVerificationModal,
+    rerenderCard: (
+      nextSandbox: Partial<UserContextType> = {},
+      nextAnsible: Partial<AnsibleContextType> = {},
+    ) => {
+      view.rerender(
+        renderCardTree(
+          makeSandboxContext({ ...sandboxOverrides, ...nextSandbox }),
+          makeAnsibleContext({ ...ansibleOverrides, ...nextAnsible }),
+          defaultMarkTried,
+          openPhoneVerificationModal,
+        ),
+      );
+    },
   };
 }
 
@@ -105,6 +139,11 @@ function getPrimaryButton(name: RegExp | string) {
 }
 
 describe("AnsibleCatalogCard", () => {
+  afterEach(() => {
+    mockUserActivation(undefined);
+    vi.useRealTimers();
+  });
+
   it("calls provisionInstance and opens info modal on primary button click when user is ready", async () => {
     const provisionInstance = vi.fn().mockResolvedValue(undefined);
     const markProductAsTried = vi.fn();
@@ -124,7 +163,7 @@ describe("AnsibleCatalogCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("calls signupUser when signup phase is NOT_STARTED instead of provisioning", async () => {
+  it("calls signupUser and shows a continuation modal when signup phase is NOT_STARTED", async () => {
     const provisionInstance = vi.fn();
     const signupUser = vi.fn();
 
@@ -141,6 +180,84 @@ describe("AnsibleCatalogCard", () => {
 
     expect(signupUser).toHaveBeenCalled();
     expect(provisionInstance).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "User signup is in progress" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Ansible Automation Platform" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("provisions from the continuation modal after signup becomes READY", async () => {
+    const provisionInstance = vi.fn().mockResolvedValue(undefined);
+    const signupUser = vi.fn();
+    const markProductAsTried = vi.fn();
+
+    const { rerenderCard } = renderCard(
+      {
+        userSignupPhase: UserSignupPhase.NOT_STARTED,
+        user: undefined,
+        signupUser,
+      },
+      { provisionInstance, instanceStatus: { kind: "userNotReady" } },
+      markProductAsTried,
+    );
+
+    await userEvent.click(getPrimaryButton("Provision"));
+    expect(
+      screen.getByRole("dialog", { name: "User signup is in progress" }),
+    ).toBeInTheDocument();
+    expect(provisionInstance).not.toHaveBeenCalled();
+
+    rerenderCard(
+      { userSignupPhase: UserSignupPhase.READY, signupUser },
+      { provisionInstance, instanceStatus: { kind: "new" } },
+    );
+
+    await userEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "User signup is in progress" }),
+      ).getByRole("button", { name: "Provision" }),
+    );
+
+    expect(provisionInstance).toHaveBeenCalled();
+    expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
+    expect(
+      screen.getByRole("dialog", { name: "Ansible Automation Platform" }),
+    ).toBeInTheDocument();
+  });
+
+  it("provisions on the fast path when activation is still active at READY", () => {
+    mockUserActivation(true);
+    vi.useFakeTimers();
+    const provisionInstance = vi.fn().mockResolvedValue(undefined);
+    const signupUser = vi.fn();
+
+    const { rerenderCard } = renderCard(
+      {
+        userSignupPhase: UserSignupPhase.NOT_STARTED,
+        user: undefined,
+        signupUser,
+      },
+      { provisionInstance, instanceStatus: { kind: "userNotReady" } },
+    );
+
+    fireEvent.click(getPrimaryButton("Provision"));
+    expect(provisionInstance).not.toHaveBeenCalled();
+
+    rerenderCard(
+      { userSignupPhase: UserSignupPhase.READY, signupUser },
+      { provisionInstance, instanceStatus: { kind: "new" } },
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(SIGNUP_WATCHER_INTERVAL_MS);
+    });
+
+    expect(provisionInstance).toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", { name: "User signup is in progress" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens phone verification modal when signup phase is PENDING_PHONE_VERIFICATION", async () => {
@@ -157,7 +274,39 @@ describe("AnsibleCatalogCard", () => {
     expect(provisionInstance).not.toHaveBeenCalled();
   });
 
-  it("does not call provisionInstance when signup phase is not READY", async () => {
+  it("closes the continuation modal when signup requires phone verification", async () => {
+    const provisionInstance = vi.fn();
+    const signupUser = vi.fn();
+    const { openPhoneVerificationModal, rerenderCard } = renderCard(
+      {
+        userSignupPhase: UserSignupPhase.NOT_STARTED,
+        user: undefined,
+        signupUser,
+      },
+      { provisionInstance, instanceStatus: { kind: "userNotReady" } },
+    );
+
+    await userEvent.click(getPrimaryButton("Provision"));
+    expect(
+      screen.getByRole("dialog", { name: "User signup is in progress" }),
+    ).toBeInTheDocument();
+
+    rerenderCard(
+      {
+        userSignupPhase: UserSignupPhase.PENDING_PHONE_VERIFICATION,
+        signupUser,
+      },
+      { provisionInstance, instanceStatus: { kind: "userNotReady" } },
+    );
+
+    expect(
+      screen.queryByRole("dialog", { name: "User signup is in progress" }),
+    ).not.toBeInTheDocument();
+    expect(openPhoneVerificationModal).not.toHaveBeenCalled();
+    expect(provisionInstance).not.toHaveBeenCalled();
+  });
+
+  it("shows the continuation modal without provisioning when signup phase is not READY", async () => {
     const provisionInstance = vi.fn();
     const markProductAsTried = vi.fn();
 
@@ -171,6 +320,9 @@ describe("AnsibleCatalogCard", () => {
 
     expect(provisionInstance).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "User signup is in progress" }),
+    ).toBeInTheDocument();
   });
 
   it("opens the delete confirmation modal when delete button is clicked", async () => {

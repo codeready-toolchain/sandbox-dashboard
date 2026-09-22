@@ -6,6 +6,8 @@ import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { AnsibleProvider } from "../../hooks/AnsibleProvider";
 import { OpenClawProvider } from "../../hooks/OpenClawProvider";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
+import { useSignupAction } from "../../hooks/signupAction/SignupActionContext";
+import { SignupActionProvider } from "../../hooks/signupAction/SignupActionProvider";
 import { useUIConfigurationContext } from "../../hooks/UIConfigurationContext";
 import useProductURLResolver from "../../hooks/useProductURLResolver";
 import { useUserContext } from "../../hooks/UserContext";
@@ -19,12 +21,35 @@ import { ButtonLabel } from "./catalogCardTypes";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
 import { products } from "./productData";
 
+/**
+ * Product catalog grid. It is wrapped by the
+ * SignupActionProvider so that we can store the pending signup actions,
+ * if any, mainly for the stateful cards. The AAP and OpenClaw cards use
+ * a NO-OP provider which then gets replaced as soon as the user gets in
+ * a "ready" state, so we need to store those actions above the cards
+ * themselves. And having a provider is the way to not have the
+ * CatalogGrid cluttered with "unrelated" code.
+ */
 export function CatalogGrid() {
+  return (
+    <SignupActionProvider>
+      <CatalogGridCards />
+    </SignupActionProvider>
+  );
+}
+
+/**
+ * Renders the enabled catalog cards and wires simple-card primary
+ * actions through the signup continuation.
+ */
+function CatalogGridCards() {
   const { trackAnalytics } = useAnalyticsContext();
   const { getProductURL } = useProductURLResolver();
   const { disabledIntegrations } = useUIConfigurationContext();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
-  const { signupUser, user, userSignupPhase } = useUserContext();
+  const { user, userSignupPhase } = useUserContext();
+  const { isSignupInProgress, signupAndRun, registerAction } =
+    useSignupAction();
 
   /**
    * Filters the disabled products so that they do not get shown in the
@@ -64,15 +89,43 @@ export function CatalogGrid() {
     [getProductURL, markProductAsTried, trackAnalytics],
   );
 
+  // Register the primary actions for the stateless cards. The goal is to
+  // either auto-execute them if we are in the user gesture window of the
+  // browser, or show them in the corresponding primary button of the "signup"
+  // modal.
+  useEffect(() => {
+    for (const product of enabledProducts) {
+      // Skip the AAP and OpenClaw products because their actions get
+      // registered in their own cards.
+      if (
+        product.type === ProductType.AAP ||
+        product.type === ProductType.OPENCLAW
+      ) {
+        continue;
+      }
+
+      const productToOpen = product;
+      registerAction(productToOpen.type, {
+        buttonLabel: ButtonLabel.TRY_IT,
+        canEnable: userSignupPhase === UserSignupPhase.READY,
+        onReady: () => {
+          openProductURL(productToOpen);
+        },
+      });
+    }
+  }, [enabledProducts, openProductURL, registerAction, userSignupPhase]);
+
   /**
    * Handles opening the product's URL for the cards that do not hold any
    * state, and only require opening a new tab with the product's URL.
    */
   const handleOnClickPrimaryButtonSimpleCards = useCallback(
-    async (product: Product) => {
+    (product: Product) => {
       switch (userSignupPhase) {
         case UserSignupPhase.NOT_STARTED:
-          signupUser();
+        case UserSignupPhase.SIGNING_UP:
+        case UserSignupPhase.PROVISIONING:
+          signupAndRun(product.type);
           return;
         case UserSignupPhase.PENDING_PHONE_VERIFICATION:
           openPhoneVerificationModal();
@@ -85,7 +138,7 @@ export function CatalogGrid() {
           return;
       }
     },
-    [openPhoneVerificationModal, openProductURL, signupUser, userSignupPhase],
+    [signupAndRun, openPhoneVerificationModal, openProductURL, userSignupPhase],
   );
 
   // Force a rerender when the RHDH grace period expires so isRhdhReady is
@@ -169,7 +222,9 @@ export function CatalogGrid() {
                       : ButtonLabel.TRY_IT
                   }
                   isGreenCornerVisible={isProductTried(product)}
-                  isPrimaryButtonDisabled={!isRhdhButtonEnabled}
+                  isPrimaryButtonDisabled={
+                    isSignupInProgress || !isRhdhButtonEnabled
+                  }
                   isPrimaryButtonSpinnerVisible={isRhdhProvisioning}
                   isPrimaryButtonExtIconVisible
                   isDeleteButtonVisible={false}
@@ -187,6 +242,7 @@ export function CatalogGrid() {
                   primaryButtonLabel={ButtonLabel.TRY_IT}
                   isGreenCornerVisible={isProductTried(product)}
                   isPrimaryButtonDisabled={
+                    isSignupInProgress ||
                     userSignupPhase === UserSignupPhase.INITIAL_FETCH
                   }
                   isPrimaryButtonSpinnerVisible={false}
