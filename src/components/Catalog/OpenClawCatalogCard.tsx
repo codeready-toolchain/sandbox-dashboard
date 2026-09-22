@@ -1,5 +1,5 @@
 import { AlertVariant } from "@patternfly/react-core";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SUPPORT_EMAIL } from "../../const";
 import { UserFacingError } from "../../error/UserFacingError";
@@ -7,6 +7,7 @@ import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useNotifications } from "../../hooks/NotificationContext";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
 import { usePhoneVerificationContext } from "../../hooks/PhoneVerificationContext";
+import { useSignupAction } from "../../hooks/signupAction/SignupActionContext";
 import { useUserContext } from "../../hooks/UserContext";
 import { UserSignupPhase } from "../../hooks/userSignupPhase";
 import type { Product } from "../../types/product";
@@ -48,6 +49,18 @@ function getButtonLabel(status: OpenClawStatus): ButtonLabel {
     default:
       return ButtonLabel.TRY_IT;
   }
+}
+
+/**
+ * Whether the OpenClaw READY handler can run. The connected provider is a
+ * NO-OP (`USER_NOT_READY`) until signup finishes, and `INITIAL_FETCH`
+ * means the instance status has not been loaded yet.
+ */
+function canRunOpenClawReadyAction(status: OpenClawStatus): boolean {
+  return (
+    status !== OpenClawStatus.USER_NOT_READY &&
+    status !== OpenClawStatus.INITIAL_FETCH
+  );
 }
 
 /**
@@ -97,7 +110,9 @@ export function OpenClawCatalogCard({
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
   const { trackAnalytics } = useAnalyticsContext();
-  const { signupUser, userSignupPhase } = useUserContext();
+  const { userSignupPhase } = useUserContext();
+  const { isSignupInProgress, signupAndRun, registerAction } =
+    useSignupAction();
   const {
     clearDeletionError,
     clearProvisioningError,
@@ -129,6 +144,7 @@ export function OpenClawCatalogCard({
 
   // Determine the status of the interactive buttons.
   const isPrimaryButtonDisabled =
+    isSignupInProgress ||
     buttonLabel === ButtonLabel.LOADING ||
     buttonLabel === ButtonLabel.DELETING ||
     userSignupPhase === UserSignupPhase.INITIAL_FETCH;
@@ -174,21 +190,7 @@ export function OpenClawCatalogCard({
    * URL, reprovisioning the instance if it's idled or opens the modal to
    * provision it otherwise.
    */
-  const handleOnClickPrimaryButton = useCallback(async () => {
-    switch (userSignupPhase) {
-      case UserSignupPhase.NOT_STARTED:
-        signupUser();
-        return;
-      case UserSignupPhase.PENDING_PHONE_VERIFICATION:
-        openPhoneVerificationModal();
-        return;
-      case UserSignupPhase.READY:
-        break;
-      case UserSignupPhase.BLOCKED:
-      default:
-        return;
-    }
-
+  const handleReadyPrimaryAction = useCallback(async () => {
     switch (status) {
       case OpenClawStatus.USER_NOT_READY:
         return;
@@ -217,13 +219,56 @@ export function OpenClawCatalogCard({
       default:
         setOpenClawInfoModalOpen(true);
     }
+  }, [handleOpenClawApiError, status, unidleInstance]);
+
+  // Register the action for the OpenClaw catalog card in case the user
+  // signup takes longer than expected.
+  useEffect(() => {
+    registerAction(product.type, {
+      buttonLabel,
+      canEnable:
+        userSignupPhase === UserSignupPhase.READY &&
+        canRunOpenClawReadyAction(status),
+      onReady: () => {
+        void handleReadyPrimaryAction();
+      },
+    });
   }, [
-    handleOpenClawApiError,
-    openPhoneVerificationModal,
-    signupUser,
+    buttonLabel,
+    handleReadyPrimaryAction,
+    product.type,
+    registerAction,
     status,
     userSignupPhase,
-    unidleInstance,
+  ]);
+
+  /**
+   * Routes the catalog primary button through signup continuation or the
+   * ready-state OpenClaw actions.
+   */
+  const handleOnClickPrimaryButton = useCallback(() => {
+    switch (userSignupPhase) {
+      case UserSignupPhase.NOT_STARTED:
+      case UserSignupPhase.SIGNING_UP:
+      case UserSignupPhase.PROVISIONING:
+        signupAndRun(product.type);
+        return;
+      case UserSignupPhase.PENDING_PHONE_VERIFICATION:
+        openPhoneVerificationModal();
+        return;
+      case UserSignupPhase.READY:
+        void handleReadyPrimaryAction();
+        return;
+      case UserSignupPhase.BLOCKED:
+      default:
+        return;
+    }
+  }, [
+    signupAndRun,
+    handleReadyPrimaryAction,
+    openPhoneVerificationModal,
+    product.type,
+    userSignupPhase,
   ]);
 
   /**
