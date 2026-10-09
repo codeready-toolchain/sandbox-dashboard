@@ -112,6 +112,7 @@ function renderLayout(
                   path="activities"
                   element={<div>Activities Content</div>}
                 />
+                <Route path="support" element={<div>Support Content</div>} />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -131,6 +132,7 @@ describe("Layout", () => {
     renderLayout();
     expect(screen.getByText("Catalog")).toBeInTheDocument();
     expect(screen.getByText("Activities")).toBeInTheDocument();
+    expect(screen.getByText("Support")).toBeInTheDocument();
   });
 
   it("renders page content via Outlet", () => {
@@ -141,6 +143,11 @@ describe("Layout", () => {
   it("renders activities page when navigated to /activities", () => {
     renderLayout("/activities");
     expect(screen.getByText("Activities Content")).toBeInTheDocument();
+  });
+
+  it("renders support page when navigated to /support", () => {
+    renderLayout("/support");
+    expect(screen.getByText("Support Content")).toBeInTheDocument();
   });
 
   it("displays user name in dropdown toggle", () => {

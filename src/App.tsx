@@ -5,6 +5,7 @@ import { CatalogPage } from "./components/Catalog/CatalogPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./components/Layout/Layout";
 import { ReadyGuard } from "./components/ReadyGuard";
+import { SupportPage } from "./components/Support/SupportPage";
 import { AnalyticsProvider } from "./hooks/AnalyticsProvider";
 import { NotificationProvider } from "./hooks/NotificationProvider";
 import { PublicConfigurationProvider } from "./hooks/PublicConfigurationProvider";
@@ -24,6 +25,7 @@ export function App({ bootstrapData }: { bootstrapData: BootstrapData }) {
                     <Route element={<Layout />}>
                       <Route index element={<CatalogPage />} />
                       <Route path="activities" element={<ActivitiesPage />} />
+                      <Route path="support" element={<SupportPage />} />
                     </Route>
                   </Route>
                 </Routes>

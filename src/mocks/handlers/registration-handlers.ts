@@ -20,7 +20,7 @@ import { StateMachine } from "./state-machine";
 const initialState: UserSignupPhase =
   (typeof window !== "undefined"
     ? window.__playwrightOverrides__?.__signup__?.__initialState__
-    : undefined) ?? UserSignupPhase.UNAUTHENTICATED;
+    : undefined) ?? UserSignupPhase.NOT_STARTED;
 
 /**
  * Create the state machine for our requests.

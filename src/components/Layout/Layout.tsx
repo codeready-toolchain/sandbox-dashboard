@@ -100,6 +100,9 @@ export function Layout() {
                     <NavItem isActive={location.pathname === "/activities"}>
                       <NavLink to="/activities">Activities</NavLink>
                     </NavItem>
+                    <NavItem isActive={location.pathname === "/support"}>
+                      <NavLink to="/support">Support</NavLink>
+                    </NavItem>
                   </NavList>
                 </Nav>
               </ToolbarItem>

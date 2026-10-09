@@ -51,6 +51,12 @@ test.describe("App shell", () => {
       page.getByRole("link", { name: "OpenShift virtualization and" }),
     ).toBeVisible();
 
+    // Navigate to the support page.
+    await page.getByRole("link", { name: "Support", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Need help?" }),
+    ).toBeVisible();
+
     // Go back to the product catalog.
     await page.getByRole("link", { name: "Catalog", exact: true }).click();
     await expect(

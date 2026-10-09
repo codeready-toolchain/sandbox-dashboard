@@ -1,5 +1,8 @@
 import "./LandingPage.css";
 
+import { Accordion } from "@rhds/elements/react/rh-accordion/rh-accordion.js";
+import { AccordionHeader } from "@rhds/elements/react/rh-accordion/rh-accordion-header.js";
+import { AccordionPanel } from "@rhds/elements/react/rh-accordion/rh-accordion-panel.js";
 import { BackToTop } from "@rhds/elements/react/rh-back-to-top/rh-back-to-top.js";
 import { Icon } from "@rhds/elements/react/rh-icon/rh-icon.js";
 import { Fragment, useEffect, useMemo } from "react";
@@ -10,6 +13,7 @@ import RedHatLogo from "../../assets/logos/rh_developer_sandbox_logo.svg?react";
 import { usePublicConfigurationContext } from "../../hooks/PublicConfigurationContext";
 import type { Product } from "../../types/product";
 import { products } from "../Catalog/productData";
+import { frequentlyAskedQuestions } from "../common/faqQuestions";
 import { PageFooter } from "../Layout/PageFooter";
 import { SandboxCta } from "./SandboxCta";
 
@@ -93,6 +97,11 @@ function ProductTilesSection() {
   return (
     <section id="catalog" className="landing-section landing-section--dark">
       <div className="landing-section__content">
+        <img
+          className="landing-section__mascot-magnifying-glass"
+          src={RepoDetective}
+          alt="Repo Detective mascot"
+        />
         <h2 className="landing-section__heading">Explore the catalog</h2>
         <p className="landing-section__subheading">
           These are the Red Hat products made available to you in the Sandbox.
@@ -173,49 +182,30 @@ function HowItWorksSection() {
  * illustrative mascot on the side.
  */
 function FAQSection() {
-  const questions = [
-    {
-      question: "Do I need to provide any payment details to use the Sandbox?",
-      answer:
-        "No, you are not required to set up any kind of payment method to use the Sandbox platform.",
-    },
-    {
-      question: "Is any kind of set up required to try the demos?",
-      answer:
-        "For the vast majority of the products you can simply join the Sandbox and use them directly. Some others might require for you to provide some configuration details so that the demo can be set up for your account.",
-    },
-    {
-      question: "How long can I use the Sandbox for?",
-      answer:
-        "Your Sandbox is good for 30 days, after which, the Sandbox is deleted. If you feel like you'll need more than 30 days for your trial, you can request a new one free of charge after the deletion of your Sandbox. We have guides on how to export your work so that you don't lose any progress as well!",
-    },
-  ];
-
   return (
     <section id="faq" className="landing-section">
       <div className="landing-section__content">
         <h2 className="landing-section__heading">Frequently asked questions</h2>
-        <div className="landing-faq">
-          <img
-            className="landing-faq__mascot"
-            src={RepoDetective}
-            alt="Repo Detective mascot"
-          />
-          <div className="landing-faq__list">
-            {questions.map((q) => (
-              <div key={q.question} className="landing-faq__item">
-                <h4 className="landing-faq__question">
-                  <Icon
-                    set="ui"
-                    icon="check-circle"
-                    className="landing-faq__icon"
-                  />
-                  {q.question}
-                </h4>
-                <p className="landing-faq__answer">{q.answer}</p>
-              </div>
-            ))}
-          </div>
+        <div className="landing-faq__list">
+          <Accordion>
+            {frequentlyAskedQuestions.map((faq, index) => {
+              return (
+                <Fragment key={index}>
+                  <AccordionHeader>
+                    <Icon
+                      set="ui"
+                      icon="check-circle"
+                      className="landing-faq__icon"
+                    />{" "}
+                    {faq.question}
+                  </AccordionHeader>
+                  <AccordionPanel>
+                    <p>{faq.answer}</p>
+                  </AccordionPanel>
+                </Fragment>
+              );
+            })}
+          </Accordion>
         </div>
       </div>
     </section>

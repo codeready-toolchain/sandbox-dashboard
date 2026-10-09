@@ -177,6 +177,7 @@
 .landing-section__content {
   margin: 0 auto;
   max-width: 1200px;
+  position: relative;
 }
 
 .landing-section--dark {
@@ -196,6 +197,16 @@
   margin: 0 auto var(--rh-space-3xl);
   max-width: 600px;
   text-align: center;
+}
+
+.landing-section__mascot-magnifying-glass {
+  position: absolute;
+  right: calc(100% + var(--rh-space-lg));
+  top: 60%;
+  transform: translateY(-50%);
+  height: 250px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .landing-product-grid {
@@ -328,48 +339,16 @@
   transform: translateY(-75px);
 }
 
-.landing-faq {
-  align-items: flex-start;
-  display: flex;
-  gap: var(--rh-space-3xl);
-}
-
-.landing-faq__mascot {
-  flex-shrink: 0;
-  height: 200px;
-  object-fit: contain;
-}
-
 .landing-faq__list {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
   gap: var(--rh-space-2xl);
-}
-
-.landing-faq__item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--rh-space-sm);
-}
-
-.landing-faq__question {
-  align-items: center;
-  display: flex;
-  font-weight: 600;
-  gap: var(--rh-space-md);
-  margin: 0;
+  min-width: 0;
 }
 
 .landing-faq__icon {
   color: var(--rh-color-brand-red);
   flex-shrink: 0;
-}
-
-.landing-faq__answer {
-  color: var(--rh-color-text-secondary-on-dark);
-  line-height: var(--rh-line-height-body-text);
-  margin: 0;
-  padding-left: calc(1em + var(--rh-space-md));
+  vertical-align: middle;
 }
 
 .landing-cta {
@@ -399,6 +378,12 @@
   margin-bottom: var(--rh-space-2xl);
 }
 
+@media (max-width: 1400px) {
+  .landing-section__mascot-magnifying-glass {
+    display: none;
+  }
+}
+
 @media (max-width: 992px) {
   .landing-hero {
     min-height: 80dvh;
@@ -424,11 +409,6 @@
 
   .landing-timeline__destination {
     display: none;
-  }
-
-  .landing-faq {
-    flex-direction: column;
-    align-items: center;
   }
 }
 

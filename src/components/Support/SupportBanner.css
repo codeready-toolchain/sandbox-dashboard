@@ -1,0 +1,18 @@
+.support-banner__body {
+  margin: 0 auto;
+  min-width: 0;
+  padding: 21px clamp(16px, 5vw, 100px) 0;
+  width: 100%;
+}
+
+.support-banner__content-wrapper {
+  align-items: center;
+  gap: var(--pf-t--global--spacer--lg);
+  justify-content: center;
+}
+
+.support-banner__image {
+  display: block;
+  height: auto;
+  max-height: 200px;
+}

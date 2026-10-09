@@ -1,0 +1,7 @@
+.support-page__faq {
+  align-items: center;
+  display: flex;
+  justify-content: space-around;
+  margin: 0 auto;
+  overflow: visible;
+}
