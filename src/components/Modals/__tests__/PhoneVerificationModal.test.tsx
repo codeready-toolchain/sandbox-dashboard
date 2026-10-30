@@ -9,10 +9,12 @@ import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
 import { PhoneVerificationModal } from "../PhoneVerificationModal";
 import {
+  getCountryCodeInput,
   getPhoneNumberInput,
   getPhoneVerificationDialog,
   getVerificationCodeInput,
   queryPhoneVerificationDialog,
+  selectCountryCode,
 } from "./phoneVerificationTestHelpers";
 
 vi.mock("../../../api/registration", () => ({
@@ -60,20 +62,70 @@ describe("PhoneVerificationModal", () => {
     renderModal();
     expect(getPhoneVerificationDialog()).toBeInTheDocument();
     expect(screen.getByText("Verify your phone number")).toBeInTheDocument();
-    expect(
-      screen.getByRole("textbox", { name: "Country code" }),
-    ).toBeInTheDocument();
+    expect(getCountryCodeInput()).toBeInTheDocument();
+    expect(getCountryCodeInput()).toHaveValue("");
     expect(getPhoneNumberInput()).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Send code" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send code" })).toBeDisabled();
   });
 
-  it("shows validation error for empty phone number", async () => {
+  it("disables Send code until both fields have a value", async () => {
     const user = userEvent.setup();
     renderModal();
 
+    const sendCodeButton = screen.getByRole("button", { name: "Send code" });
+    expect(sendCodeButton).toBeDisabled();
+
+    await selectCountryCode(user);
+    expect(sendCodeButton).toBeDisabled();
+
+    await user.type(getPhoneNumberInput(), "5551234567");
+    expect(sendCodeButton).toBeEnabled();
+  });
+
+  it("auto-selects a known dial code on blur without showing an alert", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(getCountryCodeInput());
+    await user.type(getCountryCodeInput(), "+34");
+    await user.click(getPhoneNumberInput());
+
+    await waitFor(() => {
+      expect(getCountryCodeInput()).toHaveValue("Spain (+34)");
+    });
+    expect(
+      screen.queryByText("Please enter a valid country code."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Please enter a valid phone number."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send code" })).toBeDisabled();
+
+    await user.type(getPhoneNumberInput(), "612345678");
+    expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+  });
+
+  it("auto-selects the preferred country for shared dial codes on blur", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(getCountryCodeInput());
+    await user.type(getCountryCodeInput(), "+1");
+    await user.click(getPhoneNumberInput());
+
+    await waitFor(() => {
+      expect(getCountryCodeInput()).toHaveValue("United States (+1)");
+    });
+  });
+
+  it("shows a phone number validation error on Send code", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await selectCountryCode(user);
+    await user.type(getPhoneNumberInput(), "abc");
     await user.click(screen.getByRole("button", { name: "Send code" }));
+
     expect(
       screen.getByText("Please enter a valid phone number."),
     ).toBeInTheDocument();
@@ -84,6 +136,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
+    await selectCountryCode(user);
     await user.clear(getPhoneNumberInput());
     await user.type(getPhoneNumberInput(), "5551234567");
     await user.click(screen.getByRole("button", { name: "Send code" }));
@@ -95,6 +148,70 @@ describe("PhoneVerificationModal", () => {
       "+1",
       "5551234567",
     );
+    expect(screen.getByRole("button", { name: "Verify" })).toBeDisabled();
+  });
+
+  it("enables Verify once a verification code is entered", async () => {
+    vi.mocked(registrationApi.initiatePhoneVerification).mockResolvedValue();
+    const user = userEvent.setup();
+    renderModal();
+
+    await selectCountryCode(user);
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+
+    await waitFor(() => {
+      expect(getVerificationCodeInput()).toBeInTheDocument();
+    });
+
+    const verifyButton = screen.getByRole("button", { name: "Verify" });
+    expect(verifyButton).toBeDisabled();
+
+    await user.type(getVerificationCodeInput(), "123456");
+    expect(verifyButton).toBeEnabled();
+  });
+
+  it("disables Send code again after clearing a filled field", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    const sendCodeButton = screen.getByRole("button", { name: "Send code" });
+    await selectCountryCode(user);
+    await user.type(getPhoneNumberInput(), "5551234567");
+    expect(sendCodeButton).toBeEnabled();
+
+    await user.clear(getPhoneNumberInput());
+    expect(sendCodeButton).toBeDisabled();
+
+    await user.type(getPhoneNumberInput(), "5551234567");
+    expect(sendCodeButton).toBeEnabled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Clear country code" }),
+    );
+    expect(sendCodeButton).toBeDisabled();
+  });
+
+  it("shows a verification code validation error on Verify", async () => {
+    vi.mocked(registrationApi.initiatePhoneVerification).mockResolvedValue();
+    const user = userEvent.setup();
+    renderModal();
+
+    await selectCountryCode(user);
+    await user.type(getPhoneNumberInput(), "5551234567");
+    await user.click(screen.getByRole("button", { name: "Send code" }));
+
+    await waitFor(() => {
+      expect(getVerificationCodeInput()).toBeInTheDocument();
+    });
+
+    await user.type(getVerificationCodeInput(), "12-34");
+    await user.click(screen.getByRole("button", { name: "Verify" }));
+
+    expect(
+      screen.getByText("Please enter a valid verification code."),
+    ).toBeInTheDocument();
+    expect(registrationApi.completePhoneVerification).not.toHaveBeenCalled();
   });
 
   it("shows error from API on phone step", async () => {
@@ -104,6 +221,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
+    await selectCountryCode(user);
     await user.type(getPhoneNumberInput(), "5551234567");
     await user.click(screen.getByRole("button", { name: "Send code" }));
 
@@ -123,6 +241,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal(true, { refetchUserData });
 
+    await selectCountryCode(user);
     await user.type(getPhoneNumberInput(), "5551234567");
     await user.click(screen.getByRole("button", { name: "Send code" }));
 
@@ -150,6 +269,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal(true, { refetchUserData });
 
+    await selectCountryCode(user);
     await user.type(getPhoneNumberInput(), "5551234567");
     await user.click(screen.getByRole("button", { name: "Send code" }));
 
@@ -182,6 +302,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal(true, { refetchUserData: mockRefetch }, onClose);
 
+    await selectCountryCode(user);
     await user.type(getPhoneNumberInput(), "5551234567");
     await user.click(screen.getByRole("button", { name: "Send code" }));
 
@@ -228,6 +349,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal();
 
+    await selectCountryCode(user);
     await user.type(getPhoneNumberInput(), "5551234567");
 
     const submitBtn = screen.getByRole("button", { name: "Send code" });
@@ -255,6 +377,7 @@ describe("PhoneVerificationModal", () => {
     const user = userEvent.setup();
     renderModal(true, { refetchUserData });
 
+    await selectCountryCode(user);
     await user.type(getPhoneNumberInput(), "5551234567");
     await user.click(screen.getByRole("button", { name: "Send code" }));
 

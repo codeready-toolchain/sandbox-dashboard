@@ -1,6 +1,25 @@
-import test, { expect } from "@playwright/test";
+import test, { expect, type Locator } from "@playwright/test";
 
 import { UserSignupPhase } from "../../src/hooks/userSignupPhase";
+
+/**
+ * Commits a country by typing a dial code and pressing Enter so the
+ * typeahead auto-selects. Prefer this over clicking filtered options,
+ * which is flaky with Playwright's fill() against PatternFly Select.
+ */
+async function selectCountryByDialCode(
+  modal: Locator,
+  dialCode = "+1",
+  expectedLabel = "United States (+1)",
+) {
+  const countryCodeInput = modal.getByRole("combobox", {
+    name: "Country code",
+  });
+  await countryCodeInput.click();
+  await countryCodeInput.fill(dialCode);
+  await countryCodeInput.press("Enter");
+  await expect(countryCodeInput).toHaveValue(expectedLabel);
+}
 
 test.describe("Signup flow", { tag: "@mock-only" }, () => {
   test.describe("Product card signup", () => {
@@ -132,7 +151,7 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
       await expect(phoneVerificationModal).not.toBeVisible();
     });
 
-    test("shows errors for an invalid country code or phone number", async ({
+    test("keeps Send code disabled for incomplete input and validates phone on submit", async ({
       page,
     }) => {
       // Click a product card to open the modal.
@@ -148,33 +167,26 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
       const submitButton = phoneVerificationModal.getByRole("button", {
         name: "Send code",
       });
+      await expect(submitButton).toBeDisabled();
 
-      const countryCodeInput = phoneVerificationModal.getByRole("textbox", {
+      const countryCodeInput = phoneVerificationModal.getByRole("combobox", {
         name: "Country code",
       });
-
-      // Type an invalid country code.
-      await countryCodeInput.click();
-      await countryCodeInput.fill("Invalid country code");
-      await submitButton.click();
-
-      await expect(
-        phoneVerificationModal.getByRole("heading", {
-          level: 4,
-          name: "Danger alert: Please enter a valid country",
-        }),
-      ).toBeVisible();
-
-      // Type a valid country code but an invalid phone number.
-      await countryCodeInput.click();
-      await countryCodeInput.fill("+1");
-      await submitButton.click();
-
       const phoneInput = phoneVerificationModal.getByRole("textbox", {
         name: "Phone number",
       });
+
+      // With only an uncommitted country filter, Send stays disabled.
+      await countryCodeInput.click();
+      await countryCodeInput.fill("Invalid country code");
       await phoneInput.click();
+      await expect(submitButton).toBeDisabled();
+
+      // Select a valid country code but enter an invalid phone number,
+      // then submit to reveal the validation alert.
+      await selectCountryByDialCode(phoneVerificationModal);
       await phoneInput.fill("Invalid phone number");
+      await expect(submitButton).toBeEnabled();
       await submitButton.click();
 
       await expect(
@@ -183,6 +195,60 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
           name: "Danger alert: Please enter a valid phone",
         }),
       ).toBeVisible();
+    });
+
+    test("auto-selects a typed dial code and continues verification", async ({
+      page,
+    }) => {
+      await page
+        .getByRole("article", { name: "OpenShift product card" })
+        .getByRole("button", { name: "Try it" })
+        .click();
+
+      const phoneVerificationModal = page.getByRole("dialog", {
+        name: "Phone verification",
+      });
+
+      const phoneInput = phoneVerificationModal.getByRole("textbox", {
+        name: "Phone number",
+      });
+      const submitButton = phoneVerificationModal.getByRole("button", {
+        name: "Send code",
+      });
+
+      // Type a known dial code and dismiss the menu to auto-select.
+      await selectCountryByDialCode(
+        phoneVerificationModal,
+        "+34",
+        "Spain (+34)",
+      );
+      await expect(submitButton).toBeDisabled();
+
+      await phoneInput.fill("612345678");
+      await expect(submitButton).toBeEnabled();
+      await submitButton.click();
+
+      await expect(
+        phoneVerificationModal.getByText("Enter verification code"),
+      ).toBeVisible();
+
+      const verifyButton = phoneVerificationModal.getByRole("button", {
+        name: "Verify",
+      });
+      await expect(verifyButton).toBeDisabled();
+
+      await phoneVerificationModal
+        .getByRole("textbox", { name: "Verification code" })
+        .fill("abcde");
+      await expect(verifyButton).toBeEnabled();
+      await verifyButton.click();
+
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: "Welcome,",
+        }),
+      ).toBeVisible({ timeout: 30_000 });
     });
 
     test("closes the modal after a valid verification code", async ({
@@ -201,34 +267,19 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
       const submitButton = phoneVerificationModal.getByRole("button", {
         name: "Send code",
       });
-
-      const countryCodeInput = phoneVerificationModal.getByRole("textbox", {
-        name: "Country code",
-      });
-
       const phoneInput = phoneVerificationModal.getByRole("textbox", {
         name: "Phone number",
       });
 
       // Fill the fields with a valid country code and phone number.
-      await countryCodeInput.click();
-      await countryCodeInput.fill("+1");
-      await phoneInput.click();
+      await selectCountryByDialCode(phoneVerificationModal);
       await phoneInput.fill("1112223333");
       await submitButton.click();
 
       const verifyButton = phoneVerificationModal.getByRole("button", {
         name: "Verify",
       });
-
-      // Attempt submitting without a verification code.
-      await verifyButton.click();
-      await expect(
-        phoneVerificationModal.getByRole("heading", {
-          level: 4,
-          name: "Please enter a valid verification code",
-        }),
-      ).toBeVisible();
+      await expect(verifyButton).toBeDisabled();
 
       // Submit a valid verification code.
       const verificationCodeInput = phoneVerificationModal.getByRole(
@@ -239,6 +290,7 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
       );
       await verificationCodeInput.click();
       await verificationCodeInput.fill("abcde");
+      await expect(verifyButton).toBeEnabled();
 
       await verifyButton.click();
 
@@ -264,9 +316,7 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
         name: "Phone verification",
       });
 
-      await phoneVerificationModal
-        .getByRole("textbox", { name: "Country code" })
-        .fill("+1");
+      await selectCountryByDialCode(phoneVerificationModal);
       await phoneVerificationModal
         .getByRole("textbox", { name: "Phone number" })
         .fill("1112223333");
@@ -305,9 +355,7 @@ test.describe("Signup flow", { tag: "@mock-only" }, () => {
         name: "Phone verification",
       });
 
-      await phoneVerificationModal
-        .getByRole("textbox", { name: "Country code" })
-        .fill("+1");
+      await selectCountryByDialCode(phoneVerificationModal);
       await phoneVerificationModal
         .getByRole("textbox", { name: "Phone number" })
         .fill("1112223333");

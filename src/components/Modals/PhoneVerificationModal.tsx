@@ -26,10 +26,10 @@ import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useUserContext } from "../../hooks/UserContext";
 import logger from "../../utils/logger";
 import {
-  isValidCountryCode,
+  getPhoneStepValidationError,
   isValidOTP,
-  isValidPhoneNumber,
 } from "../../utils/phone-utils";
+import { PhoneVerificationModalCountryCodeInput } from "./PhoneVerificationModalCountryCodeInput";
 
 const PHONE_FALLBACK = `Unable to verify your phone number. Please contact ${SUPPORT_EMAIL}`;
 
@@ -102,7 +102,7 @@ export function PhoneVerificationModal({
   const { refetchUserData } = useUserContext();
 
   const [step, setStep] = useState<Step>("phone");
-  const [countryCode, setCountryCode] = useState("+1");
+  const [countryCode, setCountryCode] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -112,9 +112,15 @@ export function PhoneVerificationModal({
    *  after a refetch failure skips the verification call. */
   const phoneVerifiedRef = useRef(false);
 
+  /** Soft-gate: require both fields to have a value before Send is enabled. */
+  const hasPhoneStepInput =
+    countryCode.trim() !== "" && phoneNumber.trim() !== "";
+  /** Soft-gate: require a verification code before Verify is enabled. */
+  const hasVerificationCodeInput = verificationCode.trim() !== "";
+
   const resetState = () => {
     setStep("phone");
-    setCountryCode("+1");
+    setCountryCode("");
     setPhoneNumber("");
     setVerificationCode("");
     setError(null);
@@ -129,23 +135,35 @@ export function PhoneVerificationModal({
     resetState();
   };
 
+  const handleCountryCodeChange = (nextCountryCode: string) => {
+    setError(null);
+    setCountryCode(nextCountryCode);
+  };
+
+  const handlePhoneNumberChange = (
+    _event: FormEvent<HTMLInputElement>,
+    value: string,
+  ) => {
+    setError(null);
+    setPhoneNumber(value);
+  };
+
   const handlePhoneSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (inFlightRef.current) {
       return;
     }
 
+    const validationError = getPhoneStepValidationError(
+      countryCode,
+      phoneNumber,
+    );
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setError(null);
-
-    if (!isValidCountryCode(countryCode)) {
-      setError("Please enter a valid country code.");
-      return;
-    }
-    if (!isValidPhoneNumber(phoneNumber)) {
-      setError("Please enter a valid phone number.");
-      return;
-    }
-
     inFlightRef.current = true;
     setSubmitting(true);
     trackAnalytics("Send Code", "Verification");
@@ -261,19 +279,18 @@ export function PhoneVerificationModal({
               Standard SMS rates may apply.
             </Content>
             <FormGroup label="Country code" isRequired fieldId="country-code">
-              <TextInput
-                id="country-code"
-                value={countryCode}
-                onChange={(_e, val) => setCountryCode(val)}
-                isRequired
-                placeholder="+1"
+              {/* Remount when the modal reopens so the typeahead
+                  starts empty after a cancel/reset. */}
+              <PhoneVerificationModalCountryCodeInput
+                key={String(isOpen)}
+                onChange={handleCountryCodeChange}
               />
             </FormGroup>
             <FormGroup label="Phone number" isRequired fieldId="phone-number">
               <TextInput
                 id="phone-number"
                 value={phoneNumber}
-                onChange={(_e, val) => setPhoneNumber(val)}
+                onChange={handlePhoneNumberChange}
                 isRequired
                 placeholder="555-123-4567"
               />
@@ -307,7 +324,10 @@ export function PhoneVerificationModal({
           variant="primary"
           type="submit"
           form={step === "phone" ? "phone-form" : "code-form"}
-          isDisabled={submitting}
+          isDisabled={
+            submitting ||
+            (step === "phone" ? !hasPhoneStepInput : !hasVerificationCodeInput)
+          }
           isLoading={submitting}
         >
           {step === "phone" ? "Send code" : "Verify"}

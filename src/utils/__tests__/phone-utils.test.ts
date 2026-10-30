@@ -1,4 +1,5 @@
 import {
+  getPhoneStepValidationError,
   isValidCountryCode,
   isValidOTP,
   isValidPhoneNumber,
@@ -52,6 +53,24 @@ describe("phone-utils", () => {
       expect(isValidOTP("ABC DEF")).toBe(false);
       expect(isValidOTP("abc@123")).toBe(false);
       expect(isValidOTP("#special")).toBe(false);
+    });
+  });
+
+  describe("getPhoneStepValidationError", () => {
+    it("should prefer the country code error when both are invalid", () => {
+      expect(getPhoneStepValidationError("", "")).toBe(
+        "Please enter a valid country code.",
+      );
+    });
+
+    it("should return the phone number error when the country code is valid", () => {
+      expect(getPhoneStepValidationError("+1", "")).toBe(
+        "Please enter a valid phone number.",
+      );
+    });
+
+    it("should return null when both fields are valid", () => {
+      expect(getPhoneStepValidationError("+1", "5551234567")).toBeNull();
     });
   });
 });
