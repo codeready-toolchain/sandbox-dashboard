@@ -5,7 +5,10 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../../auth/AuthenticatedContext";
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -79,7 +82,7 @@ function renderGrid(openClawOverrides: Partial<OpenClawContextType> = {}) {
             isLoading: false,
           }}
         >
-          <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+          <AnalyticsContext.Provider value={noopAnalyticsContext}>
             <PhoneVerificationContext.Provider
               value={{
                 openPhoneVerificationModal: vi.fn(),

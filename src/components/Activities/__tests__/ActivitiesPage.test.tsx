@@ -1,12 +1,15 @@
 import { render, screen } from "@testing-library/react";
 
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import { ActivitiesPage } from "../ActivitiesPage";
 import { articleData } from "../articleData";
 
 function renderWithAnalytics() {
   return render(
-    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+    <AnalyticsContext.Provider value={noopAnalyticsContext}>
       <ActivitiesPage />
     </AnalyticsContext.Provider>,
   );

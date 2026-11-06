@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { catalogProductOpenAttributes } from "../../../components/Catalog/productData";
 import { type Product, ProductType } from "../../../types/product";
 import { NotificationProvider } from "../../NotificationProvider";
 import { UserContext, type UserContextType } from "../../UserContext";
@@ -947,6 +948,109 @@ describe("SignupActionProvider", () => {
       );
 
       expect(onReady).toHaveBeenCalledTimes(1);
+    });
+
+    it("tags the continuation button only when the action can open", async () => {
+      const user = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+      });
+      mockUserActivation(false);
+      const clickAnalytics = catalogProductOpenAttributes(openshiftProduct);
+
+      function ModalConsumer() {
+        const { signupAndRun, registerAction } = useSignupAction();
+
+        return (
+          <div>
+            <button
+              data-testid="register-disabled"
+              onClick={() =>
+                registerAction({
+                  product: openshiftProduct,
+                  canEnable: false,
+                  clickAnalytics,
+                  onReady: () => {},
+                })
+              }
+            />
+            <button
+              data-testid="register-enabled"
+              onClick={() =>
+                registerAction({
+                  product: openshiftProduct,
+                  canEnable: true,
+                  clickAnalytics,
+                  onReady: () => {},
+                })
+              }
+            />
+            <button
+              data-testid="register-without-analytics"
+              onClick={() =>
+                registerAction({
+                  product: openshiftProduct,
+                  canEnable: true,
+                  onReady: () => {},
+                })
+              }
+            />
+            <button
+              data-testid="run"
+              onClick={() => signupAndRun(openshiftProduct.type)}
+            />
+          </div>
+        );
+      }
+
+      const { setPhase } = renderAuthenticated(
+        { userSignupPhase: UserSignupPhase.NOT_STARTED },
+        <ModalConsumer />,
+      );
+
+      await user.click(screen.getByTestId("register-disabled"));
+      await user.click(screen.getByTestId("run"));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SIGNUP_WATCHER_INTERVAL_MS);
+      });
+
+      const progressDialog = screen.getByRole("dialog", {
+        name: "Signup in progress",
+      });
+      expect(
+        within(progressDialog).getByRole("button", { name: /Try OpenShift/ }),
+      ).not.toHaveAttribute("data-analytics-text");
+
+      await act(async () => {
+        setPhase(UserSignupPhase.READY);
+      });
+      await user.click(screen.getByTestId("register-enabled"));
+
+      await waitFor(() => {
+        const completed = screen.getByRole("dialog", {
+          name: "Signup completed",
+        });
+        const continueButton = within(completed).getByRole("button", {
+          name: /Try OpenShift/,
+        });
+        expect(continueButton).toBeEnabled();
+        expect(continueButton).toHaveAttribute(
+          "data-analytics-text",
+          "OpenShift",
+        );
+        expect(continueButton).toHaveAttribute(
+          "data-analytics-offerid",
+          clickAnalytics["data-analytics-offerid"],
+        );
+      });
+
+      await user.click(screen.getByTestId("register-without-analytics"));
+
+      expect(
+        within(
+          screen.getByRole("dialog", { name: "Signup completed" }),
+        ).getByRole("button", { name: /Try OpenShift/ }),
+      ).not.toHaveAttribute("data-analytics-text");
     });
 
     it("closes the modal and resets progress when the user dismisses it", async () => {

@@ -1,11 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { IntentEvent } from "../../../utils/analytics";
 import { CatalogBanner } from "../CatalogBanner";
+
+const trackIntent = vi.fn();
 
 function makeContext(
   overrides: Partial<UserContextType> = {},
@@ -25,9 +32,11 @@ function makeContext(
  */
 function renderBanner(userCtxOverrides: Partial<UserContextType> = {}) {
   return render(
-    <UserContext.Provider value={makeContext(userCtxOverrides)}>
-      <CatalogBanner />
-    </UserContext.Provider>,
+    <AnalyticsContext.Provider value={{ ...noopAnalyticsContext, trackIntent }}>
+      <UserContext.Provider value={makeContext(userCtxOverrides)}>
+        <CatalogBanner />
+      </UserContext.Provider>
+    </AnalyticsContext.Provider>,
   );
 }
 
@@ -143,6 +152,24 @@ describe("CatalogBanner", () => {
     expect(docLink).toHaveAttribute(
       "href",
       "https://developers.redhat.com/learn/openshift/move-your-developer-sandbox-objects-another-cluster",
+    );
+  });
+
+  it("tracks the Contact sales button", async () => {
+    renderBanner();
+
+    const button = screen.getByRole("button", { name: "Contact sales" });
+    expect(button).toHaveAttribute("data-analytics-text", "Contact sales");
+    expect(button).toHaveAttribute(
+      "data-analytics-category",
+      "Developer Sandbox|Catalog",
+    );
+
+    await userEvent.click(button);
+    expect(trackIntent).toHaveBeenCalledWith(
+      IntentEvent.contactSalesClicked,
+      "Catalog",
+      { surface: "catalog" },
     );
   });
 });

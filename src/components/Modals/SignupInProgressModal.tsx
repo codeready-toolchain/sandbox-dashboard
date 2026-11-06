@@ -9,6 +9,8 @@ import {
 } from "@patternfly/react-core";
 import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external-link-alt-icon";
 
+import type { DpalClickAttributes } from "../../utils/analytics";
+
 /**
  * Defines the properties for the signup continuation modal.
  */
@@ -21,6 +23,11 @@ export type SignupInProgressModalProps = {
   productTitle: string;
   /** Enables the footer button once the original CTA can run. */
   isActionEnabled: boolean;
+  /**
+   * Adobe attributes for the continuation click. Present only when
+   * that click opens a product URL.
+   */
+  clickAnalytics?: DpalClickAttributes;
   /** Runs the original catalog CTA (open URL). */
   onContinue: () => void;
 };
@@ -40,6 +47,7 @@ export function SignupInProgressModal({
   onClose,
   productTitle,
   isActionEnabled,
+  clickAnalytics,
   onContinue,
 }: SignupInProgressModalProps) {
   const title = isActionEnabled ? "Signup completed" : "Signup in progress";
@@ -63,6 +71,7 @@ export function SignupInProgressModal({
           isLoading={!isActionEnabled}
           icon={<ExternalLinkAltIcon />}
           iconPosition="end"
+          {...clickAnalytics}
         >
           {`Try ${productTitle}`}
         </Button>

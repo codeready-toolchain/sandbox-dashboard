@@ -3,14 +3,24 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { UserFacingError } from "../../../error/UserFacingError";
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
 } from "../../../hooks/AnsibleContext";
 import type { AAPInstanceCredentials } from "../../../types";
+import { ProductType } from "../../../types/product";
 import { AAPInstanceErrorType } from "../../../utils/aap-utils";
+import { Intcmp, products } from "../../Catalog/productData";
 import { AnsibleLaunchInfoModal } from "../AnsibleLaunchInfoModal";
+
+const aapProduct = products.find(
+  (product) => product.type === ProductType.AAP,
+)!;
+const trackProductAction = vi.fn();
 
 const mockOnClose = vi.fn();
 
@@ -44,11 +54,14 @@ function renderModal(
   const { isOpen = true, provisioningError } = modalProps;
 
   const utils = render(
-    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+    <AnalyticsContext.Provider
+      value={{ ...noopAnalyticsContext, trackProductAction }}
+    >
       <AnsibleContext.Provider value={ctx}>
         <AnsibleLaunchInfoModal
           isOpen={isOpen}
           onClose={mockOnClose}
+          product={aapProduct}
           provisioningError={provisioningError}
         />
       </AnsibleContext.Provider>
@@ -142,6 +155,21 @@ describe("AnsibleLaunchInfoModal", () => {
     });
     expect(screen.getByRole("link", { name: /Get started/ })).toHaveAttribute(
       "href",
+      "https://aap.example.com",
+    );
+    expect(screen.getByRole("link", { name: /Get started/ })).toHaveAttribute(
+      "data-analytics-text",
+      "Ansible Automation Platform",
+    );
+    expect(screen.getByRole("link", { name: /Get started/ })).toHaveAttribute(
+      "data-analytics-offerid",
+      Intcmp[ProductType.AAP],
+    );
+
+    await userEvent.click(screen.getByRole("link", { name: /Get started/ }));
+    expect(trackProductAction).toHaveBeenCalledWith(
+      aapProduct,
+      "opened",
       "https://aap.example.com",
     );
   });
@@ -399,9 +427,15 @@ describe("AnsibleLaunchInfoModal", () => {
         setIsOpen(false);
       };
       return (
-        <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+        <AnalyticsContext.Provider
+          value={{ ...noopAnalyticsContext, trackProductAction }}
+        >
           <AnsibleContext.Provider value={ctx}>
-            <AnsibleLaunchInfoModal isOpen={isOpen} onClose={handleClose} />
+            <AnsibleLaunchInfoModal
+              isOpen={isOpen}
+              onClose={handleClose}
+              product={aapProduct}
+            />
           </AnsibleContext.Provider>
           <button data-testid="reopen" onClick={() => setIsOpen(true)} />
         </AnalyticsContext.Provider>

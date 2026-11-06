@@ -24,6 +24,7 @@ import { ApiError } from "../../error/ApiError";
 import { mapApiErrorMessage } from "../../error/mapApiErrorMessage";
 import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useUserContext } from "../../hooks/UserContext";
+import { IntentEvent } from "../../utils/analytics";
 import logger from "../../utils/logger";
 import {
   getPhoneStepValidationError,
@@ -98,7 +99,7 @@ export function PhoneVerificationModal({
   isOpen,
   onClose,
 }: PhoneVerificationModalProps) {
-  const { trackAnalytics } = useAnalyticsContext();
+  const { trackIntent } = useAnalyticsContext();
   const { refetchUserData } = useUserContext();
 
   const [step, setStep] = useState<Step>("phone");
@@ -130,7 +131,6 @@ export function PhoneVerificationModal({
   };
 
   const handleClose = () => {
-    trackAnalytics("Cancel Verification", "Verification");
     onClose();
     resetState();
   };
@@ -166,7 +166,6 @@ export function PhoneVerificationModal({
     setError(null);
     inFlightRef.current = true;
     setSubmitting(true);
-    trackAnalytics("Send Code", "Verification");
     try {
       await initiatePhoneVerification(countryCode, phoneNumber);
       setStep("code");
@@ -204,13 +203,13 @@ export function PhoneVerificationModal({
 
     inFlightRef.current = true;
     setSubmitting(true);
-    trackAnalytics("Start Trial", "Verification");
     try {
       // Skip the verification call when the phone was already verified
       // on a previous attempt but the refetch failed.
       if (!phoneVerifiedRef.current) {
         await completePhoneVerification(verificationCode);
         phoneVerifiedRef.current = true;
+        trackIntent(IntentEvent.phoneVerified, "Verification");
       }
 
       // Once the phone has been verified, refetch the user data so

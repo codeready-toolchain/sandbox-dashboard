@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 
 import { Environment } from "../../config/config";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../hooks/AnalyticsContext";
+import { IntentEvent } from "../../utils/analytics";
 import { PageFooter } from "../Layout/PageFooter";
 
 vi.mock("@rhds/elements/rh-icon/rh-icon.js", () => ({
@@ -65,6 +70,15 @@ vi.mock("../../config/config", async (importOriginal) => {
 
 import { getConfig } from "../../config/config";
 const mockedGetConfig = vi.mocked(getConfig);
+const trackIntent = vi.fn();
+
+function renderFooter() {
+  return render(
+    <AnalyticsContext.Provider value={{ ...noopAnalyticsContext, trackIntent }}>
+      <PageFooter />
+    </AnalyticsContext.Provider>,
+  );
+}
 
 describe("PageFooter", () => {
   beforeEach(() => {
@@ -80,23 +94,23 @@ describe("PageFooter", () => {
   });
 
   it("renders the full Red Hat footer", () => {
-    render(<PageFooter />);
+    renderFooter();
     expect(screen.getByTestId("rh-footer")).toBeInTheDocument();
     expect(screen.getByTestId("rh-footer-universal")).toBeInTheDocument();
   });
 
   it("renders footer copyright", () => {
-    render(<PageFooter />);
+    renderFooter();
     expect(screen.getByTestId("rh-footer-copyright")).toBeInTheDocument();
   });
 
   it("renders the consent_blackbar anchor", () => {
-    render(<PageFooter />);
+    renderFooter();
     expect(document.getElementById("consent_blackbar")).toBeInTheDocument();
   });
 
   it("renders the teconsent anchor element", () => {
-    render(<PageFooter />);
+    renderFooter();
     expect(document.getElementById("teconsent")).toBeInTheDocument();
   });
 
@@ -107,7 +121,7 @@ describe("PageFooter", () => {
       recaptchaSiteKey: "key",
     });
 
-    render(<PageFooter />);
+    renderFooter();
 
     const script = document.getElementById("trustarc") as HTMLScriptElement;
     expect(script).toBeInTheDocument();
@@ -121,7 +135,7 @@ describe("PageFooter", () => {
       recaptchaSiteKey: "key",
     });
 
-    render(<PageFooter />);
+    renderFooter();
 
     const script = document.getElementById("trustarc") as HTMLScriptElement;
     expect(script).toBeInTheDocument();
@@ -129,7 +143,7 @@ describe("PageFooter", () => {
   });
 
   it("does not load the TrustArc script in development", () => {
-    render(<PageFooter />);
+    renderFooter();
     expect(document.getElementById("trustarc")).not.toBeInTheDocument();
   });
 
@@ -140,8 +154,14 @@ describe("PageFooter", () => {
       recaptchaSiteKey: "key",
     });
 
-    const { rerender } = render(<PageFooter />);
-    rerender(<PageFooter />);
+    const { rerender } = renderFooter();
+    rerender(
+      <AnalyticsContext.Provider
+        value={{ ...noopAnalyticsContext, trackIntent }}
+      >
+        <PageFooter />
+      </AnalyticsContext.Provider>,
+    );
 
     const scripts = document.querySelectorAll("#trustarc");
     expect(scripts).toHaveLength(1);
@@ -149,7 +169,7 @@ describe("PageFooter", () => {
 
   it("opens the browser support modal when the link is clicked", async () => {
     const user = userEvent.setup();
-    render(<PageFooter />);
+    renderFooter();
 
     await user.click(screen.getByText("Browser support"));
 
@@ -160,7 +180,7 @@ describe("PageFooter", () => {
 
   it("closes the browser support modal when dismissed", async () => {
     const user = userEvent.setup();
-    render(<PageFooter />);
+    renderFooter();
 
     await user.click(screen.getByText("Browser support"));
 
@@ -175,5 +195,24 @@ describe("PageFooter", () => {
         screen.queryByTestId("browser-support-modal"),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("tracks the footer Contact sales link", async () => {
+    const user = userEvent.setup();
+    renderFooter();
+
+    const link = screen.getByRole("link", { name: "Contact sales" });
+    expect(link).toHaveAttribute("data-analytics-text", "Contact sales");
+    expect(link).toHaveAttribute(
+      "data-analytics-category",
+      "Developer Sandbox|Footer",
+    );
+
+    await user.click(link);
+    expect(trackIntent).toHaveBeenCalledWith(
+      IntentEvent.contactSalesClicked,
+      "Footer",
+      { surface: "footer" },
+    );
   });
 });

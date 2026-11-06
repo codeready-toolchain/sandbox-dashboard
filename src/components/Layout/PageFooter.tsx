@@ -11,6 +11,8 @@ import { useEffect, useState } from "react";
 
 import RedHatLogo from "../../assets/logos/red_hat_logo_on_dark.svg";
 import { Environment, getConfig } from "../../config/config";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
+import { dpalClickAttributes, IntentEvent } from "../../utils/analytics";
 
 /**
  * Loads the TrustArc "cookie preferences" script and renders the anchor
@@ -104,6 +106,7 @@ export function BrowserSupportModal({
 }
 
 export function PageFooter() {
+  const { trackIntent } = useAnalyticsContext();
   const [isBrowserSupportModalOpen, setBrowserSupportModalOpen] =
     useState<boolean>(false);
 
@@ -220,7 +223,21 @@ export function PageFooter() {
             </a>
           </li>
           <li>
-            <a href="https://redhat.com/en/contact">Contact sales</a>
+            <a
+              href="https://redhat.com/en/contact"
+              onClick={() =>
+                trackIntent(IntentEvent.contactSalesClicked, "Footer", {
+                  surface: "footer",
+                })
+              }
+              {...dpalClickAttributes({
+                text: "Contact sales",
+                section: "Footer",
+                linkType: "cta",
+              })}
+            >
+              Contact sales
+            </a>
           </li>
           <li>
             <a href="https://redhat.com/en/services/training-and-certification/contact-us">

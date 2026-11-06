@@ -7,6 +7,7 @@ import { setTokenGetter } from "../../api/authFetch";
 import { server } from "../../mocks/server";
 import type { User } from "../../types";
 import { type Product, ProductType } from "../../types/product";
+import { IntentEvent } from "../../utils/analytics";
 import * as cookieUtils from "../../utils/cookie-utils";
 import { useAnalyticsContext } from "../AnalyticsContext";
 import { AnalyticsProvider } from "../AnalyticsProvider";
@@ -53,30 +54,66 @@ const mockProduct: Product = {
   description: [{ bulletPoint: "Test" }],
 };
 
+const openClawProduct: Product = {
+  type: ProductType.OPENCLAW,
+  title: "OpenClaw",
+  image: "openclaw.svg",
+  description: [{ bulletPoint: "Test" }],
+};
+
 function TrackButton() {
-  const { trackAnalytics } = useAnalyticsContext();
+  const { trackAnalytics, trackProductAction, trackIntent } =
+    useAnalyticsContext();
   return (
     <div>
       <button
         data-testid="track-catalog"
         onClick={() =>
-          trackAnalytics(
+          trackProductAction(
             mockProduct,
-            "Catalog",
+            "opened",
             "https://console.example.com",
-            "cta",
           )
         }
       >
         Track Catalog
       </button>
       <button
-        data-testid="track-activities"
+        data-testid="track-setup"
+        onClick={() => trackProductAction(mockProduct, "set-up")}
+      >
+        Track Setup
+      </button>
+      <button
+        data-testid="track-openclaw"
+        onClick={() => trackProductAction(openClawProduct, "set-up")}
+      >
+        Track OpenClaw
+      </button>
+      <button
+        data-testid="track-activity-cta"
         onClick={() =>
-          trackAnalytics("Getting Started", "Activities", "https://example.com")
+          trackAnalytics(
+            "Getting Started",
+            "Activities",
+            "https://example.com",
+            "cta",
+          )
         }
       >
+        Track Activity CTA
+      </button>
+      <button
+        data-testid="track-activities"
+        onClick={() => trackAnalytics("Docs", "Support", "https://example.com")}
+      >
         Track Activities
+      </button>
+      <button
+        data-testid="track-intent"
+        onClick={() => trackIntent(IntentEvent.phoneVerified, "Verification")}
+      >
+        Track Intent
       </button>
     </div>
   );
@@ -246,23 +283,42 @@ describe("AnalyticsProvider", () => {
 
     await user.click(screen.getByTestId("track-catalog"));
 
-    expect(mockTrack).toHaveBeenCalledWith("OpenShift launched", {
+    expect(mockTrack).toHaveBeenCalledWith("Product opened", {
       category: "Developer Sandbox|Catalog",
       regions: "sandbox-catalog",
       text: "OpenShift",
+      productType: ProductType.OPENSHIFT_CONSOLE,
+      action: "opened",
       href: "https://console.example.com",
       linkType: "cta",
       internalCampaign: "701Pe00000dnCEYIA2",
     });
 
-    await user.click(screen.getByTestId("track-activities"));
+    await user.click(screen.getByTestId("track-activity-cta"));
 
-    expect(mockTrack).toHaveBeenCalledWith("Getting Started clicked", {
+    expect(mockTrack).toHaveBeenCalledWith("Getting Started launched", {
       category: "Developer Sandbox|Activities",
       regions: "sandbox-activities",
       text: "Getting Started",
       href: "https://example.com",
+      linkType: "cta",
+    });
+
+    await user.click(screen.getByTestId("track-activities"));
+
+    expect(mockTrack).toHaveBeenCalledWith("Docs clicked", {
+      category: "Developer Sandbox|Support",
+      regions: "sandbox-support",
+      text: "Docs",
+      href: "https://example.com",
       linkType: "default",
+    });
+
+    await user.click(screen.getByTestId("track-intent"));
+
+    expect(mockTrack).toHaveBeenCalledWith("Phone verified", {
+      category: "Developer Sandbox|Verification",
+      regions: "sandbox-verification",
     });
   });
 
@@ -335,6 +391,20 @@ describe("AnalyticsProvider", () => {
       A_TacticID_Internal: "RHCTE5678",
       Status: "Engaged",
     });
+
+    await user.click(screen.getByTestId("track-setup"));
+
+    await waitFor(() => {
+      expect(marketoCalls).toHaveLength(2);
+    });
+    const setupBody = JSON.parse(marketoCalls[1][1].body as string);
+    expect(setupBody.A_OfferID).toBe("701Pe00000dnCEYIA2");
+
+    await user.click(screen.getByTestId("track-openclaw"));
+    await user.click(screen.getByTestId("track-intent"));
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(marketoCalls).toHaveLength(2);
 
     fetchSpy.mockRestore();
   });
@@ -431,7 +501,7 @@ describe("AnalyticsProvider", () => {
     fetchSpy.mockRestore();
   });
 
-  it("does not fire Marketo for non-Catalog sections", async () => {
+  it("does not fire Marketo for activity clicks or intent events", async () => {
     const marketoCalls: string[] = [];
     const originalFetch = globalThis.fetch;
     const fetchSpy = vi
@@ -466,6 +536,7 @@ describe("AnalyticsProvider", () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByTestId("track-activities"));
+    await user.click(screen.getByTestId("track-intent"));
 
     await new Promise((r) => setTimeout(r, 50));
 

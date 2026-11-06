@@ -4,7 +4,14 @@ import userEvent from "@testing-library/user-event";
 import * as registrationApi from "../../../api/registration";
 import { SUPPORT_EMAIL } from "../../../const";
 import { ApiError } from "../../../error/ApiError";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
+import { IntentEvent } from "../../../utils/analytics";
 import { WorkspaceResetModal } from "../WorkspaceResetModal";
+
+const trackIntent = vi.fn();
 
 vi.mock("../../../api/registration", () => ({
   resetWorkspaces: vi.fn(),
@@ -15,11 +22,13 @@ const mockOnReset = vi.fn();
 
 function renderModal(isOpen = true) {
   return render(
-    <WorkspaceResetModal
-      isOpen={isOpen}
-      onClose={mockOnClose}
-      onReset={mockOnReset}
-    />,
+    <AnalyticsContext.Provider value={{ ...noopAnalyticsContext, trackIntent }}>
+      <WorkspaceResetModal
+        isOpen={isOpen}
+        onClose={mockOnClose}
+        onReset={mockOnReset}
+      />
+    </AnalyticsContext.Provider>,
   );
 }
 
@@ -83,6 +92,10 @@ describe("WorkspaceResetModal", () => {
       expect(mockOnReset).toHaveBeenCalled();
     });
     expect(registrationApi.resetWorkspaces).toHaveBeenCalled();
+    expect(trackIntent).toHaveBeenCalledWith(
+      IntentEvent.workspacesReset,
+      "Account",
+    );
   });
 
   it("shows error on reset failure", async () => {
@@ -95,6 +108,7 @@ describe("WorkspaceResetModal", () => {
     await confirmReset(user);
 
     await waitFor(() => {
+      expect(trackIntent).not.toHaveBeenCalled();
       expect(
         screen.getByText(
           `Unable to reset your workspaces. Please, try again later, and if your issue persists, contact support at ${SUPPORT_EMAIL}`,

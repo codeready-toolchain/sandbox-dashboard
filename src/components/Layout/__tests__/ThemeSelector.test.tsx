@@ -2,10 +2,15 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
+import {
   ThemeContext,
   type ThemeContextType,
 } from "../../../hooks/ThemeContext";
 import { ColorScheme, ContrastMode, ThemeMode } from "../../../types/main";
+import { IntentEvent } from "../../../utils/analytics";
 import { ThemeSelector } from "../ThemeSelector";
 
 /**
@@ -30,12 +35,18 @@ function makeThemeContext(
 
 function renderSelector(overrides: Partial<ThemeContextType> = {}) {
   const ctx = makeThemeContext(overrides);
+  const trackIntent = vi.fn();
   return {
     ctx,
+    trackIntent,
     ...render(
-      <ThemeContext.Provider value={ctx}>
-        <ThemeSelector />
-      </ThemeContext.Provider>,
+      <AnalyticsContext.Provider
+        value={{ ...noopAnalyticsContext, trackIntent }}
+      >
+        <ThemeContext.Provider value={ctx}>
+          <ThemeSelector />
+        </ThemeContext.Provider>
+      </AnalyticsContext.Provider>,
     ),
   };
 }
@@ -230,7 +241,7 @@ describe("ThemeSelector", () => {
       "theme mode is clicked",
     async () => {
       const user = userEvent.setup();
-      const { ctx } = renderSelector({
+      const { ctx, trackIntent } = renderSelector({
         themePreferences: {
           themeMode: ThemeMode.DEFAULT,
           colorScheme: ColorScheme.SYSTEM,
@@ -252,6 +263,25 @@ describe("ThemeSelector", () => {
       );
 
       expect(ctx.changeThemeMode).not.toHaveBeenCalled();
+      expect(trackIntent).not.toHaveBeenCalled();
     },
   );
+
+  it("reports the full theme snapshot when the user changes it", async () => {
+    const user = userEvent.setup();
+    const { trackIntent } = renderSelector();
+
+    await user.click(screen.getByRole("button", { name: "Theme selection" }));
+    await user.click(screen.getByRole("button", { name: "Project felt" }));
+
+    expect(trackIntent).toHaveBeenCalledWith(
+      IntentEvent.themeChanged,
+      "Theme",
+      {
+        themeMode: ThemeMode.PROJECT_FELT,
+        colorScheme: ColorScheme.SYSTEM,
+        contrastMode: ContrastMode.SYSTEM,
+      },
+    );
+  });
 });

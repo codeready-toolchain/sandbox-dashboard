@@ -53,6 +53,158 @@ export function segmentTrackClick(
 }
 
 /**
+ * Named Segment events for outcomes, and for clicks that are not a
+ * product open or setup.
+ */
+export const IntentEvent = {
+  themeChanged: "Theme changed",
+  phoneVerified: "Phone verified",
+  workspacesReset: "Workspaces reset",
+  contactSalesClicked: "Contact sales clicked",
+  activationCodeAccepted: "Activation code accepted",
+  supportQuestionOpened: "Support question opened",
+  supportEmailClicked: "Support email clicked",
+} as const;
+
+/** A {@link IntentEvent} name. */
+export type IntentEventName = (typeof IntentEvent)[keyof typeof IntentEvent];
+
+/**
+ * Dashboard area stored on an intent event. This becomes the Segment
+ * category (`Developer Sandbox|{section}`) and region
+ * (`sandbox-{section}`).
+ */
+export type IntentSection =
+  | "Account"
+  | "Catalog"
+  | "Footer"
+  | "Support"
+  | "Theme"
+  | "Verification";
+
+/**
+ * A provisioned product trial was opened, or the user successfully
+ * asked for a product instance to be set up.
+ */
+export type ProductAnalyticsAction = "opened" | "set-up";
+
+/** Segment event names for {@link ProductAnalyticsAction}. */
+export const ProductEvent = {
+  opened: "Product opened",
+  setUp: "Product set up",
+} as const;
+
+/**
+ * Returns the Segment event name for a product open or setup.
+ * @param action the product action that succeeded.
+ */
+export function productAnalyticsEventName(
+  action: ProductAnalyticsAction,
+): string {
+  return action === "opened" ? ProductEvent.opened : ProductEvent.setUp;
+}
+
+/**
+ * Shared Segment properties that place an event in a dashboard area.
+ * @param section the dashboard area, such as `"Catalog"` or `"Theme"`.
+ * @param properties extra properties merged after the area fields.
+ */
+export function sandboxAnalyticsProperties(
+  section: string,
+  properties: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    category: `Developer Sandbox|${section}`,
+    regions: `sandbox-${section.toLocaleLowerCase("en-US")}`,
+    ...properties,
+  };
+}
+
+/**
+ * Fires a Segment event with an explicit name.
+ *
+ * Outcome events such as "Phone verified" use this. Click events that
+ * should be named "{item} clicked" or "{item} launched" use
+ * {@link segmentTrackClick}.
+ *
+ * @param analytics the initialized Segment browser client.
+ * @param eventName the event name sent to Segment.
+ * @param properties the event properties.
+ */
+export function segmentTrackEvent(
+  analytics: AnalyticsBrowser,
+  eventName: string,
+  properties: Record<string, unknown>,
+): void {
+  analytics.track(eventName, properties);
+}
+
+/**
+ * Adobe Analytics (`dpal.js`) click attributes.
+ *
+ * The script records a click on the element that carries these
+ * attributes. It does not see Segment calls, so only the control whose
+ * click is the interaction itself should be decorated.
+ */
+export interface DpalClickAttributes {
+  "data-analytics-linktype": "cta" | "default";
+  "data-analytics-text": string;
+  "data-analytics-category": string;
+  "data-analytics-region": string;
+  "data-analytics-offerid"?: string;
+}
+
+/**
+ * Builds the Adobe click attributes for one interaction.
+ * @param options text, dashboard area, and optional campaign id.
+ */
+export function dpalClickAttributes(options: {
+  /** The label Adobe should store for the click. */
+  text: string;
+  /** Dashboard area, such as `"Catalog"` or `"Support"`. */
+  section: string;
+  /** Extra category segment, such as a product title. */
+  detail?: string;
+  /** `"cta"` for a primary action, `"default"` for a secondary one. */
+  linkType?: "cta" | "default";
+  /** Marketo offer id. Omitted when the product has no campaign. */
+  offerId?: string;
+}): DpalClickAttributes {
+  const category = options.detail
+    ? `Developer Sandbox|${options.section}|${options.detail}`
+    : `Developer Sandbox|${options.section}`;
+  const region = `sandbox-${options.section.toLocaleLowerCase("en-US")}`;
+  const attributes: DpalClickAttributes = {
+    "data-analytics-linktype": options.linkType ?? "cta",
+    "data-analytics-text": options.text,
+    "data-analytics-category": category,
+    "data-analytics-region": region,
+  };
+  if (options.offerId) {
+    attributes["data-analytics-offerid"] = options.offerId;
+  }
+  return attributes;
+}
+
+/**
+ * Adobe click attributes for opening a provisioned product.
+ * @param title the product title shown to the user.
+ * @param offerId the Marketo campaign id, when the product has one.
+ */
+export function productOpenDpalAttributes(
+  title: string,
+  offerId?: string,
+): DpalClickAttributes {
+  return dpalClickAttributes({
+    text: title,
+    section: "Catalog",
+    detail: title,
+    linkType: "cta",
+    offerId: offerId || undefined,
+  });
+}
+
+/**
  * The payload structure expected by the Workato webhook that feeds Marketo.
  */
 interface MarketoTrackingData {

@@ -12,8 +12,12 @@ import {
 import BookShelf from "../../assets/images/support/mini-collage-bookshelf-light-RH.Small_square_transparent.png";
 import ChatImage from "../../assets/images/support/mini-collage-talk-bubble-light-RH.Small_square_transparent.png";
 import { SUPPORT_EMAIL } from "../../const";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
+import { dpalClickAttributes, IntentEvent } from "../../utils/analytics";
 
 export function SupportBanner() {
+  const { trackIntent } = useAnalyticsContext();
+
   return (
     <Card isPlain isFullHeight={false}>
       <CardBody className="support-banner__body">
@@ -35,7 +39,19 @@ export function SupportBanner() {
                 <Content component={ContentVariants.p}>
                   Find answers to the frequently asked questions, or reach out
                   to us directly at{" "}
-                  <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+                  <a
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                    onClick={() =>
+                      trackIntent(IntentEvent.supportEmailClicked, "Support")
+                    }
+                    {...dpalClickAttributes({
+                      text: SUPPORT_EMAIL,
+                      section: "Support",
+                      linkType: "default",
+                    })}
+                  >
+                    {SUPPORT_EMAIL}
+                  </a>
                 </Content>
               </FlexItem>
             </Flex>

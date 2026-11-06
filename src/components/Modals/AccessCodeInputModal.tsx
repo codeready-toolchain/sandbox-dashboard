@@ -21,7 +21,9 @@ import { verifyActivationCode } from "../../api/registration";
 import { SUPPORT_EMAIL } from "../../const";
 import { ApiError } from "../../error/ApiError";
 import { mapApiErrorMessage } from "../../error/mapApiErrorMessage";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useUserContext } from "../../hooks/UserContext";
+import { IntentEvent } from "../../utils/analytics";
 import logger from "../../utils/logger";
 
 const ACTIVATION_CODE_ERROR_RULES = [
@@ -184,6 +186,7 @@ export function AccessCodeInputModal({
   isOpen,
   onClose,
 }: AccessCodeInputModalProps) {
+  const { trackIntent } = useAnalyticsContext();
   const { refetchUserData } = useUserContext();
 
   const [codeChars, setCodeChars] = useState<string[]>(
@@ -230,6 +233,7 @@ export function AccessCodeInputModal({
       if (!verifiedRef.current) {
         await verifyActivationCode(code);
         verifiedRef.current = true;
+        trackIntent(IntentEvent.activationCodeAccepted, "Catalog");
       }
 
       // Once the activation code has been verified, refetch the user

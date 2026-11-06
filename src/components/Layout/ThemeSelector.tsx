@@ -17,8 +17,10 @@ import {
 } from "@patternfly/react-icons";
 import { useRef, useState } from "react";
 
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useThemeContext } from "../../hooks/ThemeContext";
 import { ColorScheme, ContrastMode, ThemeMode } from "../../types/main";
+import { IntentEvent } from "../../utils/analytics";
 
 /**
  * Gets which icon to render for the theme selector.
@@ -50,7 +52,25 @@ export function ThemeSelector() {
     changeContrastMode,
     themePreferences,
   } = useThemeContext();
+  const { trackIntent } = useAnalyticsContext();
   const toggleRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Records the theme settings after a user change. The snapshot is
+   * the current preferences with the field the user just chose, so a
+   * value restored from storage on load is not reported.
+   */
+  const reportThemeChange = (next: {
+    themeMode?: ThemeMode;
+    colorScheme?: ColorScheme;
+    contrastMode?: ContrastMode;
+  }) => {
+    trackIntent(IntentEvent.themeChanged, "Theme", {
+      themeMode: next.themeMode ?? themePreferences.themeMode,
+      colorScheme: next.colorScheme ?? themePreferences.colorScheme,
+      contrastMode: next.contrastMode ?? themePreferences.contrastMode,
+    });
+  };
 
   const [isThemeSelectorOpen, setThemeSelectorOpen] = useState<boolean>(false);
 
@@ -89,6 +109,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeThemeMode(ThemeMode.DEFAULT);
+                    reportThemeChange({ themeMode: ThemeMode.DEFAULT });
                   }
                 }}
               />
@@ -101,6 +122,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeThemeMode(ThemeMode.PROJECT_FELT);
+                    reportThemeChange({ themeMode: ThemeMode.PROJECT_FELT });
                   }
                 }}
               />
@@ -119,6 +141,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeColorScheme(ColorScheme.SYSTEM);
+                    reportThemeChange({ colorScheme: ColorScheme.SYSTEM });
                   }
                 }}
               />
@@ -129,6 +152,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeColorScheme(ColorScheme.LIGHT);
+                    reportThemeChange({ colorScheme: ColorScheme.LIGHT });
                   }
                 }}
               />
@@ -139,6 +163,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeColorScheme(ColorScheme.DARK);
+                    reportThemeChange({ colorScheme: ColorScheme.DARK });
                   }
                 }}
               />
@@ -159,6 +184,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeContrastMode(ContrastMode.SYSTEM);
+                    reportThemeChange({ contrastMode: ContrastMode.SYSTEM });
                   }
                 }}
               />
@@ -171,6 +197,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeContrastMode(ContrastMode.DEFAULT);
+                    reportThemeChange({ contrastMode: ContrastMode.DEFAULT });
                   }
                 }}
               />
@@ -183,6 +210,9 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeContrastMode(ContrastMode.HIGH_CONTRAST);
+                    reportThemeChange({
+                      contrastMode: ContrastMode.HIGH_CONTRAST,
+                    });
                   }
                 }}
               />
@@ -195,6 +225,7 @@ export function ThemeSelector() {
                 onChange={(_event, selected) => {
                   if (selected) {
                     changeContrastMode(ContrastMode.GLASS);
+                    reportThemeChange({ contrastMode: ContrastMode.GLASS });
                   }
                 }}
               />

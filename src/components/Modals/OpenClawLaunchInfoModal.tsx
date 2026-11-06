@@ -16,10 +16,12 @@ import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external
 import { useRef, useState } from "react";
 
 import type { UserFacingError } from "../../error/UserFacingError";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useOpenClawContext } from "../../hooks/OpenClawContext";
 import type { Product } from "../../types/product";
 import type { AddedCredential } from "../../utils/openclaw-providers";
 import { OpenClawStatus } from "../../utils/openclaw-utils";
+import { catalogProductOpenAttributes } from "../Catalog/productData";
 import {
   CredentialAccordion,
   type CredentialAccordionRef,
@@ -45,6 +47,7 @@ export function OpenClawLaunchInfoModal({
   onProvisioningErrorDismissed,
   onClickProvision,
 }: OpenClawLaunchInfoModalProps) {
+  const { trackProductAction } = useAnalyticsContext();
   const { status, uiURL } = useOpenClawContext();
 
   const accordionRef = useRef<CredentialAccordionRef>(null);
@@ -160,8 +163,10 @@ export function OpenClawLaunchInfoModal({
               icon={<ExternalLinkAltIcon />}
               iconPosition="end"
               onClick={() => {
+                trackProductAction(product, "opened", uiURL);
                 onLaunch(product);
               }}
+              {...catalogProductOpenAttributes(product)}
               data-testid="openclaw-launch-button"
             >
               Launch

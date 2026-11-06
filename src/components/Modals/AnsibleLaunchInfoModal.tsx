@@ -28,11 +28,15 @@ import { UserFacingError } from "../../error/UserFacingError";
 import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useAnsibleContext } from "../../hooks/AnsibleContext";
 import type { AAPInstanceCredentials } from "../../types";
+import type { Product } from "../../types/product";
+import { catalogProductOpenAttributes } from "../Catalog/productData";
 import { ErrorModal } from "./ErrorModal";
 
 type AnsibleLaunchInfoModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  /** The Ansible catalog product, used for open analytics. */
+  product: Product;
   provisioningError?: UserFacingError;
 };
 
@@ -96,9 +100,10 @@ function PasswordField({ password }: { password: string }) {
 export function AnsibleLaunchInfoModal({
   isOpen,
   onClose,
+  product,
   provisioningError,
 }: AnsibleLaunchInfoModalProps) {
-  const { trackAnalytics } = useAnalyticsContext();
+  const { trackProductAction } = useAnalyticsContext();
   const { fetchInstanceCredentials, instanceStatus } = useAnsibleContext();
 
   // Keep track of the status of the instance credentials' fecthing to show
@@ -453,13 +458,13 @@ export function AnsibleLaunchInfoModal({
             icon={<ExternalLinkAltIcon />}
             iconPosition="end"
             onClick={() =>
-              trackAnalytics(
-                "Get Started - Ansible",
-                "Catalog",
+              trackProductAction(
+                product,
+                "opened",
                 instanceCredentialsStatus.credentials.url,
-                "cta",
               )
             }
+            {...catalogProductOpenAttributes(product)}
           >
             Get started
           </Button>

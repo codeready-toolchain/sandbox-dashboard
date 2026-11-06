@@ -13,7 +13,9 @@ import { useRef, useState } from "react";
 import { resetWorkspaces } from "../../api/registration";
 import { SUPPORT_EMAIL } from "../../const";
 import { ApiError } from "../../error/ApiError";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { IntentEvent } from "../../utils/analytics";
 import { errorMessage } from "../../utils/common";
 import logger from "../../utils/logger";
 
@@ -30,6 +32,7 @@ export function WorkspaceResetModal({
   onClose,
   onReset,
 }: WorkspaceResetModalProps) {
+  const { trackIntent } = useAnalyticsContext();
   const [stage, setStage] = useState<ResetStage>("initial");
   const [error, setError] = useState<string | null>(null);
   const [technicalDetails, setTechnicalDetails] = useState<string | null>(null);
@@ -64,6 +67,7 @@ export function WorkspaceResetModal({
       setError(null);
       try {
         await resetWorkspaces();
+        trackIntent(IntentEvent.workspacesReset, "Account");
         resetState();
         onReset();
       } catch (err) {

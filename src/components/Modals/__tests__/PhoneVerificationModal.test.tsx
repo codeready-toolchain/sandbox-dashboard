@@ -3,10 +3,14 @@ import userEvent from "@testing-library/user-event";
 
 import * as registrationApi from "../../../api/registration";
 import { SUPPORT_EMAIL } from "../../../const";
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import { UserContext, type UserContextType } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { IntentEvent } from "../../../utils/analytics";
 import { PhoneVerificationModal } from "../PhoneVerificationModal";
 import {
   getCountryCodeInput,
@@ -21,6 +25,8 @@ vi.mock("../../../api/registration", () => ({
   initiatePhoneVerification: vi.fn(),
   completePhoneVerification: vi.fn(),
 }));
+
+const trackIntent = vi.fn();
 
 function makeContext(
   overrides: Partial<UserContextType> = {},
@@ -40,7 +46,7 @@ function renderModal(
   onClose: () => void = vi.fn(),
 ) {
   return render(
-    <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+    <AnalyticsContext.Provider value={{ ...noopAnalyticsContext, trackIntent }}>
       <UserContext.Provider value={makeContext(contextOverrides)}>
         <PhoneVerificationModal isOpen={isOpen} onClose={onClose} />
       </UserContext.Provider>
@@ -214,6 +220,7 @@ describe("PhoneVerificationModal", () => {
       screen.getByText("Please enter a valid verification code."),
     ).toBeInTheDocument();
     expect(registrationApi.completePhoneVerification).not.toHaveBeenCalled();
+    expect(trackIntent).not.toHaveBeenCalled();
   });
 
   it("shows error from API on phone step", async () => {
@@ -259,6 +266,11 @@ describe("PhoneVerificationModal", () => {
     });
     expect(registrationApi.completePhoneVerification).toHaveBeenCalledWith(
       "123456",
+    );
+    expect(trackIntent).toHaveBeenCalledTimes(1);
+    expect(trackIntent).toHaveBeenCalledWith(
+      IntentEvent.phoneVerified,
+      "Verification",
     );
   });
 
@@ -328,6 +340,7 @@ describe("PhoneVerificationModal", () => {
     });
     expect(registrationApi.completePhoneVerification).toHaveBeenCalledTimes(1);
     expect(mockRefetch).toHaveBeenCalledTimes(2);
+    expect(trackIntent).toHaveBeenCalledTimes(1);
   });
 
   it("calls onClose and resets state when Cancel is clicked", async () => {
@@ -338,6 +351,7 @@ describe("PhoneVerificationModal", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+    expect(trackIntent).not.toHaveBeenCalled();
   });
 
   it("prevents duplicate phone submissions on rapid double-click", async () => {

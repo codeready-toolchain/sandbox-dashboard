@@ -11,7 +11,16 @@ import { getSegmentWriteKey, getUIConfig } from "../api/registration";
 import { Intcmp } from "../components/Catalog/productData";
 import { Environment, getConfig } from "../config/config";
 import type { Product } from "../types/product";
-import { segmentTrackClick, trackMarketoEvent } from "../utils/analytics";
+import {
+  type IntentEventName,
+  type IntentSection,
+  type ProductAnalyticsAction,
+  productAnalyticsEventName,
+  sandboxAnalyticsProperties,
+  segmentTrackClick,
+  segmentTrackEvent,
+  trackMarketoEvent,
+} from "../utils/analytics";
 import {
   CONSENT_POLL_DELAY_MS,
   hasAnalyticsConsent,
@@ -264,50 +273,90 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     }
   }, [consentGranted, segmentWriteKey, user]);
 
-  // Tracks a user interaction by with both Segment and Marketo.
-  //
-  // Segment receives every event regardless of section. Marketo only receives
-  // Catalog events, since it is used exclusively for product engagement
-  // attribution.
+  // Named clicks, such as opening an activity. Segment only.
   const trackAnalytics = useCallback(
     (
-      itemNameOrProduct: string | Product,
+      itemName: string,
       section: "Catalog" | "Activities" | "Support" | "Verification",
       href?: string,
       linkType: "cta" | "default" = "default",
     ) => {
+      if (!consentGranted || !analyticsRef.current) {
+        return;
+      }
+
+      segmentTrackClick(analyticsRef.current, {
+        itemName,
+        section,
+        href,
+        linkType,
+      });
+    },
+    [consentGranted],
+  );
+
+  // Product open and setup. Segment always, Marketo only with a campaign.
+  const trackProductAction = useCallback(
+    (product: Product, action: ProductAnalyticsAction, href?: string) => {
       if (!consentGranted) {
         return;
       }
 
-      const isProduct =
-        typeof itemNameOrProduct === "object" && "type" in itemNameOrProduct;
-      const itemName = isProduct ? itemNameOrProduct.title : itemNameOrProduct;
-      const internalCampaign = isProduct
-        ? Intcmp[itemNameOrProduct.type]
-        : undefined;
-
-      // Always track for Segment if it is initialized.
-      if (analyticsRef.current) {
-        segmentTrackClick(analyticsRef.current, {
-          itemName,
-          section,
-          href,
-          internalCampaign,
-          linkType,
-        });
+      const internalCampaign = Intcmp[product.type] || undefined;
+      const properties: Record<string, unknown> = {
+        ...sandboxAnalyticsProperties("Catalog", {
+          text: product.title,
+          productType: product.type,
+          action,
+          linkType: "cta",
+        }),
+      };
+      if (href) {
+        properties.href = href;
+      }
+      if (internalCampaign) {
+        properties.internalCampaign = internalCampaign;
       }
 
-      // Track only catalog clicks with a valid campaign for Marketo.
-      if (section === "Catalog" && internalCampaign) {
+      if (analyticsRef.current) {
+        segmentTrackEvent(
+          analyticsRef.current,
+          productAnalyticsEventName(action),
+          properties,
+        );
+      }
+
+      if (internalCampaign) {
         trackMarketoEvent(user, internalCampaign, marketoWebhookURL);
       }
     },
     [consentGranted, marketoWebhookURL, user],
   );
 
+  // Outcomes and other named intent events. Segment only.
+  const trackIntent = useCallback(
+    (
+      eventName: IntentEventName,
+      section: IntentSection,
+      properties?: Record<string, string>,
+    ) => {
+      if (!consentGranted || !analyticsRef.current) {
+        return;
+      }
+
+      segmentTrackEvent(
+        analyticsRef.current,
+        eventName,
+        sandboxAnalyticsProperties(section, properties),
+      );
+    },
+    [consentGranted],
+  );
+
   return (
-    <AnalyticsContext.Provider value={{ trackAnalytics }}>
+    <AnalyticsContext.Provider
+      value={{ trackAnalytics, trackProductAction, trackIntent }}
+    >
       {children}
     </AnalyticsContext.Provider>
   );

@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { UserFacingError } from "../../../error/UserFacingError";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import {
   OpenClawContext,
   type OpenClawContextType,
@@ -33,19 +38,21 @@ function makeOpenClawContext(status: OpenClawStatus): OpenClawContextType {
 
 function renderErrorModal(status: OpenClawStatus, title: string) {
   render(
-    <OpenClawContext.Provider value={makeOpenClawContext(status)}>
-      <OpenClawLaunchInfoModal
-        isOpen
-        onClose={vi.fn()}
-        product={openClawProduct}
-        provisioningError={
-          new UserFacingError(title, "Please try again later.")
-        }
-        onLaunch={vi.fn()}
-        onProvisioningErrorDismissed={vi.fn()}
-        onClickProvision={vi.fn().mockResolvedValue(undefined)}
-      />
-    </OpenClawContext.Provider>,
+    <AnalyticsContext.Provider value={noopAnalyticsContext}>
+      <OpenClawContext.Provider value={makeOpenClawContext(status)}>
+        <OpenClawLaunchInfoModal
+          isOpen
+          onClose={vi.fn()}
+          product={openClawProduct}
+          provisioningError={
+            new UserFacingError(title, "Please try again later.")
+          }
+          onLaunch={vi.fn()}
+          onProvisioningErrorDismissed={vi.fn()}
+          onClickProvision={vi.fn().mockResolvedValue(undefined)}
+        />
+      </OpenClawContext.Provider>
+    </AnalyticsContext.Provider>,
   );
 }
 
@@ -102,5 +109,48 @@ describe("OpenClawLaunchInfoModal error heading", () => {
     expect(
       screen.getByRole("dialog", { name: "Set up OpenClaw instance" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("OpenClawLaunchInfoModal launch", () => {
+  it("tracks a product open when the instance URL is launched", async () => {
+    const user = userEvent.setup();
+    const trackProductAction = vi.fn();
+    const onLaunch = vi.fn();
+
+    render(
+      <AnalyticsContext.Provider
+        value={{ ...noopAnalyticsContext, trackProductAction }}
+      >
+        <OpenClawContext.Provider
+          value={{
+            ...makeOpenClawContext(OpenClawStatus.READY),
+            uiURL: "https://openclaw.example.com",
+          }}
+        >
+          <OpenClawLaunchInfoModal
+            isOpen
+            onClose={vi.fn()}
+            product={openClawProduct}
+            onLaunch={onLaunch}
+            onProvisioningErrorDismissed={vi.fn()}
+            onClickProvision={vi.fn().mockResolvedValue(undefined)}
+          />
+        </OpenClawContext.Provider>
+      </AnalyticsContext.Provider>,
+    );
+
+    const link = screen.getByRole("link", { name: "Launch" });
+    expect(link).toHaveAttribute("data-analytics-text", "OpenClaw");
+    expect(link).not.toHaveAttribute("data-analytics-offerid");
+
+    await user.click(link);
+
+    expect(trackProductAction).toHaveBeenCalledWith(
+      openClawProduct,
+      "opened",
+      "https://openclaw.example.com",
+    );
+    expect(onLaunch).toHaveBeenCalledWith(openClawProduct);
   });
 });

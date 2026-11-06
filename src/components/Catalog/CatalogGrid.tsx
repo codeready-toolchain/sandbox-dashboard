@@ -19,7 +19,7 @@ import { AnsibleCatalogCard } from "./AnsibleCatalogCard";
 import { CatalogCard } from "./CatalogCard";
 import { ButtonLabel } from "./catalogCardTypes";
 import { OpenClawCatalogCard } from "./OpenClawCatalogCard";
-import { products } from "./productData";
+import { catalogProductOpenAttributes, products } from "./productData";
 
 /**
  * Product catalog grid. It is wrapped by the SignupActionProvider so
@@ -43,7 +43,7 @@ export function CatalogGrid() {
  * actions through the signup continuation.
  */
 function CatalogGridCards() {
-  const { trackAnalytics } = useAnalyticsContext();
+  const { trackProductAction } = useAnalyticsContext();
   const { getProductURL } = useProductURLResolver();
   const { disabledIntegrations, isLoading: isPublicConfigLoading } =
     usePublicConfigurationContext();
@@ -82,12 +82,12 @@ function CatalogGridCards() {
     (product: Product) => {
       const url = getProductURL(product);
       if (url) {
-        trackAnalytics(product, "Catalog", url, "cta");
+        trackProductAction(product, "opened", url);
         window.open(url, "_blank", "noopener,noreferrer");
         markProductAsTried(product);
       }
     },
-    [getProductURL, markProductAsTried, trackAnalytics],
+    [getProductURL, markProductAsTried, trackProductAction],
   );
 
   // Register the primary actions for the stateless cards. The goal is
@@ -106,16 +106,29 @@ function CatalogGridCards() {
       }
 
       const productToOpen = product;
+      // The continuation button is the click that opens the product
+      // when the browser gesture expires. Tag that click only when
+      // it has a URL. The card button below keeps its own READY gate.
+      const productURL = getProductURL(productToOpen);
       registerAction({
         product: productToOpen,
         requiresUserGesture: true,
         canEnable: userSignupPhase === UserSignupPhase.READY,
+        clickAnalytics: productURL
+          ? catalogProductOpenAttributes(productToOpen)
+          : undefined,
         onReady: () => {
           openProductURL(productToOpen);
         },
       });
     }
-  }, [enabledProducts, openProductURL, registerAction, userSignupPhase]);
+  }, [
+    enabledProducts,
+    getProductURL,
+    openProductURL,
+    registerAction,
+    userSignupPhase,
+  ]);
 
   /**
    * Handles opening the product's URL for the cards that do not hold
@@ -231,6 +244,11 @@ function CatalogGridCards() {
                   isPrimaryButtonSpinnerVisible={isRhdhProvisioning}
                   isPrimaryButtonExtIconVisible
                   isDeleteButtonVisible={false}
+                  clickAnalytics={
+                    isRhdhButtonEnabled && getProductURL(product)
+                      ? catalogProductOpenAttributes(product)
+                      : undefined
+                  }
                   onClickPrimaryButton={() =>
                     handleOnClickPrimaryButtonSimpleCards(product)
                   }
@@ -251,6 +269,12 @@ function CatalogGridCards() {
                   isPrimaryButtonSpinnerVisible={false}
                   isPrimaryButtonExtIconVisible
                   isDeleteButtonVisible={false}
+                  clickAnalytics={
+                    userSignupPhase === UserSignupPhase.READY &&
+                    getProductURL(product)
+                      ? catalogProductOpenAttributes(product)
+                      : undefined
+                  }
                   onClickPrimaryButton={() =>
                     handleOnClickPrimaryButtonSimpleCards(product)
                   }

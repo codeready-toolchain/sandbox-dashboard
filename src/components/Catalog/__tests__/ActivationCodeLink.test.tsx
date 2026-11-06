@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
@@ -25,9 +29,11 @@ function makeContext(
 
 function renderLink(overrides: Partial<UserContextType> = {}) {
   return render(
-    <UserContext.Provider value={makeContext(overrides)}>
-      <ActivationCodeLink />
-    </UserContext.Provider>,
+    <AnalyticsContext.Provider value={noopAnalyticsContext}>
+      <UserContext.Provider value={makeContext(overrides)}>
+        <ActivationCodeLink />
+      </UserContext.Provider>
+    </AnalyticsContext.Provider>,
   );
 }
 

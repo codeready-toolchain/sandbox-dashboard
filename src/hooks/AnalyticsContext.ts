@@ -1,38 +1,83 @@
 import { createContext, useContext } from "react";
 
 import type { Product } from "../types/product";
+import type {
+  IntentEventName,
+  IntentSection,
+  ProductAnalyticsAction,
+} from "../utils/analytics";
 
 export interface AnalyticsContextType {
   /**
-   * Tracks a user interaction across Segment and Marketo.
+   * Tracks a named click in Segment, such as opening an activity.
    *
-   * When a {@link Product} is passed, the product's title is used as the
-   * tracked item name and the Marketo campaign ID (Intcmp) is resolved
-   * automatically from the product type. When a plain string is passed, it
-   * is used as the item name with no campaign ID.
+   * The event name is `"{itemName} launched"` for a primary action and
+   * `"{itemName} clicked"` otherwise. Marketo is not notified. Product
+   * opens and setups use {@link trackProductAction}. Outcomes such as
+   * a verified phone use {@link trackIntent}.
    *
-   * Segment receives every event. Marketo only receives events whose section
-   * is `"Catalog"`.
-   *
-   * @param itemNameOrProduct - The product being interacted with, or a free-form
-   *   label for non-product events (e.g. `"Send Code"`, `"Cancel Verification"`).
-   * @param section - The area of the dashboard where the interaction occurred.
-   * @param href - The destination URL, if the interaction opens a link.
-   * @param linkType - `"cta"` for primary call-to-action buttons (tracked as
-   *   "{name} launched"), `"default"` for secondary links (tracked as
-   *   "{name} clicked"). Defaults to `"default"`.
+   * @param itemName the label of the control the user activated.
+   * @param section the dashboard area where the click happened.
+   * @param href the destination URL, when the click opens a link.
+   * @param linkType `"cta"` for a primary action, `"default"` for a
+   *   secondary one. Defaults to `"default"`.
    */
   trackAnalytics: (
-    itemNameOrProduct: string | Product,
+    itemName: string,
     section: "Catalog" | "Activities" | "Support" | "Verification",
     href?: string,
     linkType?: "cta" | "default",
+  ) => void;
+  /**
+   * Tracks a product open or a successful product setup.
+   *
+   * Segment always receives the event. Marketo receives it only when
+   * the product has a campaign id.
+   *
+   * @param product the catalog product the user opened or set up.
+   * @param action `"opened"` when a provisioned trial is started,
+   *   `"set-up"` when instance creation was accepted.
+   * @param href the product URL, when the action opens one.
+   */
+  trackProductAction: (
+    product: Product,
+    action: ProductAnalyticsAction,
+    href?: string,
+  ) => void;
+  /**
+   * Tracks a named intent event in Segment. Marketo is not notified.
+   *
+   * Use this for outcomes and for clicks that should keep a stable
+   * event name, with the details in properties.
+   *
+   * @param eventName the Segment event name.
+   * @param section the dashboard area stored on the event.
+   * @param properties extra string properties, such as the theme
+   *   settings or the support question text.
+   */
+  trackIntent: (
+    eventName: IntentEventName,
+    section: IntentSection,
+    properties?: Record<string, string>,
   ) => void;
 }
 
 export const AnalyticsContext = createContext<AnalyticsContextType | undefined>(
   undefined,
 );
+
+/**
+ * Analytics callbacks that record nothing.
+ *
+ * Tests render this when a component calls the analytics hooks and the
+ * test is not asserting on those calls. The application mounts
+ * {@link AnalyticsProvider} instead.
+ */
+export const noopAnalyticsContext: AnalyticsContextType = {
+  trackAnalytics: () => undefined,
+  trackProductAction: () => undefined,
+  trackIntent: () => undefined,
+};
 
 export const useAnalyticsContext = (): AnalyticsContextType => {
   const context = useContext(AnalyticsContext);

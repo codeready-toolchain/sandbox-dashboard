@@ -5,7 +5,10 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../../auth/AuthenticatedContext";
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import { NotificationProvider } from "../../../hooks/NotificationProvider";
 import type { OpenClawContextType } from "../../../hooks/OpenClawContext";
 import { OpenClawContext } from "../../../hooks/OpenClawContext";
@@ -25,6 +28,7 @@ import { products } from "../productData";
 import { makeOpenClawContext } from "./openClawTestHelpers";
 
 const openclawProduct = products.find((p) => p.type === ProductType.OPENCLAW)!;
+const trackProductAction = vi.fn();
 
 const authenticatedUser: AuthenticatedContextValue = {
   email: "johndoe@redhat.com",
@@ -72,7 +76,9 @@ function renderCardTree(
             value={{ openPhoneVerificationModal: vi.fn() }}
           >
             <SignupActionContext.Provider value={signupActionCtx}>
-              <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+              <AnalyticsContext.Provider
+                value={{ ...noopAnalyticsContext, trackProductAction }}
+              >
                 <OpenClawContext.Provider value={openClawCtx}>
                   <OpenClawCatalogCard
                     product={openclawProduct}
@@ -140,6 +146,9 @@ function getPrimaryButton(name: RegExp | string) {
 
 describe("OpenClawCatalogCard", () => {
   afterEach(() => {
+    trackProductAction.mockClear();
+  });
+  afterEach(() => {
     vi.useRealTimers();
   });
 
@@ -183,6 +192,7 @@ describe("OpenClawCatalogCard", () => {
 
     expect(windowOpenSpy).not.toHaveBeenCalled();
     expect(markProductAsTried).not.toHaveBeenCalled();
+    expect(trackProductAction).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     windowOpenSpy.mockRestore();
@@ -279,6 +289,7 @@ describe("OpenClawCatalogCard", () => {
     await user.type(screen.getByLabelText("API Key"), "gemini-test-key");
     await user.click(screen.getByTestId("openclaw-provision-button"));
 
+    expect(trackProductAction).toHaveBeenCalledWith(openclawProduct, "set-up");
     expect(startProvisioning).toHaveBeenCalledWith(
       [
         expect.objectContaining({

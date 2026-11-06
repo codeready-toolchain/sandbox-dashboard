@@ -122,7 +122,7 @@ export function AnsibleCatalogCard({
     useSignupAction();
   const { addAlert, addAlertFromError } = useNotifications();
   const { openPhoneVerificationModal } = usePhoneVerificationContext();
-  const { trackAnalytics } = useAnalyticsContext();
+  const { trackProductAction } = useAnalyticsContext();
 
   const [deletionError, setDeletionError] = useState<
     UserFacingError | undefined
@@ -179,7 +179,6 @@ export function AnsibleCatalogCard({
 
       case "ready":
         setAnsibleInfoModalOpen(true);
-        trackAnalytics(product, "Catalog", undefined, "cta");
         markProductAsTried(product);
         return;
 
@@ -245,7 +244,7 @@ export function AnsibleCatalogCard({
           provisionInFlight.current = false;
         }
         setAnsibleInfoModalOpen(true);
-        trackAnalytics(product, "Catalog", undefined, "cta");
+        trackProductAction(product, "set-up");
         markProductAsTried(product);
     }
   }, [
@@ -254,7 +253,7 @@ export function AnsibleCatalogCard({
     markProductAsTried,
     product,
     provisionInstance,
-    trackAnalytics,
+    trackProductAction,
     unidleInstance,
   ]);
 
@@ -382,6 +381,7 @@ export function AnsibleCatalogCard({
       <AnsibleLaunchInfoModal
         isOpen={isAnsibleInfoModalOpen}
         onClose={onLaunchInfoModalClose}
+        product={product}
         provisioningError={provisioningError}
       />
       <AnsibleDeleteInstanceModal

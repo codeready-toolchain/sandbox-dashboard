@@ -24,9 +24,9 @@ import {
   type Product,
   type ProductDescription,
 } from "../../types/product";
+import type { DpalClickAttributes } from "../../utils/analytics";
 import type { StatusLabel } from "./catalogCardTypes";
 import { ButtonLabel } from "./catalogCardTypes";
-import { Intcmp } from "./productData";
 
 /**
  * Defines the properties of the CatalogCard component.
@@ -57,6 +57,13 @@ type CatalogCardProps = {
   isPrimaryButtonExtIconVisible: boolean;
   /** Controls whether the "delete" button is visible in the card. */
   isDeleteButtonVisible: boolean;
+  /**
+   * Adobe click attributes for the primary button. Set only when that
+   * click opens a product that is already provisioned. Signup, resume,
+   * and setup clicks stay undecorated because Adobe records the click
+   * itself, not the later outcome.
+   */
+  clickAnalytics?: DpalClickAttributes;
   /** Action to perform when the primary button is clicked. */
   onClickPrimaryButton: () => void;
   /** Action to perform when the "delete" button is clicked. */
@@ -105,6 +112,7 @@ export function CatalogCard({
   isPrimaryButtonSpinnerVisible,
   isPrimaryButtonExtIconVisible,
   isDeleteButtonVisible,
+  clickAnalytics,
   onClickPrimaryButton,
   onClickDeleteButton,
 }: CatalogCardProps) {
@@ -176,11 +184,7 @@ export function CatalogCard({
                 ) : undefined
               }
               iconPosition="end"
-              data-analytics-linktype="cta"
-              data-analytics-text={primaryButtonLabel}
-              data-analytics-category={`Developer Sandbox|Catalog|${product.title}`}
-              data-analytics-region="sandbox-catalog"
-              data-analytics-offerid={Intcmp[product.type]}
+              {...clickAnalytics}
             >
               <Flex
                 alignItems={{ default: "alignItemsCenter" }}

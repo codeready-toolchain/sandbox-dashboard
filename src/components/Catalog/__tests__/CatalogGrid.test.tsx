@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
@@ -6,7 +6,10 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../../auth/AuthenticatedContext";
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -17,6 +20,7 @@ import { OpenClawContext } from "../../../hooks/OpenClawContext";
 import { PhoneVerificationContext } from "../../../hooks/PhoneVerificationContext";
 import type { PublicConfigurationContextType } from "../../../hooks/PublicConfigurationContext";
 import { PublicConfigurationContext } from "../../../hooks/PublicConfigurationContext";
+import { SIGNUP_WATCHER_INTERVAL_MS } from "../../../hooks/signupAction/signupActionUtils";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
@@ -25,7 +29,7 @@ import { ProductType } from "../../../types/product";
 import { OpenClawStatus } from "../../../utils/openclaw-utils";
 import { RHDH_READY_DELAY_MS } from "../../../utils/rhdh-utils";
 import { CatalogGrid } from "../CatalogGrid";
-import { products } from "../productData";
+import { Intcmp, products } from "../productData";
 import { makeOpenClawContext } from "./openClawTestHelpers";
 
 vi.mock("../../../hooks/AnsibleProvider", () => ({
@@ -47,6 +51,8 @@ function makeContext(
     ...overrides,
   };
 }
+
+const trackProductAction = vi.fn();
 
 const authenticatedUser: AuthenticatedContextValue = {
   email: "johndoe@redhat.com",
@@ -94,7 +100,9 @@ function renderGridTree(
     <AuthenticatedContext.Provider value={authenticatedUser}>
       <NotificationProvider>
         <PublicConfigurationContext.Provider value={uiConfigCtx}>
-          <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+          <AnalyticsContext.Provider
+            value={{ ...noopAnalyticsContext, trackProductAction }}
+          >
             <PhoneVerificationContext.Provider
               value={{
                 openPhoneVerificationModal: vi.fn(),
@@ -155,6 +163,25 @@ function getOpenShiftTryItButton(): HTMLElement {
   return within(getOpenShiftCard()).getByRole("button", { name: "Try it" });
 }
 
+/**
+ * Forces the signup slow path so the continuation modal opens
+ * instead of `window.open`.
+ */
+function mockInactiveUserGesture(): void {
+  Object.defineProperty(navigator, "userActivation", {
+    configurable: true,
+    value: { isActive: false, hasBeenActive: false },
+  });
+}
+
+/** Restores the jsdom default, which has no User Activation API. */
+function restoreUserGesture(): void {
+  Object.defineProperty(navigator, "userActivation", {
+    configurable: true,
+    value: undefined,
+  });
+}
+
 function getRhdhCard(): HTMLElement {
   return screen.getByRole("article", {
     name: "Red Hat Developer Hub product card",
@@ -164,6 +191,184 @@ function getRhdhCard(): HTMLElement {
 describe("CatalogGrid", () => {
   afterEach(() => {
     vi.useRealTimers();
+    trackProductAction.mockClear();
+  });
+
+  it("tracks an open when a provisioned product is started", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderGrid(makeContext());
+
+    const button = getOpenShiftTryItButton();
+    expect(button).toHaveAttribute("data-analytics-text", "OpenShift");
+    expect(button).toHaveAttribute(
+      "data-analytics-offerid",
+      Intcmp[ProductType.OPENSHIFT_CONSOLE],
+    );
+    expect(
+      within(
+        screen.getByRole("article", {
+          name: "Ansible Automation Platform product card",
+        }),
+      ).getByRole("button", { name: "Set up" }),
+    ).not.toHaveAttribute("data-analytics-text");
+
+    await userEvent.click(button);
+
+    expect(trackProductAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: ProductType.OPENSHIFT_CONSOLE,
+        title: "OpenShift",
+      }),
+      "opened",
+      expect.stringContaining("console.apps.example.com"),
+    );
+    expect(open).toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it("does not decorate a ready product that has no URL", () => {
+    renderGrid(
+      makeContext({
+        user: {
+          ...readyUserFixture,
+          consoleURL: "",
+          cheDashboardURL: "",
+          rhodsMemberURL: "",
+        },
+      }),
+    );
+
+    expect(
+      within(
+        screen.getByRole("article", { name: "OpenShift AI product card" }),
+      ).getByRole("button", { name: "Try it" }),
+    ).not.toHaveAttribute("data-analytics-text");
+    expect(
+      within(getRhdhCard()).getByRole("button", { name: "Try it" }),
+    ).not.toHaveAttribute("data-analytics-text");
+  });
+
+  it("does not decorate a signup click for Adobe", () => {
+    renderGrid(makeContext({ userSignupPhase: UserSignupPhase.NOT_STARTED }));
+
+    expect(getOpenShiftTryItButton()).not.toHaveAttribute(
+      "data-analytics-text",
+    );
+  });
+
+  it("tags the signup continuation button when the product URL is valid", async () => {
+    mockInactiveUserGesture();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    });
+
+    try {
+      const { rerenderGrid } = renderGrid(
+        makeContext({ userSignupPhase: UserSignupPhase.NOT_STARTED }),
+      );
+
+      await user.click(getOpenShiftTryItButton());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SIGNUP_WATCHER_INTERVAL_MS);
+      });
+
+      expect(
+        within(
+          screen.getByRole("dialog", { name: "Signup in progress" }),
+        ).getByRole("button", { name: /Try OpenShift$/ }),
+      ).not.toHaveAttribute("data-analytics-text");
+
+      rerenderGrid(makeContext());
+
+      await waitFor(() => {
+        const continueButton = within(
+          screen.getByRole("dialog", { name: "Signup completed" }),
+        ).getByRole("button", { name: /Try OpenShift$/ });
+        expect(continueButton).toBeEnabled();
+        expect(continueButton).toHaveAttribute(
+          "data-analytics-text",
+          "OpenShift",
+        );
+        expect(continueButton).toHaveAttribute(
+          "data-analytics-offerid",
+          Intcmp[ProductType.OPENSHIFT_CONSOLE],
+        );
+      });
+
+      // The modal hides the catalog from the accessibility tree.
+      // The ready card button still carries the same open attributes.
+      expect(
+        within(
+          screen.getByRole("article", {
+            name: "OpenShift product card",
+            hidden: true,
+          }),
+        ).getByRole("button", { name: "Try it", hidden: true }),
+      ).toHaveAttribute("data-analytics-text", "OpenShift");
+    } finally {
+      restoreUserGesture();
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not tag the continuation button when the product URL is empty", async () => {
+    mockInactiveUserGesture();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    });
+
+    try {
+      const { rerenderGrid } = renderGrid(
+        makeContext({ userSignupPhase: UserSignupPhase.NOT_STARTED }),
+      );
+
+      await user.click(
+        within(
+          screen.getByRole("article", { name: "OpenShift AI product card" }),
+        ).getByRole("button", { name: "Try it" }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SIGNUP_WATCHER_INTERVAL_MS);
+      });
+
+      rerenderGrid(
+        makeContext({
+          user: {
+            ...readyUserFixture,
+            consoleURL: "",
+            cheDashboardURL: "",
+            rhodsMemberURL: "",
+          },
+        }),
+      );
+
+      await waitFor(() => {
+        expect(
+          within(
+            screen.getByRole("dialog", { name: "Signup completed" }),
+          ).getByRole("button", { name: /Try OpenShift AI/ }),
+        ).toBeEnabled();
+      });
+
+      expect(
+        within(
+          screen.getByRole("dialog", { name: "Signup completed" }),
+        ).getByRole("button", { name: /Try OpenShift AI/ }),
+      ).not.toHaveAttribute("data-analytics-text");
+      expect(
+        within(
+          screen.getByRole("article", {
+            name: "OpenShift AI product card",
+            hidden: true,
+          }),
+        ).getByRole("button", { name: "Try it", hidden: true }),
+      ).not.toHaveAttribute("data-analytics-text");
+    } finally {
+      restoreUserGesture();
+      vi.useRealTimers();
+    }
   });
 
   it("renders all product cards when no integrations are disabled", () => {

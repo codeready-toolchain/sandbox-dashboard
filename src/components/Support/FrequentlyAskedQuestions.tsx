@@ -10,17 +10,22 @@ import {
 } from "@patternfly/react-core";
 import { useState } from "react";
 
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
+import { dpalClickAttributes, IntentEvent } from "../../utils/analytics";
 import { frequentlyAskedQuestions } from "../common/faqQuestions";
 
 export function FAQ() {
+  const { trackIntent } = useAnalyticsContext();
   const [expandedItem, setExpandedItem] = useState<string | undefined>();
 
-  const onToggle = (id: string) => {
+  const onToggle = (id: string, question: string) => {
     if (id === expandedItem) {
       setExpandedItem(undefined);
-    } else {
-      setExpandedItem(id);
+      return;
     }
+
+    trackIntent(IntentEvent.supportQuestionOpened, "Support", { question });
+    setExpandedItem(id);
   };
 
   return (
@@ -32,12 +37,22 @@ export function FAQ() {
             const toggleId = `faq-toggle-${index}`;
             const contentId = `faq-content-${index}`;
 
+            const isExpanded = expandedItem === itemId;
+
             return (
-              <AccordionItem key={itemId} isExpanded={expandedItem === itemId}>
+              <AccordionItem key={itemId} isExpanded={isExpanded}>
                 <AccordionToggle
                   id={toggleId}
-                  onClick={() => onToggle(itemId)}
+                  onClick={() => onToggle(itemId, faq.question)}
                   aria-controls={contentId}
+                  {...(isExpanded
+                    ? {}
+                    : dpalClickAttributes({
+                        text: faq.question,
+                        section: "Support",
+                        detail: "FAQ",
+                        linkType: "default",
+                      }))}
                 >
                   {faq.question}
                 </AccordionToggle>

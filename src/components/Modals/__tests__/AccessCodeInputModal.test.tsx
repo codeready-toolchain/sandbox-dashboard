@@ -2,10 +2,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import * as registrationApi from "../../../api/registration";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import { UserContext, type UserContextType } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
 import { readyUserFixture } from "../../../mocks/fixtures";
+import { IntentEvent } from "../../../utils/analytics";
 import { AccessCodeInputModal } from "../AccessCodeInputModal";
+
+const trackIntent = vi.fn();
 
 vi.mock("../../../api/registration", () => ({
   verifyActivationCode: vi.fn(),
@@ -31,9 +38,11 @@ function renderModal(
 ) {
   const ctx = makeUserContext(userOverrides);
   const result = render(
-    <UserContext.Provider value={ctx}>
-      <AccessCodeInputModal isOpen={isOpen} onClose={mockOnClose} />
-    </UserContext.Provider>,
+    <AnalyticsContext.Provider value={{ ...noopAnalyticsContext, trackIntent }}>
+      <UserContext.Provider value={ctx}>
+        <AccessCodeInputModal isOpen={isOpen} onClose={mockOnClose} />
+      </UserContext.Provider>
+    </AnalyticsContext.Provider>,
   );
   return { ...result, ctx };
 }
@@ -111,6 +120,10 @@ describe("AccessCodeInputModal", () => {
     await waitFor(() => {
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
+    expect(trackIntent).toHaveBeenCalledWith(
+      IntentEvent.activationCodeAccepted,
+      "Catalog",
+    );
   });
 
   it("shows an error when refetchUserData fails after a successful activation", async () => {
@@ -165,6 +178,7 @@ describe("AccessCodeInputModal", () => {
     });
     expect(registrationApi.verifyActivationCode).toHaveBeenCalledTimes(1);
     expect(mockRefetch).toHaveBeenCalledTimes(2);
+    expect(trackIntent).toHaveBeenCalledTimes(1);
   });
 
   it("shows error from API", async () => {

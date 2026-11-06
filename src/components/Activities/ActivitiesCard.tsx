@@ -3,6 +3,7 @@ import "../common/Card.css";
 import { Card, CardBody, CardHeader, Content } from "@patternfly/react-core";
 
 import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
+import { dpalClickAttributes } from "../../utils/analytics";
 import type { Article } from "./articleData";
 
 interface ActivitiesCardProps {
@@ -21,10 +22,11 @@ export function ActivitiesCard({
       rel="noopener noreferrer"
       style={{ textDecoration: "none" }}
       onClick={() => trackAnalytics(title, "Activities", link, "cta")}
-      data-analytics-linktype="cta"
-      data-analytics-category="Developer Sandbox|Activities"
-      data-analytics-text={title}
-      data-analytics-region="sandbox-activities"
+      {...dpalClickAttributes({
+        text: title,
+        section: "Activities",
+        linkType: "cta",
+      })}
     >
       <Card isCompact className="sandbox-card">
         <CardHeader className="sandbox-card-activity-header">

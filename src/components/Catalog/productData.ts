@@ -11,7 +11,15 @@ import {
   ProductType,
   type URLTemplateVars,
 } from "../../types/product";
+import {
+  type DpalClickAttributes,
+  productOpenDpalAttributes,
+} from "../../utils/analytics";
 
+/**
+ * Marketo campaign IDs for the products. An empty string means the
+ * product has no campaign, so Marketo is not notified for it.
+ */
 export const Intcmp: Record<string, string> = {
   [ProductType.OPENSHIFT_CONSOLE]: "701Pe00000dnCEYIA2",
   [ProductType.DEVSPACES]: "701Pe00000doTQCIA2",
@@ -20,6 +28,18 @@ export const Intcmp: Record<string, string> = {
   [ProductType.AAP]: "701Pe00000dowQXIAY",
   [ProductType.OPENCLAW]: "",
 };
+
+/**
+ * Adobe click attributes for opening this product once it is
+ * provisioned. The offer id is included only when the product has a
+ * Marketo campaign.
+ * @param product the catalog product the user is opening.
+ */
+export function catalogProductOpenAttributes(
+  product: Product,
+): DpalClickAttributes {
+  return productOpenDpalAttributes(product.title, Intcmp[product.type]);
+}
 
 export const products: Product[] = [
   {

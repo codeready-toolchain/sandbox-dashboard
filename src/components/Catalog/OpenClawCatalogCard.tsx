@@ -115,7 +115,7 @@ export function OpenClawCatalogCard({
   isTriedProductHintVisible,
   markProductAsTried,
 }: OpenClawCatalogCardProps) {
-  const { trackAnalytics } = useAnalyticsContext();
+  const { trackProductAction } = useAnalyticsContext();
   const { userSignupPhase } = useUserContext();
   const { isSignupInProgress, signupAndRun, registerAction } =
     useSignupAction();
@@ -296,7 +296,7 @@ export function OpenClawCatalogCard({
       openClawProvisionInFlight.current = true;
       try {
         await startProvisioning(credentials, true);
-        trackAnalytics(product, "Catalog", undefined, "cta");
+        trackProductAction(product, "set-up");
         markProductAsTried(product);
       } catch (error) {
         handleOpenClawApiError(
@@ -314,7 +314,7 @@ export function OpenClawCatalogCard({
       product,
       startProvisioning,
       status,
-      trackAnalytics,
+      trackProductAction,
     ],
   );
 

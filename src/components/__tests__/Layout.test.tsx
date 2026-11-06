@@ -8,6 +8,10 @@ import {
   AuthenticatedContext,
   type AuthenticatedContextValue,
 } from "../../auth/AuthenticatedContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../hooks/AnalyticsContext";
 import { NotificationProvider } from "../../hooks/NotificationProvider";
 import { ThemeProvider } from "../../hooks/ThemeProvider";
 import { UserContext, type UserContextType } from "../../hooks/UserContext";
@@ -107,26 +111,31 @@ function renderLayout(
   } as AuthenticatedContextValue;
 
   return render(
-    <NotificationProvider>
-      <AuthenticatedContext.Provider value={auth}>
-        <UserContext.Provider value={makeSandboxContext(sandboxOverrides)}>
-          <ThemeProvider>
-            <MemoryRouter initialEntries={[route]}>
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route index element={<div>Catalog Content</div>} />
-                  <Route
-                    path="activities"
-                    element={<div>Activities Content</div>}
-                  />
-                  <Route path="support" element={<div>Support Content</div>} />
-                </Route>
-              </Routes>
-            </MemoryRouter>
-          </ThemeProvider>
-        </UserContext.Provider>
-      </AuthenticatedContext.Provider>
-    </NotificationProvider>,
+    <AnalyticsContext.Provider value={noopAnalyticsContext}>
+      <NotificationProvider>
+        <AuthenticatedContext.Provider value={auth}>
+          <UserContext.Provider value={makeSandboxContext(sandboxOverrides)}>
+            <ThemeProvider>
+              <MemoryRouter initialEntries={[route]}>
+                <Routes>
+                  <Route element={<Layout />}>
+                    <Route index element={<div>Catalog Content</div>} />
+                    <Route
+                      path="activities"
+                      element={<div>Activities Content</div>}
+                    />
+                    <Route
+                      path="support"
+                      element={<div>Support Content</div>}
+                    />
+                  </Route>
+                </Routes>
+              </MemoryRouter>
+            </ThemeProvider>
+          </UserContext.Provider>
+        </AuthenticatedContext.Provider>
+      </NotificationProvider>
+    </AnalyticsContext.Provider>,
   );
 }
 

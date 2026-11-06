@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 
 import type { Product, ProductType } from "../../types/product";
+import type { DpalClickAttributes } from "../../utils/analytics";
 
 /**
  * A catalog primary action that can be resumed after user signup.
@@ -21,6 +22,12 @@ export type SignupAction = {
    * connected providers (not the NO-OP `userNotReady` status).
    */
   canEnable: boolean;
+  /**
+   * Adobe attributes for the continuation button. Set only when
+   * that click opens a product URL. Omitted for signup itself and
+   * for products that have no URL.
+   */
+  clickAnalytics?: DpalClickAttributes;
   /** Runs the original catalog CTA. */
   onReady: () => void;
 };

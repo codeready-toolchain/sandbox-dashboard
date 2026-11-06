@@ -14,13 +14,16 @@ import ExternalLinkAltIcon from "@patternfly/react-icons/dist/esm/icons/external
 
 import AutomationIllustration from "../../assets/images/banner/rh-automation-general-illustration.svg";
 import WorkFromHomeIllustration from "../../assets/images/banner/rh-work-from-home-illustration.svg";
+import { useAnalyticsContext } from "../../hooks/AnalyticsContext";
 import { useUserContext } from "../../hooks/UserContext";
+import { dpalClickAttributes, IntentEvent } from "../../utils/analytics";
 import { calculateDaysBetweenDates } from "../../utils/common";
 import { type BannerContent, resolveBannerContent } from "./bannerContent";
 import { CatalogBannerSkeleton } from "./CatalogBannerSkeleton";
 import { CatalogBannerTrialExpirationPopover } from "./CatalogBannerTrialExpirationPopover";
 
 export function CatalogBanner() {
+  const { trackIntent } = useAnalyticsContext();
   const { user, userSignupPhase } = useUserContext();
 
   // Calculate the number of days that are left in the trial.
@@ -82,7 +85,20 @@ export function CatalogBanner() {
               href="https://redhat.com/en/contact"
               target="_blank"
             >
-              <Button variant="secondary" style={{ padding: "10px 15px" }}>
+              <Button
+                variant="secondary"
+                style={{ padding: "10px 15px" }}
+                onClick={() =>
+                  trackIntent(IntentEvent.contactSalesClicked, "Catalog", {
+                    surface: "catalog",
+                  })
+                }
+                {...dpalClickAttributes({
+                  text: "Contact sales",
+                  section: "Catalog",
+                  linkType: "cta",
+                })}
+              >
                 <Flex
                   display={{ default: "inlineFlex" }}
                   alignItems={{ default: "alignItemsCenter" }}

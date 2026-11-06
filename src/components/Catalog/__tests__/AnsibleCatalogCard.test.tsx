@@ -6,7 +6,10 @@ import {
   type AuthenticatedContextValue,
 } from "../../../auth/AuthenticatedContext";
 import { UserFacingError } from "../../../error/UserFacingError";
-import { AnalyticsContext } from "../../../hooks/AnalyticsContext";
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import {
   AnsibleContext,
   type AnsibleContextType,
@@ -27,6 +30,7 @@ import { AnsibleCatalogCard } from "../AnsibleCatalogCard";
 import { products } from "../productData";
 
 const aapProduct = products.find((p) => p.type === ProductType.AAP)!;
+const trackProductAction = vi.fn();
 
 const authenticatedUser: AuthenticatedContextValue = {
   email: "johndoe@redhat.com",
@@ -91,7 +95,9 @@ function renderCardTree(
             value={{ openPhoneVerificationModal: vi.fn() }}
           >
             <SignupActionContext.Provider value={signupActionCtx}>
-              <AnalyticsContext.Provider value={{ trackAnalytics: vi.fn() }}>
+              <AnalyticsContext.Provider
+                value={{ ...noopAnalyticsContext, trackProductAction }}
+              >
                 <AnsibleContext.Provider value={ansibleCtx}>
                   <AnsibleCatalogCard
                     product={aapProduct}
@@ -168,6 +174,7 @@ function getPrimaryButton(name: RegExp | string) {
 
 describe("AnsibleCatalogCard", () => {
   afterEach(() => {
+    trackProductAction.mockClear();
     vi.useRealTimers();
   });
 
@@ -184,6 +191,7 @@ describe("AnsibleCatalogCard", () => {
     await userEvent.click(getPrimaryButton("Set up"));
 
     expect(provisionInstance).toHaveBeenCalled();
+    expect(trackProductAction).toHaveBeenCalledWith(aapProduct, "set-up");
     expect(markProductAsTried).toHaveBeenCalledWith(aapProduct);
     expect(
       screen.getByRole("dialog", { name: "Ansible Automation Platform" }),
@@ -294,10 +302,12 @@ describe("AnsibleCatalogCard", () => {
     );
   });
 
-  it("shows 'Launch' button when instanceStatus is 'ready'", () => {
+  it("shows 'Launch' button when instanceStatus is 'ready'", async () => {
     renderCard({}, { instanceStatus: { kind: "ready" } });
 
     expect(getPrimaryButton("Launch").textContent).toContain("Launch");
+    await userEvent.click(getPrimaryButton("Launch"));
+    expect(trackProductAction).not.toHaveBeenCalled();
   });
 
   it("shows 'Resume' button when instanceStatus is 'idled'", () => {

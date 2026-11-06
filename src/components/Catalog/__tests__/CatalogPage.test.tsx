@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react";
 
+import {
+  AnalyticsContext,
+  noopAnalyticsContext,
+} from "../../../hooks/AnalyticsContext";
 import type { UserContextType } from "../../../hooks/UserContext";
 import { UserContext } from "../../../hooks/UserContext";
 import { UserSignupPhase } from "../../../hooks/userSignupPhase";
@@ -24,9 +28,11 @@ function renderPage(overrides: Partial<UserContextType> = {}) {
   };
 
   return render(
-    <UserContext.Provider value={value}>
-      <CatalogPage />
-    </UserContext.Provider>,
+    <AnalyticsContext.Provider value={noopAnalyticsContext}>
+      <UserContext.Provider value={value}>
+        <CatalogPage />
+      </UserContext.Provider>
+    </AnalyticsContext.Provider>,
   );
 }
 

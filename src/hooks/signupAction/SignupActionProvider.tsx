@@ -9,6 +9,7 @@ import {
 
 import { SignupInProgressModal } from "../../components/Modals";
 import { ProductType } from "../../types/product";
+import type { DpalClickAttributes } from "../../utils/analytics";
 import { useUserContext } from "../UserContext";
 import { UserSignupPhase } from "../userSignupPhase";
 import { type SignupAction, SignupActionContext } from "./SignupActionContext";
@@ -76,6 +77,14 @@ export function SignupActionProvider({ children }: { children: ReactNode }) {
    * Holds the "can be enabled" state for the action.
    */
   const [canEnable, setCanEnable] = useState(false);
+
+  /**
+   * Adobe attributes for the continuation button. Applied only
+   * once the button can open a product URL.
+   */
+  const [continuationAnalytics, setContinuationAnalytics] = useState<
+    DpalClickAttributes | undefined
+  >(undefined);
 
   /**
    * Holds the state of the signup modal.
@@ -206,6 +215,7 @@ export function SignupActionProvider({ children }: { children: ReactNode }) {
   const applyAction = useCallback((action: SignupAction) => {
     setProductTitle(action.product.title);
     setCanEnable(action.canEnable);
+    setContinuationAnalytics(action.clickAnalytics);
   }, []);
 
   /**
@@ -358,6 +368,7 @@ export function SignupActionProvider({ children }: { children: ReactNode }) {
         onClose={closeModal}
         productTitle={productTitle}
         isActionEnabled={canEnable}
+        clickAnalytics={canEnable ? continuationAnalytics : undefined}
         onContinue={onContinue}
       />
     </SignupActionContext.Provider>
